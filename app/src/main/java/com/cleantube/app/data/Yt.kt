@@ -1,7 +1,11 @@
 package com.cleantube.app.data
 
 import android.annotation.SuppressLint
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
+import android.os.Build
+import android.os.PersistableBundle
 import android.os.Handler
 import android.os.Looper
 import android.webkit.CookieManager
@@ -172,6 +176,67 @@ object Session {
 
     fun markLoggedIn() {
         loggedIn = hasAuthCookie()
+    }
+
+    /**
+     * Accepts a plain cookie string ("SID=...; SAPISID=...") or the token text of the NewPipe fork
+     * (lines like `***COOKIE*** =...`). Returns the cookie list, or null if no usable cookie is inside.
+     */
+    fun parseToken(text: String): List<Pair<String, String>>? {
+        var cookie = ""
+        var templated = false
+        text.lines().forEach { raw ->
+            val line = raw.trim()
+            if (line.startsWith("***COOKIE***") || line.startsWith("***INNERTUBE COOKIE***")) {
+                cookie = line.substringAfter("=").trim()
+                templated = true
+            }
+        }
+        if (!templated) cookie = text.replace("\r", " ").replace("\n", " ").trim().removePrefix("Cookie:").removePrefix("cookie:").trim()
+        cookie = cookie.replace("\r", "").replace("\n", "").trim()
+        val pairs = cookie.split(";").map { it.trim() }.mapNotNull {
+            val i = it.indexOf('=')
+            if (i <= 0) null else it.substring(0, i) to it.substring(i + 1)
+        }
+        return if (pairs.any { it.first == "SAPISID" || it.first == "__Secure-3PAPISID" }) pairs else null
+    }
+
+    /** Stores the pasted cookies and checks them with YouTube. Returns an error message, or null on success. */
+    suspend fun loginWithToken(text: String): String? {
+        val pairs = parseToken(text) ?: return "That doesn't contain a YouTube login cookie (SAPISID is missing)."
+        val cm = CookieManager.getInstance()
+        cm.setAcceptCookie(true)
+        pairs.forEach { (k, v) ->
+            for (domain in listOf("youtube.com", "google.com")) {
+                cm.setCookie("https://www.$domain", "$k=$v; Domain=.$domain; Path=/; Secure")
+            }
+        }
+        cm.flush()
+        markLoggedIn()
+        try {
+            Yt.run("reset")
+        } catch (e: Exception) {
+            // checked below
+        }
+        refresh()
+        if (name.isEmpty() && handle.isEmpty()) {
+            logout()
+            return "YouTube didn't accept that token. It may have expired: copy a fresh one."
+        }
+        return null
+    }
+
+    /** Copies the current session as token text (full access to the account, so it is flagged sensitive). */
+    fun copyToken(context: Context): Boolean {
+        val cookie = CookieManager.getInstance().getCookie("https://www.youtube.com").orEmpty()
+        if (cookie.isEmpty()) return false
+        val text = "***COOKIE*** =$cookie\n***NAME*** =$name"
+        val clip = ClipData.newPlainText("YouTube token", text)
+        if (Build.VERSION.SDK_INT >= 33) {
+            clip.description.extras = PersistableBundle().apply { putBoolean("android.content.extra.IS_SENSITIVE", true) }
+        }
+        (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
+        return true
     }
 
     fun logout() {

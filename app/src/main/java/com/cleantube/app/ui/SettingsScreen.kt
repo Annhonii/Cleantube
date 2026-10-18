@@ -15,8 +15,13 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
+import android.widget.Toast
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +52,57 @@ import kotlinx.coroutines.withContext
 fun AccountCard(modifier: Modifier = Modifier) {
     val nav = LocalNav.current
     val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+    var tokenDialog by remember { mutableStateOf(false) }
+    var tokenText by remember { mutableStateOf("") }
+    var tokenError by remember { mutableStateOf("") }
+    var tokenBusy by remember { mutableStateOf(false) }
+
+    if (tokenDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!tokenBusy) tokenDialog = false },
+            containerColor = Card,
+            title = { Text("Sign in with token") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Paste the token copied from CleanTube or from your NewPipe fork (\"Copy token\"), " +
+                            "or just a cookie string that contains SAPISID.",
+                        color = TextMuted, fontSize = 13.sp
+                    )
+                    OutlinedTextField(
+                        value = tokenText,
+                        onValueChange = { tokenText = it },
+                        minLines = 5,
+                        maxLines = 10,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (tokenError.isNotEmpty()) Text(tokenError, color = Accent, fontSize = 13.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (tokenBusy) return@TextButton
+                    tokenBusy = true
+                    tokenError = ""
+                    scope.launch {
+                        val err = Session.loginWithToken(tokenText)
+                        tokenBusy = false
+                        if (err == null) {
+                            tokenDialog = false
+                            tokenText = ""
+                        } else {
+                            tokenError = err
+                        }
+                    }
+                }) { Text(if (tokenBusy) "Checking..." else "Sign in", color = Accent) }
+            },
+            dismissButton = {
+                TextButton(onClick = { if (!tokenBusy) tokenDialog = false }) { Text("Cancel", color = TextPrimary) }
+            }
+        )
+    }
+
     Column(
         modifier
             .fillMaxWidth()
@@ -77,7 +133,7 @@ fun AccountCard(modifier: Modifier = Modifier) {
                 color = TextMuted,
                 fontSize = 13.sp
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Pill("Import my subscriptions", onClick = {
                     scope.launch {
                         try {
@@ -87,6 +143,13 @@ fun AccountCard(modifier: Modifier = Modifier) {
                             // shown nowhere: the Library tab simply stays as it was
                         }
                     }
+                })
+                Pill("Copy token", onClick = {
+                    Toast.makeText(
+                        ctx,
+                        if (Session.copyToken(ctx)) "Token copied. It gives full access to your account: don't share it." else "Not signed in.",
+                        Toast.LENGTH_LONG
+                    ).show()
                 })
                 Pill("Sign out", onClick = {
                     Session.logout()
@@ -110,7 +173,10 @@ fun AccountCard(modifier: Modifier = Modifier) {
                 color = TextMuted,
                 fontSize = 13.sp
             )
-            Pill("Sign in", onClick = { nav.push(Route.Login) }, active = true)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill("Sign in", onClick = { nav.push(Route.Login) }, active = true)
+                Pill("Sign in with token", onClick = { tokenDialog = true })
+            }
         }
     }
 }
