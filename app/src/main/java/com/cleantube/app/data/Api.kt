@@ -76,14 +76,18 @@ object Api {
     // ---------------------------------------------------------------- account feeds
 
     suspend fun home(token: String?): Page<VideoItem> {
-        val page = videosPage(Yt.run("home", args("token" to token)))
+        // Home shows long videos only: Shorts have their own tab.
+        val page = videosPage(Yt.run("home", args("token" to token)), dropShorts = true)
         // Signed-out home can come back empty: fall back to a search so the tab is never blank.
-        if (token == null && page.items.isEmpty()) return searchVideos("trending now", null)
+        if (token == null && page.items.isEmpty()) {
+            val s = searchVideos("trending now", null)
+            return Page(s.items.filter { !it.short }, s.next)
+        }
         return page
     }
 
     suspend fun accountFeed(token: String?): Page<VideoItem> =
-        videosPage(Yt.run("feed", args("token" to token)))
+        videosPage(Yt.run("feed", args("token" to token)), dropShorts = true)
 
     suspend fun accountHistory(token: String?): Page<VideoItem> =
         videosPage(Yt.run("history", args("token" to token)))
