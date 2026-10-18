@@ -236,6 +236,19 @@ fun SettingsScreen() {
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters)
         )
 
+        SectionTitle("DOWNLOADS")
+        Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill("In app", onClick = { store.downloadWhere = "app" }, active = store.downloadWhere == "app")
+                Pill("Phone storage", onClick = { store.downloadWhere = "phone" }, active = store.downloadWhere == "phone")
+            }
+            Text(
+                "Default place for new downloads. You can change it each time.",
+                color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
+            )
+            Pill("Open downloads", onClick = { nav.push(Route.Downloads) }, modifier = Modifier.fillMaxWidth())
+        }
+
         SectionTitle("YOUR DATA (STORED ONLY ON THIS PHONE)")
         Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Pill(
@@ -266,7 +279,7 @@ fun SettingsScreen() {
             "CleanTube ${"2.0"}\n" +
                 "Browse, search and comments use YouTube's own (unofficial) internal API, no key needed. " +
                 "Playback uses YouTube's official player, so ads, quality and controls are decided by YouTube. " +
-                "Downloads and background play are not possible with it.\n\n" +
+                "Background play is not possible with it. Downloads use separate links (see the Download button on a video).\n\n" +
                 "Layout inspired by NewPipe. Not affiliated with YouTube, Google or NewPipe.",
             color = TextMuted,
             fontSize = 13.sp,

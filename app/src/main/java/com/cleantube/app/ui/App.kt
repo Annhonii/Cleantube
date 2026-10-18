@@ -30,6 +30,8 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                     Route.History -> HistoryScreen()
                     Route.Settings -> SettingsScreen()
                     Route.Login -> LoginScreen()
+                    Route.Downloads -> DownloadsScreen()
+                    is Route.LocalPlay -> LocalPlayScreen(r)
                     is Route.Search -> SearchScreen(r)
                     is Route.Video -> VideoScreen(r)
                     is Route.Channel -> ChannelScreen(r)

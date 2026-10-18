@@ -8,6 +8,7 @@ class CleanTubeApp : Application() {
         super.onCreate()
         Graph.init(this)
         com.cleantube.app.data.Yt.init(this)
+        com.cleantube.app.data.Downloads.init(this)
         com.cleantube.app.data.Session.markLoggedIn()
     }
 }

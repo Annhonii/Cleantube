@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Text
@@ -68,6 +69,7 @@ fun VideoScreen(route: Route.Video) {
     var tab by remember(route.id) { mutableStateOf(0) }
     var descOpen by remember(route.id) { mutableStateOf(false) }
     var saveDialog by remember(route.id) { mutableStateOf(false) }
+    var downloadDialog by remember(route.id) { mutableStateOf(false) }
 
     val video = details?.video ?: route.seed
     val channelId = video?.channelId.orEmpty()
@@ -150,6 +152,7 @@ fun VideoScreen(route: Route.Video) {
                         onClick = { if (video != null) saveDialog = true },
                         icon = Icons.Rounded.Add
                     )
+                    Pill("Download", onClick = { if (video != null) downloadDialog = true }, icon = Icons.Rounded.Download)
                     Pill("Open in YouTube", onClick = { openInYouTube(ctx, route.id) }, icon = Icons.Rounded.PlayArrow)
                 }
             }
@@ -261,6 +264,9 @@ fun VideoScreen(route: Route.Video) {
         }
     }
 
+    if (downloadDialog && video != null) {
+        DownloadDialog(video) { downloadDialog = false }
+    }
     if (saveDialog && video != null) {
         SaveToPlaylistDialog(video) { saveDialog = false }
     }

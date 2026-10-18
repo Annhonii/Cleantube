@@ -32,6 +32,15 @@ class Store(context: Context) {
             sp.edit().putString("region", v).apply()
         }
 
+    private val dlWhereState = mutableStateOf(sp.getString("dl_where", "app").orEmpty())
+    /** Default place for downloads: "app" (private to this app) or "phone" (Movies / Music folder). */
+    var downloadWhere: String
+        get() = dlWhereState.value
+        set(value) {
+            dlWhereState.value = value
+            sp.edit().putString("dl_where", value).apply()
+        }
+
     // ---------------------------------------------------------------- data
 
     var subscriptions by mutableStateOf(readArray("subs").mapObjects { it.toChannel() })

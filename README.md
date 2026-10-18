@@ -18,7 +18,7 @@ Login happens in a normal Google sign-in page inside the app; only the cookies s
 - Google's terms don't allow unofficial clients. Use an account you can afford to risk.
 - Google may refuse sign-in inside an app WebView. If it does, the app still works signed out.
 - Videos opened in CleanTube are not added to your YouTube watch history (the embedded player isn't signed in); the History tab keeps a local list and can also show your YouTube one.
-- No ad blocking, downloads or background play (the official player doesn't allow them). Some videos block embedding; the app then offers "Open in YouTube".
+- No ad blocking or background play (the official player doesn't allow them). Some videos block embedding; the app then offers "Open in YouTube".
 
 ## Tabs
 
@@ -29,6 +29,8 @@ Login happens in a normal Google sign-in page inside the app; only the cookies s
 | Library | Subscriptions and local playlists |
 | History | Videos you opened, plus your YouTube history when signed in |
 | Search (round button) | Videos / channels / playlists, local search history |
+
+Downloads: the Download button on a video offers files that already contain picture and sound (up to 720p) and audio-only files, saved either **in the app** (private folder) or to **phone storage** (Movies/CleanTube, Music/CleanTube). Links come from YouTube's app clients and can stop working when YouTube changes them; 1080p+ needs joining video and audio, which isn't supported.
 
 Also: video page with description, comments and "Up next"; channel pages; save to playlist; share;
 YouTube links and "Share to CleanTube" open in the app; import NewPipe subscriptions (`.json`); export / import backup.
