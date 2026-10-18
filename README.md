@@ -30,7 +30,7 @@ Login happens in a normal Google sign-in page inside the app; only the cookies s
 | History | Videos you opened, plus your YouTube history when signed in |
 | Search (round button) | Videos / channels / playlists, local search history |
 
-Downloads: the Download button on a video offers files that already contain picture and sound (up to 720p) and audio-only files, saved either **in the app** (private folder) or to **phone storage** (Movies/CleanTube, Music/CleanTube). Links come from YouTube's app clients and can stop working when YouTube changes them; 1080p+ needs joining video and audio, which isn't supported.
+Downloads: the Download button on a video offers every H.264 quality (picture and sound are downloaded separately, then joined on the phone), ready-made files when YouTube gives any, and audio-only files. 1 to 32 parallel connections can be chosen, saved either **in the app** (private folder) or to **phone storage** (Movies/CleanTube, Music/CleanTube). Links come from YouTube's app clients and can stop working when YouTube changes them; VP9 / AV1 qualities (usually 1440p and up) are not offered.
 
 Also: video page with description, comments and "Up next"; channel pages; save to playlist; share;
 YouTube links and "Share to CleanTube" open in the app; import NewPipe subscriptions (`.json`); export / import backup.

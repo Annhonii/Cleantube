@@ -15,7 +15,11 @@ data class StreamOption(
     val mime: String,
     val size: Long,
     val url: String,
-    val userAgent: String
+    val userAgent: String,
+    /** For "merge" options: a second file (the sound) that is joined with [url] (the picture) after download. */
+    val audioUrl: String = "",
+    val audioSize: Long = 0,
+    val merge: Boolean = false
 )
 
 data class StreamInfo(val title: String, val options: List<StreamOption>)
@@ -24,8 +28,8 @@ data class StreamInfo(val title: String, val options: List<StreamOption>)
  * Gets direct media links from YouTube's "player" endpoint.
  *
  * It asks as a few different official-app clients (VR, iOS, Android) because YouTube changes which of them
- * hand out plain links. Only files that already contain sound AND picture (up to 720p) and audio-only
- * files are offered: joining separate video and audio tracks isn't supported.
+ * hand out plain links. Offers every H.264 height (picture and sound are downloaded separately and joined on the phone),
+ * ready-made files if YouTube gives any, and audio-only files. VP9 / AV1 (usually 1440p and above) are not offered.
  */
 object Streams {
 
@@ -128,13 +132,41 @@ object Streams {
             )
         }
 
-        // audio only: the best m4a and the best webm/opus
         val adaptive = sd.optJSONArray("adaptiveFormats")
         val audio = ArrayList<JSONObject>()
+        val video = ArrayList<JSONObject>()
         for (i in 0 until (adaptive?.length() ?: 0)) {
             val f = adaptive!!.optJSONObject(i) ?: continue
-            if (f.optString("mimeType").startsWith("audio/") && f.optString("url").isNotEmpty()) audio.add(f)
+            if (f.optString("url").isEmpty()) continue
+            val mime = f.optString("mimeType")
+            if (mime.startsWith("audio/")) audio.add(f)
+            else if (mime.startsWith("video/mp4") && mime.contains("avc1")) video.add(f)
         }
+        val bestM4a = audio.filter { it.optString("mimeType").startsWith("audio/mp4") }.maxByOrNull { it.optInt("bitrate") }
+
+        // picture-only tracks (every height) + the best m4a sound, joined on the phone after download
+        if (bestM4a != null) {
+            val audioSize = bestM4a.optString("contentLength").toLongOrNull() ?: 0L
+            video.groupBy { it.optInt("height") }.forEach { (_, group) ->
+                val f = group.maxByOrNull { it.optInt("bitrate") } ?: return@forEach
+                val vSize = f.optString("contentLength").toLongOrNull() ?: 0L
+                out += StreamOption(
+                    itag = f.optInt("itag"),
+                    label = f.optString("qualityLabel").ifEmpty { "${f.optInt("height")}p" } + " video + sound (MP4)",
+                    audioOnly = false,
+                    ext = "mp4",
+                    mime = "video/mp4",
+                    size = if (vSize > 0) vSize + audioSize else -1,
+                    url = f.optString("url"),
+                    userAgent = ua,
+                    audioUrl = bestM4a.optString("url"),
+                    audioSize = audioSize,
+                    merge = true
+                )
+            }
+        }
+
+        // audio only: the best m4a and the best webm/opus
         listOf("audio/mp4" to "m4a", "audio/webm" to "webm").forEach { (prefix, ext) ->
             val best = audio.filter { it.optString("mimeType").startsWith(prefix) }.maxByOrNull { it.optInt("bitrate") } ?: return@forEach
             out += StreamOption(
@@ -148,6 +180,6 @@ object Streams {
                 userAgent = ua
             )
         }
-        return out.sortedWith(compareBy<StreamOption>({ it.audioOnly }, { -it.itag }))
+        return out.sortedWith(compareBy<StreamOption>({ it.audioOnly }, { !it.merge }, { -(Regex("(\\d+)p").find(it.label)?.groupValues?.get(1)?.toIntOrNull() ?: 0) }))
     }
 }

@@ -246,6 +246,12 @@ fun SettingsScreen() {
                 "Default place for new downloads. You can change it each time.",
                 color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
             )
+            Text("Connections per download (more is faster, but YouTube may refuse too many):", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(1, 4, 8, 16, 32).forEach { n ->
+                    Pill("$n", onClick = { store.downloadThreads = n }, active = store.downloadThreads == n)
+                }
+            }
             Pill("Open downloads", onClick = { nav.push(Route.Downloads) }, modifier = Modifier.fillMaxWidth())
         }
 

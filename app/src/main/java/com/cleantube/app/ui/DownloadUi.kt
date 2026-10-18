@@ -6,6 +6,9 @@ import android.widget.MediaController
 import android.widget.VideoView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -63,6 +66,7 @@ fun DownloadDialog(video: VideoItem, onDone: () -> Unit) {
     var error by remember(video.id) { mutableStateOf<String?>(null) }
     var picked by remember(video.id) { mutableStateOf<StreamOption?>(null) }
     var where by remember { mutableStateOf(store.downloadWhere) }
+    var threads by remember { mutableStateOf(store.downloadThreads) }
 
     LaunchedEffect(video.id) {
         try {
@@ -81,7 +85,7 @@ fun DownloadDialog(video: VideoItem, onDone: () -> Unit) {
         containerColor = Card,
         title = { Text("Download") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val i = info
                 val err = error
                 when {
@@ -112,6 +116,12 @@ fun DownloadDialog(video: VideoItem, onDone: () -> Unit) {
                             Pill("In app", onClick = { where = "app" }, active = where == "app")
                             Pill("Phone storage", onClick = { where = "phone" }, active = where == "phone")
                         }
+                        Text("Connections (threads)", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(1, 4, 8, 16, 32).forEach { n ->
+                                Pill("$n", onClick = { threads = n }, active = threads == n)
+                            }
+                        }
                         Text(
                             if (where == "app") "Private to CleanTube, shown in its Downloads list. Removed if you uninstall the app."
                             else "Saved in Movies/CleanTube (or Music/CleanTube for audio), visible to your gallery and file manager.",
@@ -126,7 +136,8 @@ fun DownloadDialog(video: VideoItem, onDone: () -> Unit) {
             if (o != null) {
                 TextButton(onClick = {
                     store.downloadWhere = where
-                    Downloads.enqueue(ctx, video.id, info?.title?.ifEmpty { video.title } ?: video.title, o, where)
+                    store.downloadThreads = threads
+                    Downloads.enqueue(ctx, video.id, info?.title?.ifEmpty { video.title } ?: video.title, o, where, threads)
                     android.widget.Toast.makeText(ctx, "Download started", android.widget.Toast.LENGTH_SHORT).show()
                     onDone()
                 }) { Text("Download", color = Accent) }
@@ -176,7 +187,7 @@ private fun DownloadRow(d: DownloadItem) {
         Text(d.title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
         val state = when (d.status) {
             DlStatus.QUEUED -> "Waiting…"
-            DlStatus.RUNNING -> "${(d.progress * 100).toInt()}%  ${sizeText(d.bytes)}"
+            DlStatus.RUNNING -> d.phase.ifEmpty { "${(d.progress * 100).toInt()}%  ${sizeText(d.bytes)}" }
             DlStatus.DONE -> sizeText(d.bytes)
             DlStatus.FAILED -> "Failed: ${d.error}"
             DlStatus.CANCELLED -> "Cancelled"

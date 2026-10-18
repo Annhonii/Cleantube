@@ -41,6 +41,16 @@ class Store(context: Context) {
             sp.edit().putString("dl_where", value).apply()
         }
 
+    private val dlThreadsState = mutableStateOf(sp.getInt("dl_threads", 8))
+    /** How many connections one download uses (1 to 32). */
+    var downloadThreads: Int
+        get() = dlThreadsState.value
+        set(value) {
+            val v = value.coerceIn(1, 32)
+            dlThreadsState.value = v
+            sp.edit().putInt("dl_threads", v).apply()
+        }
+
     // ---------------------------------------------------------------- data
 
     var subscriptions by mutableStateOf(readArray("subs").mapObjects { it.toChannel() })
