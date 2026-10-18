@@ -37,8 +37,10 @@ import androidx.compose.ui.unit.sp
 import com.cleantube.app.data.ApiException
 import com.cleantube.app.data.ChannelItem
 import com.cleantube.app.data.Graph
+import com.cleantube.app.data.Paged
+import com.cleantube.app.data.Session
 import com.cleantube.app.data.VideoItem
-import com.cleantube.app.data.YouTubeApi
+import com.cleantube.app.data.Api
 import kotlinx.coroutines.launch
 
 private val listPadding = PaddingValues(bottom = 120.dp)
@@ -66,6 +68,29 @@ private object FeedCache {
 
 @Composable
 fun FeedScreen() {
+    if (Session.loggedIn) AccountFeedScreen() else LocalFeedScreen()
+}
+
+/** Your real YouTube subscriptions feed (needs the account login). */
+@Composable
+private fun AccountFeedScreen() {
+    val nav = LocalNav.current
+    val scope = rememberCoroutineScope()
+    val paged = remember { Paged(scope) { token -> Api.accountFeed(token) } }
+    Column(Modifier.fillMaxSize()) {
+        TabTopBar("Feed", actions = {
+            IconButton(onClick = { paged.refresh() }) {
+                Icon(Icons.Rounded.Refresh, contentDescription = "Refresh", tint = TextPrimary)
+            }
+        })
+        PagedColumn(paged, emptyText = "Subscribe to channels and their newest videos show up here.") { v ->
+            VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
+        }
+    }
+}
+
+@Composable
+private fun LocalFeedScreen() {
     val nav = LocalNav.current
     val store = Graph.store
     val scope = rememberCoroutineScope()
@@ -81,7 +106,7 @@ fun FeedScreen() {
         error = null
         scope.launch {
             try {
-                val result = YouTubeApi.feed(subs)
+                val result = Api.localFeed(subs)
                 FeedCache.put(subs, result)
                 items = result
             } catch (e: ApiException) {
@@ -107,7 +132,7 @@ fun FeedScreen() {
         val list = items
         val err = error
         when {
-            subs.isEmpty() -> EmptyState("Subscribe to channels and their newest videos show up here.")
+            subs.isEmpty() -> EmptyState("Subscribe to channels and their newest videos show up here.\nSign in from Settings to use your real YouTube feed.")
             err != null -> ErrorBox(err, onRetry = { load() })
             list == null || (loading && list.isEmpty()) -> Loading()
             list.isEmpty() -> EmptyState("No recent videos.")
@@ -215,8 +240,11 @@ fun LibraryScreen() {
 fun HistoryScreen() {
     val nav = LocalNav.current
     val store = Graph.store
+    val scope = rememberCoroutineScope()
     var confirm by remember { mutableStateOf(false) }
+    var account by remember { mutableStateOf(false) }
     val list = store.history
+    val remote = remember(Session.loggedIn) { Paged(scope) { token -> Api.accountHistory(token) } }
 
     Column(Modifier.fillMaxSize()) {
         TabTopBar("History", actions = {
@@ -226,7 +254,17 @@ fun HistoryScreen() {
                 }
             }
         })
-        if (list.isEmpty()) {
+        if (Session.loggedIn) {
+            Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill("This app", onClick = { account = false }, active = !account)
+                Pill("YouTube account", onClick = { account = true }, active = account)
+            }
+        }
+        if (account && Session.loggedIn) {
+            PagedColumn(remote, emptyText = "Your YouTube watch history is empty.") { v ->
+                VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
+            }
+        } else if (list.isEmpty()) {
             EmptyState("Videos you open show up here.")
         } else {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = listPadding) {

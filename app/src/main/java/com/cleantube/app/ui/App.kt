@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import com.cleantube.app.data.Session
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -15,6 +17,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 
 @Composable
 fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
+    LaunchedEffect(Unit) { Session.refresh() }
     CompositionLocalProvider(LocalNav provides nav, LocalFullscreen provides fullscreen) {
         Box(Modifier.fillMaxSize().background(Bg)) {
             val r = nav.current
@@ -26,6 +29,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                     Route.Library -> LibraryScreen()
                     Route.History -> HistoryScreen()
                     Route.Settings -> SettingsScreen()
+                    Route.Login -> LoginScreen()
                     is Route.Search -> SearchScreen(r)
                     is Route.Video -> VideoScreen(r)
                     is Route.Channel -> ChannelScreen(r)

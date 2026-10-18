@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import kotlinx.coroutines.launch
 
 fun shareText(ctx: Context, text: String) {
     val send = Intent(Intent.ACTION_SEND).apply {
@@ -68,5 +69,21 @@ fun routeFromUri(uri: Uri): Route? {
         first == "channel" && segs.size > 1 -> Route.Channel(segs[1])
         first.startsWith("@") -> Route.Channel(id = "", handle = first)
         else -> null
+    }
+}
+
+/** Subscribes / unsubscribes locally and, when signed in, on the YouTube account too (best effort). */
+fun toggleSubscription(scope: kotlinx.coroutines.CoroutineScope, ch: com.cleantube.app.data.ChannelItem) {
+    val store = com.cleantube.app.data.Graph.store
+    val turnOn = !store.isSubscribed(ch.id)
+    store.toggleSubscription(ch)
+    if (com.cleantube.app.data.Session.loggedIn) {
+        scope.launch {
+            try {
+                com.cleantube.app.data.Api.subscribe(ch.id, turnOn)
+            } catch (e: Exception) {
+                // the local list is still correct
+            }
+        }
     }
 }

@@ -49,7 +49,7 @@ import com.cleantube.app.data.Page
 import com.cleantube.app.data.Paged
 import com.cleantube.app.data.VideoDetails
 import com.cleantube.app.data.VideoItem
-import com.cleantube.app.data.YouTubeApi
+import com.cleantube.app.data.Api
 import com.cleantube.app.data.formatCount
 import com.cleantube.app.data.timeAgo
 import com.cleantube.app.data.uploadsPlaylistOf
@@ -78,35 +78,29 @@ fun VideoScreen(route: Route.Video) {
     LaunchedEffect(route.id, reload) {
         error = null
         try {
-            val d = YouTubeApi.videoDetails(route.id)
+            val d = Api.videoDetails(route.id)
             details = d
-            store.addHistory(d.video)
-            if (d.video.channelId.isNotEmpty()) {
-                try {
-                    channel = YouTubeApi.channelsByIds(listOf(d.video.channelId)).firstOrNull()
-                } catch (e: ApiException) {
-                    // avatar is optional
-                }
-            }
+            channel = d.channel
+            if (route.seed == null) store.addHistory(d.video)
         } catch (e: ApiException) {
             error = e
         }
     }
 
-    val more = remember(channelId) {
+    val more = remember(details) {
         Paged<VideoItem>(scope) { token ->
-            if (channelId.isEmpty()) Page<VideoItem>(emptyList(), null)
-            else YouTubeApi.playlistVideos(uploadsPlaylistOf(channelId), token)
+            if (token == null) Page(details?.related.orEmpty(), details?.relatedNext)
+            else Api.related(token)
         }
     }
     val comments = remember(route.id) {
-        Paged(scope) { token -> YouTubeApi.comments(route.id, token) }
+        Paged(scope) { token -> Api.comments(route.id, token) }
     }
     val active: Paged<*> = if (tab == 0) more else comments
     val listState = rememberLazyListState()
 
-    LaunchedEffect(tab, channelId) {
-        if (tab == 0 && channelId.isNotEmpty() && more.items.isEmpty()) more.loadMore()
+    LaunchedEffect(tab, details) {
+        if (tab == 0 && details != null && more.items.isEmpty()) more.loadMore()
         if (tab == 1 && comments.items.isEmpty()) comments.loadMore()
     }
     LoadMoreEffect(listState, active)
@@ -131,9 +125,9 @@ fun VideoScreen(route: Route.Video) {
                         overflow = TextOverflow.Ellipsis
                     )
                     val meta = listOfNotNull(
-                        video?.views?.takeIf { it >= 0 }?.let { "${formatCount(it)} views" },
-                        details?.likes?.takeIf { it >= 0 }?.let { "${formatCount(it)} likes" },
-                        video?.publishedAt?.let { timeAgo(it) }?.takeIf { it.isNotEmpty() }
+                        video?.viewsText?.takeIf { it.isNotEmpty() },
+                        details?.likesText?.takeIf { it.isNotEmpty() }?.let { "$it likes" },
+                        video?.ageText?.takeIf { it.isNotEmpty() }
                     ).joinToString(" • ")
                     if (meta.isNotEmpty()) {
                         Text(meta, color = TextMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
@@ -186,14 +180,14 @@ fun VideoScreen(route: Route.Video) {
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            if (ch.subs >= 0) {
-                                Text("${formatCount(ch.subs)} subscribers", color = TextMuted, fontSize = 12.sp)
+                            if (ch.subsText.isNotEmpty()) {
+                                Text(ch.subsText, color = TextMuted, fontSize = 12.sp)
                             }
                         }
                         Spacer(Modifier.width(8.dp))
                         Pill(
                             if (subscribed) "Subscribed" else "Subscribe",
-                            onClick = { store.toggleSubscription(ch) },
+                            onClick = { toggleSubscription(scope, ch) },
                             active = !subscribed
                         )
                     }
@@ -233,10 +227,10 @@ fun VideoScreen(route: Route.Video) {
                     Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Pill("More from channel", onClick = { tab = 0 }, active = tab == 0)
-                    val c = details?.commentCount ?: -1L
+                    Pill("Up next", onClick = { tab = 0 }, active = tab == 0)
+                    val c = details?.commentCountText.orEmpty()
                     Pill(
-                        if (c >= 0) "Comments · ${formatCount(c)}" else "Comments",
+                        if (c.isNotEmpty()) "Comments · $c" else "Comments",
                         onClick = { tab = 1 },
                         active = tab == 1
                     )
@@ -279,7 +273,7 @@ private fun CommentRow(c: Comment) {
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                listOf(c.author, timeAgo(c.publishedAt)).filter { it.isNotEmpty() }.joinToString(" • "),
+                listOf(c.author, c.publishedAt).filter { it.isNotEmpty() }.joinToString(" • "),
                 color = TextMuted,
                 fontSize = 12.sp,
                 maxLines = 1,
@@ -287,7 +281,7 @@ private fun CommentRow(c: Comment) {
             )
             Text(c.text, color = TextPrimary, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
             val extra = listOfNotNull(
-                if (c.likes > 0) "${formatCount(c.likes)} likes" else null,
+                if (c.likesText.isNotEmpty() && c.likesText != "0") "${c.likesText} likes" else null,
                 if (c.replies > 0) "${c.replies} replies" else null
             ).joinToString(" • ")
             if (extra.isNotEmpty()) {

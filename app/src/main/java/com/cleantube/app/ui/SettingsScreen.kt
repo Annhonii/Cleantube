@@ -32,21 +32,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cleantube.app.data.ApiException
 import com.cleantube.app.data.Graph
-import com.cleantube.app.data.YouTubeApi
+import com.cleantube.app.data.Api
+import com.cleantube.app.data.Session
+import com.cleantube.app.data.Yt
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Paste-your-own-key card. Used on Home (first run) and in Settings. */
+/** Sign-in card. Signing in makes Home, Feed and History your real YouTube ones. */
 @Composable
-fun ApiKeySetup(modifier: Modifier = Modifier) {
-    val store = Graph.store
-    val ctx = LocalContext.current
+fun AccountCard(modifier: Modifier = Modifier) {
+    val nav = LocalNav.current
     val scope = rememberCoroutineScope()
-    var text by remember { mutableStateOf(store.apiKey) }
-    var status by remember { mutableStateOf("") }
-    var busy by remember { mutableStateOf(false) }
-
     Column(
         modifier
             .fillMaxWidth()
@@ -55,59 +55,62 @@ fun ApiKeySetup(modifier: Modifier = Modifier) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(
-            "Connect YouTube",
-            color = TextPrimary,
-            fontFamily = NType,
-            fontWeight = FontWeight.Bold,
-            fontSize = 20.sp
-        )
-        Text(
-            "CleanTube uses YouTube's official Data API. You need your own free key:\n" +
-                "1. Open Google Cloud Console and create a project.\n" +
-                "2. Enable \"YouTube Data API v3\".\n" +
-                "3. Credentials > Create credentials > API key, then paste it below.\n\n" +
-                "Free quota: 10,000 units a day. A search costs 100, most other things cost 1.",
-            color = TextMuted,
-            fontSize = 13.sp
-        )
-        Pill(
-            "Open Google Cloud Console",
-            onClick = { openUrl(ctx, "https://console.cloud.google.com/apis/library/youtube.googleapis.com") }
-        )
-        PillTextField(
-            value = text,
-            onValueChange = { text = it },
-            placeholder = "Paste API key (AIza...)",
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None)
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            Pill(
-                if (busy) "Checking..." else "Save and test",
-                onClick = {
-                    if (busy) return@Pill
-                    if (text.isBlank()) {
-                        status = "Paste your key first."
-                        return@Pill
-                    }
-                    busy = true
-                    status = ""
-                    scope.launch {
-                        val problem = YouTubeApi.testKey(text)
-                        if (problem == null) {
-                            store.apiKey = text
-                            status = "Key works."
-                        } else {
-                            status = problem
-                        }
-                        busy = false
-                    }
-                },
-                active = true
-            )
-            if (status.isNotEmpty()) {
-                Text(status, color = TextMuted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        if (Session.loggedIn) {
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                if (Session.thumb.isNotEmpty()) {
+                    AppImage(Session.thumb, Modifier.size(44.dp), androidx.compose.foundation.shape.CircleShape)
+                    Spacer(Modifier.width(12.dp))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        Session.name.ifEmpty { "Signed in" },
+                        color = TextPrimary,
+                        fontFamily = NType,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    if (Session.handle.isNotEmpty()) Text(Session.handle, color = TextMuted, fontSize = 13.sp)
+                }
             }
+            Text(
+                "Home, Feed and History now come from your YouTube account.",
+                color = TextMuted,
+                fontSize = 13.sp
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill("Import my subscriptions", onClick = {
+                    scope.launch {
+                        try {
+                            val list = Api.accountChannels()
+                            Graph.store.importChannels(list)
+                        } catch (e: Exception) {
+                            // shown nowhere: the Library tab simply stays as it was
+                        }
+                    }
+                })
+                Pill("Sign out", onClick = {
+                    Session.logout()
+                    scope.launch { try { Yt.run("reset") } catch (e: Exception) { /* ignore */ } }
+                })
+            }
+        } else {
+            Text(
+                "Sign in with your Google account",
+                color = TextPrimary,
+                fontFamily = NType,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+            Text(
+                "CleanTube talks to YouTube the way the website does, so there is no API key. " +
+                    "Without signing in you get YouTube's general home feed. After signing in, Home shows YouTube's " +
+                    "recommendations for you, and Feed and History are your real ones.\n\n" +
+                    "This is not an official YouTube API. It can break when YouTube changes things, " +
+                    "and Google's terms don't allow unofficial clients, so use an account you can afford to risk.",
+                color = TextMuted,
+                fontSize = 13.sp
+            )
+            Pill("Sign in", onClick = { nav.push(Route.Login) }, active = true)
         }
     }
 }
@@ -149,15 +152,18 @@ fun SettingsScreen() {
     ) {
         ScreenTitle("Settings", onBack = { nav.back() })
 
-        SectionTitle("YOUTUBE API")
-        ApiKeySetup(Modifier.padding(horizontal = 12.dp))
+        SectionTitle("ACCOUNT")
+        AccountCard(Modifier.padding(horizontal = 12.dp))
 
-        SectionTitle("TRENDING REGION (2-LETTER COUNTRY CODE)")
+        SectionTitle("REGION (2-LETTER COUNTRY CODE)")
         PillTextField(
             value = regionText,
             onValueChange = {
                 regionText = it.uppercase().take(2)
-                if (regionText.length == 2) store.region = regionText
+                if (regionText.length == 2) {
+                    store.region = regionText
+                    Yt.setLocale("en", regionText)
+                }
             },
             placeholder = "IN",
             modifier = Modifier.padding(horizontal = 12.dp),
@@ -192,9 +198,9 @@ fun SettingsScreen() {
         SectionTitle("ABOUT")
         Text(
             "CleanTube ${"2.0"}\n" +
-                "Browse, search and comments use the official YouTube Data API. Playback uses YouTube's official player, " +
-                "so ads, quality and controls are decided by YouTube. Downloads and background play are not possible " +
-                "with the official player.\n\n" +
+                "Browse, search and comments use YouTube's own (unofficial) internal API, no key needed. " +
+                "Playback uses YouTube's official player, so ads, quality and controls are decided by YouTube. " +
+                "Downloads and background play are not possible with it.\n\n" +
                 "Layout inspired by NewPipe. Not affiliated with YouTube, Google or NewPipe.",
             color = TextMuted,
             fontSize = 13.sp,
@@ -219,11 +225,11 @@ private suspend fun importFromUri(ctx: Context, uri: Uri): String {
         return "That file isn't a valid NewPipe or CleanTube export."
     }
 
-    // Imported subscriptions often have no avatar: fetch them if a key is set (about 1 quota unit per 50 channels).
+    // Imported subscriptions often have no avatar: fetch them.
     val missing = store.subscriptions.filter { it.thumb.isEmpty() }.map { it.id }
-    if (missing.isNotEmpty() && store.apiKey.isNotEmpty()) {
+    if (missing.isNotEmpty()) {
         try {
-            store.refreshSubscriptions(YouTubeApi.channelsByIds(missing))
+            store.refreshSubscriptions(Api.channelsByIds(missing))
         } catch (e: ApiException) {
             return "Imported $added subscriptions (avatars will fill in later)."
         }

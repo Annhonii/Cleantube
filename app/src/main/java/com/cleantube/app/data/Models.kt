@@ -11,7 +11,11 @@ data class VideoItem(
     val publishedAt: String = "",
     val durationSec: Long = -1,
     val views: Long = -1,
-    val live: Boolean = false
+    val live: Boolean = false,
+    /** Display texts straight from YouTube ("1.6M views", "3 days ago"); empty when unknown. */
+    val viewsText: String = "",
+    val ageText: String = "",
+    val short: Boolean = false
 ) {
     val thumb: String get() = "https://i.ytimg.com/vi/$id/mqdefault.jpg"
 }
@@ -23,7 +27,9 @@ data class ChannelItem(
     val subs: Long = -1,
     val description: String = "",
     val banner: String = "",
-    val handle: String = ""
+    val handle: String = "",
+    val subsText: String = "",
+    val videosText: String = ""
 )
 
 data class PlaylistItem(
@@ -31,7 +37,8 @@ data class PlaylistItem(
     val title: String,
     val channelTitle: String = "",
     val thumb: String = "",
-    val count: Int = -1
+    val count: Int = -1,
+    val countText: String = ""
 )
 
 data class Comment(
@@ -40,7 +47,8 @@ data class Comment(
     val text: String,
     val likes: Long,
     val publishedAt: String,
-    val replies: Int
+    val replies: Int,
+    val likesText: String = ""
 )
 
 data class VideoDetails(
@@ -48,7 +56,12 @@ data class VideoDetails(
     val description: String,
     val likes: Long,
     val commentCount: Long,
-    val embeddable: Boolean
+    val embeddable: Boolean,
+    val likesText: String = "",
+    val commentCountText: String = "",
+    val channel: ChannelItem? = null,
+    val related: List<VideoItem> = emptyList(),
+    val relatedNext: String? = null
 )
 
 data class LocalPlaylist(
@@ -69,6 +82,7 @@ class ApiException(val kind: Kind, message: String) : Exception(message) {
 fun VideoItem.toJson(): JSONObject = JSONObject()
     .put("id", id).put("title", title).put("cid", channelId).put("ct", channelTitle)
     .put("pub", publishedAt).put("dur", durationSec).put("views", views).put("live", live)
+    .put("vt", viewsText).put("at", ageText).put("short", short)
 
 fun JSONObject.toVideo(): VideoItem = VideoItem(
     id = optString("id"),
@@ -78,17 +92,21 @@ fun JSONObject.toVideo(): VideoItem = VideoItem(
     publishedAt = optString("pub"),
     durationSec = optLong("dur", -1),
     views = optLong("views", -1),
-    live = optBoolean("live", false)
+    live = optBoolean("live", false),
+    viewsText = optString("vt"),
+    ageText = optString("at"),
+    short = optBoolean("short", false)
 )
 
 fun ChannelItem.toJson(): JSONObject = JSONObject()
-    .put("id", id).put("title", title).put("thumb", thumb).put("subs", subs)
+    .put("id", id).put("title", title).put("thumb", thumb).put("subs", subs).put("st", subsText)
 
 fun JSONObject.toChannel(): ChannelItem = ChannelItem(
     id = optString("id"),
     title = optString("title"),
     thumb = optString("thumb"),
-    subs = optLong("subs", -1)
+    subs = optLong("subs", -1),
+    subsText = optString("st")
 )
 
 fun LocalPlaylist.toJson(): JSONObject = JSONObject()

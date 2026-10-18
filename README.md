@@ -2,40 +2,36 @@
 
 A native Android YouTube client (Kotlin + Jetpack Compose) with a NewPipe-style layout and a black "Nothing" look.
 
-- **Browse, search, channels, playlists, comments:** official YouTube Data API v3
+- **Browse, search, channels, playlists, comments:** YouTube's own internal (InnerTube) API, the same one the website uses. No API key, no Google Cloud Console.
 - **Playback:** official YouTube player (IFrame, via [android-youtube-player](https://github.com/PierfrancescoSoffritti/android-youtube-player))
-- **Your data stays on the phone:** subscriptions, feed, history and playlists are stored locally, no account needed
+- **Sign in with Google (optional):** Home becomes YouTube's real recommendations for you, Feed is your real subscriptions feed, History can show your YouTube history.
 
-## First run
+## How it works
 
-The app needs your own free API key (Settings, or the card on the Home tab explains it):
+A hidden WebView sits on youtube.com and `assets/yt.js` makes the InnerTube requests and parses the answers into plain lists
+(the parsers are tested against recorded YouTube responses). The Kotlin side only asks it for things.
+Login happens in a normal Google sign-in page inside the app; only the cookies stay on your phone.
 
-1. Google Cloud Console > create a project
-2. Enable **YouTube Data API v3**
-3. Credentials > Create credentials > **API key**, paste it into the app
+## Honest warnings
 
-Free quota is 10,000 units a day. A search costs 100 units (about 100 searches a day); everything else costs 1.
-The quota resets around 12:30 PM IST.
+- It is **unofficial**. YouTube can change its responses any day and a screen may stop loading until `yt.js` is updated.
+- Google's terms don't allow unofficial clients. Use an account you can afford to risk.
+- Google may refuse sign-in inside an app WebView. If it does, the app still works signed out.
+- Videos opened in CleanTube are not added to your YouTube watch history (the embedded player isn't signed in); the History tab keeps a local list and can also show your YouTube one.
+- No ad blocking, downloads or background play (the official player doesn't allow them). Some videos block embedding; the app then offers "Open in YouTube".
 
-## Features
+## Tabs
 
 | Tab | What it does |
 |---|---|
-| Home | Trending for your region, with category chips |
-| Feed | Newest videos from your subscriptions (about 1 quota unit per channel) |
+| Home | YouTube's home feed (personalized when signed in) |
+| Feed | Your subscriptions feed (signed in) or newest videos from locally saved subscriptions |
 | Library | Subscriptions and local playlists |
-| History | Videos you opened |
+| History | Videos you opened, plus your YouTube history when signed in |
 | Search (round button) | Videos / channels / playlists, local search history |
 
-Also: video page with description, comments, "more from channel"; channel pages; save to playlist; share;
+Also: video page with description, comments and "Up next"; channel pages; save to playlist; share;
 YouTube links and "Share to CleanTube" open in the app; import NewPipe subscriptions (`.json`); export / import backup.
-
-## What the official engine cannot do
-
-- No ad blocking, downloads or background / screen-off playback (the official player does not allow them)
-- Some videos disallow embedding; the app then offers "Open in YouTube"
-- No related-videos list (YouTube removed it from the API), so the video page shows "more from channel"
-- Sign-in / likes / sync with your Google account are not available
 
 ## Build
 

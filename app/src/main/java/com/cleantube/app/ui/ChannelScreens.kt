@@ -36,9 +36,8 @@ import com.cleantube.app.data.Graph
 import com.cleantube.app.data.Paged
 import com.cleantube.app.data.PlaylistItem
 import com.cleantube.app.data.VideoItem
-import com.cleantube.app.data.YouTubeApi
+import com.cleantube.app.data.Api
 import com.cleantube.app.data.formatCount
-import com.cleantube.app.data.uploadsPlaylistOf
 
 @Composable
 fun ChannelScreen(route: Route.Channel) {
@@ -53,8 +52,8 @@ fun ChannelScreen(route: Route.Channel) {
     LaunchedEffect(route, attempt) {
         error = null
         try {
-            channel = if (route.id.isNotEmpty()) YouTubeApi.channel(route.id)
-            else YouTubeApi.channelByHandle(route.handle)
+            channel = if (route.id.isNotEmpty()) Api.channel(route.id)
+            else Api.channelByHandle(route.handle)
         } catch (e: ApiException) {
             error = e
         }
@@ -70,7 +69,7 @@ fun ChannelScreen(route: Route.Channel) {
             if (err != null) ErrorBox(err, onRetry = { attempt++ }) else Loading()
         } else {
             val paged = remember(ch.id) {
-                Paged<VideoItem>(scope) { token -> YouTubeApi.playlistVideos(uploadsPlaylistOf(ch.id), token) }
+                Paged<VideoItem>(scope) { token -> Api.channelVideos(ch.id, token) }
             }
             PagedColumn(
                 paged,
@@ -87,6 +86,7 @@ fun ChannelScreen(route: Route.Channel) {
 private fun ChannelHeader(ch: ChannelItem) {
     val store = Graph.store
     val subscribed = store.isSubscribed(ch.id)
+    val scope = rememberCoroutineScope()
     var open by remember(ch.id) { mutableStateOf(false) }
 
     Column(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
@@ -114,14 +114,14 @@ private fun ChannelHeader(ch: ChannelItem) {
                 )
                 val line = listOfNotNull(
                     ch.handle.takeIf { it.isNotEmpty() },
-                    ch.subs.takeIf { it >= 0 }?.let { "${formatCount(it)} subscribers" }
+                    ch.subsText.ifEmpty { ch.subs.takeIf { it >= 0 }?.let { "${formatCount(it)} subscribers" }.orEmpty() }.takeIf { it.isNotEmpty() }
                 ).joinToString(" • ")
                 if (line.isNotEmpty()) Text(line, color = TextMuted, fontSize = 13.sp)
             }
         }
         Pill(
             if (subscribed) "Subscribed" else "Subscribe",
-            onClick = { store.toggleSubscription(ch) },
+            onClick = { toggleSubscription(scope, ch) },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             active = !subscribed
         )
@@ -160,14 +160,14 @@ fun PlaylistScreen(route: Route.Playlist) {
 
     LaunchedEffect(route.id) {
         try {
-            info = YouTubeApi.playlist(route.id)
+            info = Api.playlist(route.id)
         } catch (e: ApiException) {
             // the title we already have is enough
         }
     }
 
     val paged = remember(route.id) {
-        Paged<VideoItem>(scope) { token -> YouTubeApi.playlistVideos(route.id, token) }
+        Paged<VideoItem>(scope) { token -> Api.playlistVideos(route.id, token) }
     }
 
     Column(Modifier.fillMaxSize()) {

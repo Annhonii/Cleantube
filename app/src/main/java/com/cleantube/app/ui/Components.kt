@@ -251,8 +251,8 @@ fun <T> PagedColumn(
 
 private fun videoMeta(v: VideoItem): String =
     listOf(
-        timeAgo(v.publishedAt),
-        if (v.views >= 0) "${formatCount(v.views)} views" else ""
+        v.viewsText.ifEmpty { if (v.views >= 0) "${formatCount(v.views)} views" else "" },
+        v.ageText.ifEmpty { timeAgo(v.publishedAt) }
     ).filter { it.isNotEmpty() }.joinToString(" • ")
 
 @Composable
@@ -367,7 +367,7 @@ fun ChannelRow(c: ChannelItem, onClick: () -> Unit, trailing: (@Composable () ->
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            val sub = if (c.subs >= 0) "${formatCount(c.subs)} subscribers" else c.description
+            val sub = c.subsText.ifEmpty { if (c.subs >= 0) "${formatCount(c.subs)} subscribers" else c.description }
             if (sub.isNotEmpty()) {
                 Text(sub, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -390,7 +390,8 @@ fun PlaylistRow(p: PlaylistItem, onClick: () -> Unit) {
     ) {
         Box(Modifier.width(144.dp).aspectRatio(16f / 9f)) {
             AppImage(p.thumb, Modifier.fillMaxSize())
-            if (p.count >= 0) Badge("${p.count} videos", Color(0xAA000000), Modifier.align(Alignment.BottomEnd).padding(5.dp))
+            if (p.countText.isNotEmpty()) Badge(p.countText, Color(0xAA000000), Modifier.align(Alignment.BottomEnd).padding(5.dp))
+            else if (p.count >= 0) Badge("${p.count} videos", Color(0xAA000000), Modifier.align(Alignment.BottomEnd).padding(5.dp))
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {

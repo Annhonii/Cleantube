@@ -71,6 +71,15 @@ class Store(context: Context) {
         save("subs", subscriptions) { it.toJson() }
     }
 
+    /** Adds channels that aren't subscribed locally yet. */
+    fun importChannels(list: List<ChannelItem>) {
+        val known = subscriptions.map { it.id }.toMutableSet()
+        val fresh = list.filter { known.add(it.id) }
+        if (fresh.isEmpty()) return
+        subscriptions = subscriptions + fresh
+        save("subs", subscriptions) { it.toJson() }
+    }
+
     /** Fill in avatars / names for subscriptions that were imported without them. */
     fun refreshSubscriptions(fresh: List<ChannelItem>) {
         val byId = fresh.associateBy { it.id }

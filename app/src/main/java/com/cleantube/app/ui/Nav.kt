@@ -13,6 +13,7 @@ sealed interface Route {
     data object History : Route
 
     data object Settings : Route
+    data object Login : Route
     data class Search(val query: String = "") : Route
     data class Video(val id: String, val seed: VideoItem? = null) : Route
     data class Channel(val id: String, val seed: ChannelItem? = null, val handle: String = "") : Route

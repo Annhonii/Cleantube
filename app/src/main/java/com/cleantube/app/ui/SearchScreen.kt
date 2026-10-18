@@ -43,7 +43,7 @@ import com.cleantube.app.data.Graph
 import com.cleantube.app.data.Paged
 import com.cleantube.app.data.PlaylistItem
 import com.cleantube.app.data.VideoItem
-import com.cleantube.app.data.YouTubeApi
+import com.cleantube.app.data.Api
 
 @Composable
 fun SearchScreen(route: Route.Search) {
@@ -169,13 +169,12 @@ fun SearchScreen(route: Route.Search) {
                 Pill("Playlists", onClick = { type = "playlist" }, active = type == "playlist")
             }
 
-            val apiKey = store.apiKey
-            val paged = remember(submitted, type, apiKey) {
+            val paged = remember(submitted, type) {
                 Paged<Any>(scope) { token ->
                     when (type) {
-                        "channel" -> YouTubeApi.searchChannels(submitted, token)
-                        "playlist" -> YouTubeApi.searchPlaylists(submitted, token)
-                        else -> YouTubeApi.searchVideos(submitted, token)
+                        "channel" -> Api.searchChannels(submitted, token)
+                        "playlist" -> Api.searchPlaylists(submitted, token)
+                        else -> Api.searchVideos(submitted, token)
                     }
                 }
             }
