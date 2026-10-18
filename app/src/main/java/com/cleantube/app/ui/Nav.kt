@@ -6,15 +6,16 @@ import com.cleantube.app.data.ChannelItem
 import com.cleantube.app.data.VideoItem
 
 sealed interface Route {
-    // The four tabs of the floating nav
+    // The tabs of the floating nav
     data object Home : Route
+    data object Shorts : Route
     data object Feed : Route
     data object Library : Route
+    data object Downloads : Route
     data object History : Route
 
     data object Settings : Route
     data object Login : Route
-    data object Downloads : Route
     data class LocalPlay(val uri: String, val title: String) : Route
     data class Search(val query: String = "") : Route
     data class Video(val id: String, val seed: VideoItem? = null) : Route
@@ -23,7 +24,7 @@ sealed interface Route {
     data class LocalList(val id: String) : Route
 }
 
-val TabRoutes: List<Route> = listOf(Route.Home, Route.Feed, Route.Library, Route.History)
+val TabRoutes: List<Route> = listOf(Route.Home, Route.Shorts, Route.Feed, Route.Library, Route.Downloads, Route.History)
 
 /** A tiny back stack. Tabs replace the whole stack, everything else is pushed on top. */
 class Nav(start: Route = Route.Home) {

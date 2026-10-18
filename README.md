@@ -25,12 +25,16 @@ Login happens in a normal Google sign-in page inside the app; only the cookies s
 | Tab | What it does |
 |---|---|
 | Home | YouTube's home feed (personalized when signed in) |
+| Shorts | Full-screen vertical Shorts feed (swipe up for the next one, tap to pause) with topic chips, Download / Save / Share on every Short |
 | Feed | Your subscriptions feed (signed in) or newest videos from locally saved subscriptions |
 | Library | Subscriptions and local playlists |
+| Downloads | Live download progress (percent, size, speed, time left), finished files, retry / cancel / delete, "Paste YouTube link" |
 | History | Videos you opened, plus your YouTube history when signed in |
-| Search (round button) | Videos / channels / playlists, local search history |
+| Search (magnifier in the top bar) | Videos / channels / playlists, local search history |
 
-Downloads: the Download button on a video offers every H.264 quality (picture and sound are downloaded separately, then joined on the phone), ready-made files when YouTube gives any, and audio-only files. 1 to 32 parallel connections can be chosen, saved either **in the app** (private folder) or to **phone storage** (Movies/CleanTube, Music/CleanTube). Links come from YouTube's app clients and can stop working when YouTube changes them; VP9 / AV1 qualities (usually 1440p and up) are not offered.
+Downloads: stream links now come from the **NewPipe engine** ([NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor)); the old built-in method is only a fallback. A stale / refused link is refreshed automatically once. Progress, speed and time left are shown in the Downloads tab and in the notification (with a Cancel button); a separate notification announces finished / failed downloads. When YouTube changes something and downloads break again, bump the `NewPipeExtractor` version in `app/build.gradle.kts` to the newest release.
+
+The Download button on a video offers every H.264 quality (picture and sound are downloaded separately, then joined on the phone), ready-made files when YouTube gives any, and audio-only files. 1 to 32 parallel connections can be chosen, saved either **in the app** (private folder) or to **phone storage** (Movies/CleanTube, Music/CleanTube). Links come from YouTube's app clients and can stop working when YouTube changes them; VP9 / AV1 qualities (usually 1440p and up) are not offered.
 
 Also: video page with description, comments and "Up next"; channel pages; save to playlist; share;
 YouTube links and "Share to CleanTube" open in the app; import NewPipe subscriptions (`.json`); export / import backup.

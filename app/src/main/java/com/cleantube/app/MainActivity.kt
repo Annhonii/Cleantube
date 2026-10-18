@@ -3,9 +3,14 @@ package com.cleantube.app
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Color
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -16,12 +21,21 @@ import com.cleantube.app.ui.CleanTubeRoot
 import com.cleantube.app.ui.CleanTubeTheme
 import com.cleantube.app.ui.FullscreenHost
 import com.cleantube.app.ui.Nav
+import com.cleantube.app.ui.Route
 import com.cleantube.app.ui.routeFromUri
 
 class MainActivity : ComponentActivity() {
 
     private val nav = Nav()
     private val fullscreen = FullscreenHost()
+
+    // Android 13+ hides all notifications (including download progress) until the user allows them.
+    private val notifPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    companion object {
+        const val EXTRA_OPEN = "open"
+        const val OPEN_DOWNLOADS = "downloads"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,6 +46,12 @@ class MainActivity : ComponentActivity() {
 
         fullscreen.onChanged = { on -> applyFullscreen(on) }
         handleIntent(intent)
+
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
 
         setContent {
             CleanTubeTheme {
@@ -49,6 +69,12 @@ class MainActivity : ComponentActivity() {
     /** Opens shared / tapped YouTube links inside the app. */
     private fun handleIntent(i: Intent?) {
         if (i == null) return
+        // Tapped a download notification: show the Downloads tab.
+        if (i.getStringExtra(EXTRA_OPEN) == OPEN_DOWNLOADS) {
+            i.removeExtra(EXTRA_OPEN)
+            nav.selectTab(Route.Downloads)
+            return
+        }
         val uri: Uri? = when (i.action) {
             Intent.ACTION_VIEW -> i.data
             Intent.ACTION_SEND -> {

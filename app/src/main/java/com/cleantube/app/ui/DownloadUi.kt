@@ -1,6 +1,16 @@
 package com.cleantube.app.ui
 
 import android.net.Uri
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ContentPaste
+import com.cleantube.app.data.formatBytes
+import com.cleantube.app.data.formatEta
+import com.cleantube.app.data.formatSpeed
 import android.view.ViewGroup
 import android.widget.MediaController
 import android.widget.VideoView
@@ -50,12 +60,7 @@ import com.cleantube.app.data.StreamOption
 import com.cleantube.app.data.Streams
 import com.cleantube.app.data.VideoItem
 
-private fun sizeText(b: Long): String = when {
-    b <= 0 -> ""
-    b < 1_000_000 -> "${b / 1000} KB"
-    b < 1_000_000_000 -> String.format(java.util.Locale.US, "%.1f MB", b / 1e6)
-    else -> String.format(java.util.Locale.US, "%.2f GB", b / 1e9)
-}
+private fun sizeText(b: Long): String = formatBytes(b)
 
 /** Pick a file and a place (inside the app, or the phone's Movies / Music folder), then download. */
 @Composable
@@ -149,20 +154,46 @@ fun DownloadDialog(video: VideoItem, onDone: () -> Unit) {
 
 @Composable
 fun DownloadsScreen() {
-    val nav = LocalNav.current
     val ctx = LocalContext.current
     val list = Downloads.items
+    val active = list.filter { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
+    val finished = list.filter { it.status != DlStatus.RUNNING && it.status != DlStatus.QUEUED }
+    var pasted by remember { mutableStateOf<VideoItem?>(null) }
 
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        ScreenTitle("Downloads", onBack = { nav.back() })
-        if (list.isEmpty()) {
-            EmptyState("Nothing downloaded yet. Open a video and tap Download.")
-        } else {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-                items(list.toList(), key = { it.id }) { d -> DownloadRow(d) }
+    Column(Modifier.fillMaxSize()) {
+        TabTopBar("Downloads")
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 120.dp)) {
+            item {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                    Pill("Paste YouTube link", icon = Icons.Rounded.ContentPaste, onClick = {
+                        val text = readClipboard(ctx)
+                        val uri = Regex("https?://\\S+").find(text)?.value?.let { Uri.parse(it) }
+                        val r = uri?.let { routeFromUri(it) }
+                        if (r is Route.Video) pasted = VideoItem(id = r.id, title = "")
+                        else android.widget.Toast.makeText(ctx, "Copy a YouTube video link first.", android.widget.Toast.LENGTH_SHORT).show()
+                    })
+                }
+            }
+            if (list.isEmpty()) {
+                item { EmptyState("Nothing downloaded yet. Open a video or a Short and tap Download, or paste a link above.") }
+            }
+            if (active.isNotEmpty()) {
+                item { SectionLabel("DOWNLOADING (${active.size})") }
+                items(active, key = { it.id }) { d -> DownloadRow(d) }
+            }
+            if (finished.isNotEmpty()) {
+                item { SectionLabel("DOWNLOADED") }
+                items(finished, key = { it.id }) { d -> DownloadRow(d) }
             }
         }
     }
+
+    pasted?.let { v -> DownloadDialog(v) { pasted = null } }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(text, color = TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 20.dp, top = 14.dp, bottom = 4.dp))
 }
 
 @Composable
@@ -170,8 +201,10 @@ private fun DownloadRow(d: DownloadItem) {
     val nav = LocalNav.current
     val ctx = LocalContext.current
     var confirm by remember(d.id) { mutableStateOf(false) }
+    val running = d.status == DlStatus.RUNNING
+    val live = running || d.status == DlStatus.QUEUED
 
-    Column(
+    Row(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 5.dp)
@@ -181,34 +214,59 @@ private fun DownloadRow(d: DownloadItem) {
                 if (Downloads.exists(ctx, d)) nav.push(Route.LocalPlay(Downloads.uriOf(d).toString(), d.title))
                 else android.widget.Toast.makeText(ctx, "The file is gone (deleted or moved).", android.widget.Toast.LENGTH_LONG).show()
             }
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .padding(10.dp),
+        verticalAlignment = Alignment.Top
     ) {
-        Text(d.title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        val state = when (d.status) {
-            DlStatus.QUEUED -> "Waiting…"
-            DlStatus.RUNNING -> d.phase.ifEmpty { "${(d.progress * 100).toInt()}%  ${sizeText(d.bytes)}" }
-            DlStatus.DONE -> sizeText(d.bytes)
-            DlStatus.FAILED -> "Failed: ${d.error}"
-            DlStatus.CANCELLED -> "Cancelled"
-        }
-        Text(
-            listOf(d.label, if (d.where == "phone") "Phone storage" else "In app", state).filter { it.isNotEmpty() }.joinToString(" • "),
-            color = if (d.status == DlStatus.FAILED) Accent else TextMuted, fontSize = 12.sp
-        )
-        if (d.status == DlStatus.RUNNING || d.status == DlStatus.QUEUED) {
-            LinearProgressIndicator(
-                progress = { d.progress },
-                modifier = Modifier.fillMaxWidth(),
-                color = Accent,
-                trackColor = Hairline
+        AppImage("https://i.ytimg.com/vi/${d.videoId}/mqdefault.jpg", Modifier.width(120.dp).aspectRatio(16f / 9f))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(d.title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(
+                listOf(d.label, if (d.where == "phone") "Phone storage" else "In app").joinToString(" • "),
+                color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
             )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (d.status == DlStatus.RUNNING || d.status == DlStatus.QUEUED) {
-                Pill("Cancel", onClick = { Downloads.remove(ctx, d, deleteFile = true) })
-            } else {
-                Pill("Delete", onClick = { confirm = true })
+
+            when (d.status) {
+                DlStatus.QUEUED -> Text("Waiting in queue…", color = TextMuted, fontSize = 12.sp)
+                DlStatus.RUNNING -> {
+                    if (d.phase.isNotEmpty()) {
+                        Text(d.phase, color = TextPrimary, fontSize = 12.sp)
+                    } else {
+                        val pct = (d.progress * 100).toInt()
+                        val sizes = if (d.total > 0) "${sizeText(d.bytes)} of ${sizeText(d.total)}" else sizeText(d.bytes)
+                        Text("$pct%  •  $sizes", color = TextPrimary, fontSize = 12.sp)
+                        val speed = formatSpeed(d.speed)
+                        Text(
+                            listOf(speed, if (d.etaSec >= 0) "${formatEta(d.etaSec)} left" else "calculating time left…")
+                                .filter { it.isNotEmpty() }.joinToString("  •  "),
+                            color = TextMuted, fontSize = 12.sp
+                        )
+                    }
+                }
+                DlStatus.DONE -> Text(sizeText(d.bytes), color = TextMuted, fontSize = 12.sp)
+                DlStatus.FAILED -> Text("Failed: ${d.error}", color = Accent, fontSize = 12.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                DlStatus.CANCELLED -> Text("Cancelled", color = TextMuted, fontSize = 12.sp)
+            }
+
+            if (live) {
+                if (running && d.phase.isEmpty() && d.progress > 0f) {
+                    LinearProgressIndicator(progress = { d.progress }, modifier = Modifier.fillMaxWidth(), color = Accent, trackColor = Hairline)
+                } else {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Accent, trackColor = Hairline)
+                }
+            }
+
+            Row(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                when {
+                    running -> Pill("Cancel", onClick = { Downloads.cancel(d) })
+                    d.status == DlStatus.QUEUED -> Pill("Remove", onClick = { Downloads.remove(ctx, d, deleteFile = false) })
+                    else -> {
+                        if (d.status == DlStatus.FAILED || d.status == DlStatus.CANCELLED) {
+                            Pill("Retry", onClick = { Downloads.retry(ctx, d) }, active = true)
+                        }
+                        Pill("Delete", onClick = { confirm = true })
+                    }
+                }
             }
         }
     }

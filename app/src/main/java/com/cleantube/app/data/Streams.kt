@@ -19,13 +19,18 @@ data class StreamOption(
     /** For "merge" options: a second file (the sound) that is joined with [url] (the picture) after download. */
     val audioUrl: String = "",
     val audioSize: Long = 0,
+    /** User-Agent for [audioUrl]; empty = same as [userAgent]. */
+    val audioUserAgent: String = "",
     val merge: Boolean = false
 )
 
 data class StreamInfo(val title: String, val options: List<StreamOption>)
 
 /**
- * Gets direct media links from YouTube's "player" endpoint.
+ * Gets direct media links. First choice is the NewPipe engine ([Np]); if it fails (YouTube changed something it
+ * doesn't know yet) the older built-in method below is tried as a fallback.
+ *
+ * The fallback gets links from YouTube's "player" endpoint.
  *
  * It asks as a few different official-app clients (VR, iOS, Android) because YouTube changes which of them
  * hand out plain links. Offers every H.264 height (picture and sound are downloaded separately and joined on the phone),
@@ -58,7 +63,22 @@ object Streams {
         }
     )
 
-    suspend fun fetch(videoId: String): StreamInfo = withContext(Dispatchers.IO) {
+    suspend fun fetch(videoId: String): StreamInfo {
+        val npProblem = try {
+            return Np.fetch(videoId)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            e.message ?: e.javaClass.simpleName
+        }
+        return try {
+            fetchLegacy(videoId)
+        } catch (e: ApiException) {
+            throw ApiException(ApiException.Kind.OTHER, "NewPipe engine: $npProblem\nFallback: ${e.message}")
+        }
+    }
+
+    private suspend fun fetchLegacy(videoId: String): StreamInfo = withContext(Dispatchers.IO) {
         var lastProblem = "YouTube didn't give a download link for this video."
         for (c in clients) {
             try {

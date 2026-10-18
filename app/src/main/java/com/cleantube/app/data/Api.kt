@@ -110,6 +110,16 @@ object Api {
     suspend fun searchVideos(q: String, page: String?): Page<VideoItem> =
         videosPage(Yt.run("search", args("q" to q, "filter" to "video", "token" to page)), dropShorts = false)
 
+    /**
+     * Shorts feed. YouTube has no public "Shorts" list, so this searches "#shorts" (plus an optional topic)
+     * and keeps only real Shorts: results flagged as short, or videos of a minute or less.
+     */
+    suspend fun shorts(token: String?, topic: String = ""): Page<VideoItem> {
+        val q = if (topic.isEmpty()) "#shorts" else "#shorts $topic"
+        val p = searchVideos(q, token)
+        return Page(p.items.filter { it.short || it.durationSec in 1..62 }, p.next)
+    }
+
     suspend fun searchChannels(q: String, page: String?): Page<ChannelItem> {
         val j = Yt.run("search", args("q" to q, "filter" to "channel", "token" to page))
         return Page(j.pick("c") { it.channelItem() }, j.nextToken())

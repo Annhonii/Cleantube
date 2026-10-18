@@ -163,7 +163,7 @@ fun LibraryScreen() {
         ) {
             Pill("Subscriptions", onClick = { tab = 0 }, active = tab == 0)
             Pill("Playlists", onClick = { tab = 1 }, active = tab == 1)
-            Pill("Downloads", onClick = { nav.push(Route.Downloads) })
+            Pill("Downloads", onClick = { nav.selectTab(Route.Downloads) })
         }
 
         if (tab == 0) {

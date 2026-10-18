@@ -76,3 +76,27 @@ fun unescapeHtml(s: String): String =
 /** "UCxxxx" channel id -> its automatic "all uploads" playlist "UUxxxx". */
 fun uploadsPlaylistOf(channelId: String): String =
     if (channelId.startsWith("UC")) "UU" + channelId.substring(2) else channelId
+
+fun formatBytes(b: Long): String = when {
+    b <= 0 -> ""
+    b < 1_000_000 -> "${b / 1000} KB"
+    b < 1_000_000_000 -> String.format(Locale.US, "%.1f MB", b / 1e6)
+    else -> String.format(Locale.US, "%.2f GB", b / 1e9)
+}
+
+/** 3_200_000 -> "3.2 MB/s" */
+fun formatSpeed(bytesPerSec: Long): String = when {
+    bytesPerSec <= 0 -> ""
+    bytesPerSec < 1_000_000 -> "${bytesPerSec / 1000} KB/s"
+    else -> String.format(Locale.US, "%.1f MB/s", bytesPerSec / 1e6)
+}
+
+/** 80 -> "1:20", 3725 -> "1:02:05". Negative = not known yet. */
+fun formatEta(sec: Long): String {
+    if (sec < 0) return "calculating…"
+    val h = sec / 3600
+    val m = (sec % 3600) / 60
+    val s = sec % 60
+    return if (h > 0) String.format(Locale.US, "%d:%02d:%02d", h, m, s)
+    else String.format(Locale.US, "%d:%02d", m, s)
+}

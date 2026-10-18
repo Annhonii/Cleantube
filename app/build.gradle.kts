@@ -47,6 +47,8 @@ android {
     }
 
     compileOptions {
+        // NewPipeExtractor uses java.time etc., which minSdk 21 doesn't have natively
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -61,10 +63,13 @@ android {
 
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        resources.excludes += "/META-INF/{DEPENDENCIES,INDEX.LIST,LICENSE*,NOTICE*}"
     }
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.webkit:webkit:1.12.1")
     implementation("androidx.activity:activity-compose:1.9.3")
@@ -83,4 +88,10 @@ dependencies {
 
     // Official YouTube IFrame player wrapper
     implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:13.0.0")
+
+    // NewPipe engine: the same extractor the NewPipe app uses to get playable / downloadable stream links.
+    // If YouTube breaks downloads again, bump this to the newest release tag:
+    // https://github.com/TeamNewPipe/NewPipeExtractor/releases
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

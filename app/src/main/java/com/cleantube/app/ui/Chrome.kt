@@ -21,16 +21,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.rounded.Subscriptions
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.cleantube.app.data.DlStatus
+import com.cleantube.app.data.Downloads
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -104,6 +108,9 @@ fun TabTopBar(
             modifier = Modifier.weight(1f)
         )
         actions()
+        IconButton(onClick = { nav.push(Route.Search()) }) {
+            Icon(Icons.Rounded.Search, contentDescription = "Search", tint = TextPrimary)
+        }
         IconButton(onClick = { nav.push(Route.Settings) }) {
             Icon(Icons.Rounded.Settings, contentDescription = "Settings", tint = TextPrimary)
         }
@@ -114,17 +121,18 @@ private data class TabSpec(val route: Route, val label: String, val icon: ImageV
 
 private val tabs = listOf(
     TabSpec(Route.Home, "Home", Icons.Rounded.Home),
+    TabSpec(Route.Shorts, "Shorts", Icons.Rounded.SmartDisplay),
     TabSpec(Route.Feed, "Feed", Icons.Rounded.Subscriptions),
     TabSpec(Route.Library, "Library", Icons.Rounded.VideoLibrary),
+    TabSpec(Route.Downloads, "Downloads", Icons.Rounded.Download),
     TabSpec(Route.History, "History", Icons.Rounded.History)
 )
 
-/** Floating pill: the selected tab expands into a red chip with its label; plus a round search button. */
+/** Floating pill: the selected tab expands into a red chip with its label. (Search lives in the top bar.) */
 @Composable
 fun FloatingNav(
     selected: Route,
     onSelect: (Route) -> Unit,
-    onSearch: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -150,21 +158,35 @@ fun FloatingNav(
                         .clip(CircleShape)
                         .background(if (isSelected) Accent else Color.Transparent)
                         .clickable { onSelect(t.route) }
-                        .padding(horizontal = 14.dp)
+                        .padding(horizontal = 10.dp)
                         .animateContentSize(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        t.icon,
-                        contentDescription = t.label,
-                        tint = if (isSelected) Color.White else TextMuted,
-                        modifier = Modifier.size(22.dp)
-                    )
+                    Box {
+                        Icon(
+                            t.icon,
+                            contentDescription = t.label,
+                            tint = if (isSelected) Color.White else TextMuted,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        // red dot on the Downloads tab while something is downloading
+                        if (t.route == Route.Downloads && !isSelected &&
+                            Downloads.items.any { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
+                        ) {
+                            Box(
+                                Modifier
+                                    .align(Alignment.TopEnd)
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(Accent)
+                            )
+                        }
+                    }
                     AnimatedVisibility(visible = isSelected) {
                         Text(
                             t.label,
                             color = Color.White,
-                            fontSize = 14.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             modifier = Modifier.padding(start = 8.dp)
@@ -172,17 +194,6 @@ fun FloatingNav(
                     }
                 }
             }
-        }
-        Box(
-            modifier = Modifier
-                .size(54.dp)
-                .clip(CircleShape)
-                .background(Card)
-                .border(BorderStroke(1.dp, Hairline), CircleShape)
-                .clickable(onClick = onSearch),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Rounded.Search, contentDescription = "Search", tint = TextPrimary)
         }
     }
 }

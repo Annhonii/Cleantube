@@ -25,6 +25,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
             key(r) {
                 when (r) {
                     Route.Home -> HomeScreen()
+                    Route.Shorts -> ShortsScreen()
                     Route.Feed -> FeedScreen()
                     Route.Library -> LibraryScreen()
                     Route.History -> HistoryScreen()
@@ -44,7 +45,6 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                 FloatingNav(
                     selected = r,
                     onSelect = { nav.selectTab(it) },
-                    onSearch = { nav.push(Route.Search()) },
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }
