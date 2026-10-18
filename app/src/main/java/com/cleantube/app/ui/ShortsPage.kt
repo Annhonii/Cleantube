@@ -223,13 +223,16 @@ internal fun ShortsPage(
         bursts.forEach { b -> key(b.id) { HeartBurst(b) { bursts.remove(b) } } }
 
         // ---- loading / error
-        if (isActive && player.failedId == video.id) {
+        if (isActive && (player.failedId == video.id || player.notReady)) {
             Column(
                 Modifier.align(Alignment.Center).padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text("This Short can't be played inside the app.", color = Color.White, fontSize = 14.sp)
+                if (player.errorText.isNotEmpty()) {
+                    Text("(${player.errorText})", color = Color(0xFFAAAAAA), fontSize = 12.sp)
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Pill("Retry", onClick = onRetry)
                     Pill("Open in YouTube", onClick = onOpenInYouTube, active = true)

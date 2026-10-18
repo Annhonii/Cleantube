@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -69,6 +70,7 @@ import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.Abs
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFramePlayerOptions
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 
 /** Extra info the page needs that the feed itself doesn't carry (counts, avatar, handle, description). */
 class ShortMeta(val details: VideoDetails?, val channel: ChannelItem?)
@@ -101,9 +103,14 @@ class ShortsPlayer {
     var duration by mutableFloatStateOf(0f)
     var speed by mutableStateOf(PlayerConstants.PlaybackRate.RATE_1)
     var failedId by mutableStateOf<String?>(null)
+    var errorText by mutableStateOf("")
+
+    /** The IFrame player never reported "ready" (no internet, or YouTube's page didn't load). */
+    var notReady by mutableStateOf(false)
 
     val listener = object : AbstractYouTubePlayerListener() {
         override fun onReady(youTubePlayer: YouTubePlayer) {
+            notReady = false
             player = youTubePlayer
         }
 
@@ -135,12 +142,14 @@ class ShortsPlayer {
         }
 
         override fun onError(youTubePlayer: YouTubePlayer, error: PlayerConstants.PlayerError) {
+            errorText = error.name
             failedId = loadedId
         }
     }
 
     fun load(id: String, startSec: Float = 0f) {
         failedId = null
+        errorText = ""
         started = false
         playing = false
         position = startSec
@@ -251,6 +260,35 @@ fun ShortsScreen() {
         }
     }
 
+    // A first page whose results were all filtered out must not leave the screen waiting forever.
+    LaunchedEffect(shorts.size, feed.loading, feed.finished, feed.error) {
+        if (shorts.isEmpty() && !feed.loading && !feed.finished && feed.error == null) feed.loadMore()
+    }
+
+    // If the player never gets ready, say so instead of spinning forever.
+    LaunchedEffect(playerView) {
+        delay(12_000)
+        if (sp.player == null) {
+            sp.errorText = "player not ready"
+            sp.notReady = true
+        }
+    }
+
+    // If a Short doesn't start within 8 s: reload once, then show the error screen.
+    LaunchedEffect(sp.loadedId, sp.player) {
+        val id = sp.loadedId ?: return@LaunchedEffect
+        if (sp.player == null) return@LaunchedEffect
+        delay(8_000)
+        if (!sp.started && sp.failedId == null) {
+            sp.load(id)
+            delay(8_000)
+            if (!sp.started && sp.failedId == null) {
+                sp.errorText = "timed out"
+                sp.failedId = id
+            }
+        }
+    }
+
     // Keep the feed topped up.
     LaunchedEffect(active, shorts.size) {
         if (shorts.isNotEmpty() && active >= shorts.size - 3) feed.loadMore()
@@ -279,8 +317,8 @@ fun ShortsScreen() {
         val screenH = maxHeight
 
         // ---- layer 1: the live video, cropped to fill the screen (letterboxed for non-vertical clips)
-        if (activeVideo != null) {
-            val cover = activeVideo.short
+        run {
+            val cover = activeVideo?.short ?: true
             val frameW = if (cover) screenH * 16f / 9f else screenW
             val frameH = if (cover) screenH else screenW * 9f / 16f
             Box(Modifier.fillMaxSize().clipToBounds(), contentAlignment = Alignment.Center) {
@@ -329,7 +367,14 @@ fun ShortsScreen() {
         } else {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 val err = feed.error
-                if (err != null) ErrorBox(err, onRetry = { feed.refresh() }) else Loading()
+                when {
+                    err != null -> ErrorBox(err, onRetry = { feed.refresh() })
+                    feed.finished -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        EmptyState("No Shorts found.")
+                        Pill("Retry", onClick = { feed.refresh() }, active = true)
+                    }
+                    else -> Loading()
+                }
             }
         }
 
