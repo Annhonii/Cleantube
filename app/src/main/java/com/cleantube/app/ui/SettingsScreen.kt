@@ -77,7 +77,7 @@ fun AccountCard(modifier: Modifier = Modifier) {
                         maxLines = 10,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    if (tokenError.isNotEmpty()) Text(tokenError, color = Accent, fontSize = 13.sp)
+                    if (tokenError.isNotEmpty()) Text(tokenError, color = Danger, fontSize = 13.sp)
                 }
             },
             confirmButton = {
@@ -121,7 +121,6 @@ fun AccountCard(modifier: Modifier = Modifier) {
                     Text(
                         Session.name.ifEmpty { "Signed in" },
                         color = TextPrimary,
-                        fontFamily = NType,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
@@ -160,7 +159,6 @@ fun AccountCard(modifier: Modifier = Modifier) {
             Text(
                 "Sign in with your Google account",
                 color = TextPrimary,
-                fontFamily = NType,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp
             )

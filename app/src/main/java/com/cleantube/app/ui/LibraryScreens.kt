@@ -310,7 +310,7 @@ fun HistoryScreen() {
             title = { Text("Clear watch history?") },
             text = { Text("This only removes it from this phone.", color = TextMuted) },
             confirmButton = {
-                TextButton(onClick = { store.clearHistory(); confirm = false }) { Text("Clear", color = Accent) }
+                TextButton(onClick = { store.clearHistory(); confirm = false }) { Text("Clear", color = Danger) }
             },
             dismissButton = {
                 TextButton(onClick = { confirm = false }) { Text("Cancel", color = TextPrimary) }
@@ -363,7 +363,7 @@ fun LocalListScreen(route: Route.LocalList) {
                     confirm = false
                     store.deletePlaylist(playlist.id)
                     nav.back()
-                }) { Text("Delete", color = Accent) }
+                }) { Text("Delete", color = Danger) }
             },
             dismissButton = {
                 TextButton(onClick = { confirm = false }) { Text("Cancel", color = TextPrimary) }

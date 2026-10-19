@@ -94,7 +94,7 @@ fun DownloadDialog(video: VideoItem, onDone: () -> Unit) {
                 val i = info
                 val err = error
                 when {
-                    err != null -> Text(err, color = Accent, fontSize = 13.sp)
+                    err != null -> Text(err, color = Danger, fontSize = 13.sp)
                     i == null -> Text("Getting download links…", color = TextMuted, fontSize = 13.sp)
                     else -> {
                         i.options.forEach { o ->
@@ -244,7 +244,7 @@ private fun DownloadRow(d: DownloadItem) {
                     }
                 }
                 DlStatus.DONE -> Text(sizeText(d.bytes), color = TextMuted, fontSize = 12.sp)
-                DlStatus.FAILED -> Text("Failed: ${d.error}", color = Accent, fontSize = 12.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                DlStatus.FAILED -> Text("Failed: ${d.error}", color = Danger, fontSize = 12.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
                 DlStatus.CANCELLED -> Text("Cancelled", color = TextMuted, fontSize = 12.sp)
             }
 
@@ -277,7 +277,7 @@ private fun DownloadRow(d: DownloadItem) {
             containerColor = Card,
             title = { Text("Delete download?") },
             text = { Text(if (d.status == DlStatus.DONE) "The file will be removed from your phone." else "Remove it from the list.", color = TextMuted) },
-            confirmButton = { TextButton(onClick = { Downloads.remove(ctx, d, deleteFile = true); confirm = false }) { Text("Delete", color = Accent) } },
+            confirmButton = { TextButton(onClick = { Downloads.remove(ctx, d, deleteFile = true); confirm = false }) { Text("Delete", color = Danger) } },
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel", color = TextPrimary) } }
         )
     }

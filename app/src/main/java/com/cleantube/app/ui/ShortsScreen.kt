@@ -11,7 +11,9 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -75,10 +77,12 @@ fun ShortsScreen() {
         onDispose { owner?.lifecycle?.removeObserver(obs) }
     }
 
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    Column(Modifier.fillMaxSize().background(Bg)) {
+    TabTopBar("Shorts")
+    Box(Modifier.weight(1f).fillMaxWidth().background(Color.Black)) {
         AndroidView(
-            // leaves room for the floating tab bar so it never covers YouTube's own buttons
-            modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(bottom = 72.dp),
+            // leaves room for the floating search bar so it never covers YouTube's own buttons
+            modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 80.dp),
             factory = { c ->
                 WebView(c).apply {
                     val web = this
@@ -144,6 +148,7 @@ fun ShortsScreen() {
                 Icon(Icons.Rounded.Download, contentDescription = "Download this Short", tint = Color.White)
             }
         }
+    }
     }
 
     val id = currentId

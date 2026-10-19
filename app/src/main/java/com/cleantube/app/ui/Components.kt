@@ -151,7 +151,7 @@ fun PillTextField(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
-                textStyle = TextStyle(color = TextPrimary, fontSize = 15.sp, fontFamily = Geist),
+                textStyle = TextStyle(color = TextPrimary, fontSize = 15.sp),
                 cursorBrush = SolidColor(Accent),
                 keyboardOptions = keyboardOptions,
                 keyboardActions = keyboardActions,
@@ -306,7 +306,7 @@ fun VideoRow(
                 )
             }
             if (v.live) {
-                Badge("LIVE", Accent, Modifier.align(Alignment.TopEnd).padding(12.dp))
+                Badge("LIVE", Color(0xFFD71921), Modifier.align(Alignment.TopEnd).padding(12.dp))
             } else if (v.durationSec > 0) {
                 Badge(formatDuration(v.durationSec), Color(0x99000000), Modifier.align(Alignment.TopEnd).padding(12.dp))
             }
@@ -388,20 +388,21 @@ private fun ChannelPill(name: String, modifier: Modifier = Modifier, onClick: ((
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(22.dp).clip(CircleShape).background(Bg),
+            Modifier.size(22.dp).clip(CircleShape).background(Accent),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 name.trim().firstOrNull()?.uppercase() ?: "•",
-                color = TextPrimary,
+                color = OnAccent,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium
             )
         }
         Spacer(Modifier.width(6.dp))
+        // fixed dark text: the pill is always a light frosted chip on top of the thumbnail
         Text(
             name,
-            color = Bg,
+            color = Color(0xFF1B1B1F),
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,

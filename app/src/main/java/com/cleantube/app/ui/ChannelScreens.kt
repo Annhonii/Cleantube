@@ -106,7 +106,6 @@ private fun ChannelHeader(ch: ChannelItem) {
                 Text(
                     ch.title,
                     color = TextPrimary,
-                    fontFamily = NType,
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
                     maxLines = 2,
@@ -144,7 +143,6 @@ private fun ChannelHeader(ch: ChannelItem) {
         Text(
             "Videos",
             color = TextPrimary,
-            fontFamily = NType,
             fontWeight = FontWeight.Bold,
             fontSize = 18.sp,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)

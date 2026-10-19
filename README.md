@@ -1,6 +1,6 @@
 # CleanTube
 
-A native Android YouTube client (Kotlin + Jetpack Compose) with a NewPipe-style layout and a black "Nothing" look.
+A native Android YouTube client (Kotlin + Jetpack Compose) with a NewPipe-style layout and a Material You (Monet) look: wallpaper colours on Android 12+, light / dark with the system, system font.
 
 - **Browse, search, channels, playlists, comments:** YouTube's own internal (InnerTube) API, the same one the website uses. No API key, no Google Cloud Console.
 - **Playback:** official YouTube player (IFrame, via [android-youtube-player](https://github.com/PierfrancescoSoffritti/android-youtube-player))

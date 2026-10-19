@@ -351,7 +351,7 @@ fun VideoScreen(route: Route.Video) {
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 if (subscribed) "Subscribed" else "Subscribe",
-                                color = if (subscribed) TextPrimary else Color.White,
+                                color = if (subscribed) TextPrimary else OnAccent,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
                                 modifier = Modifier

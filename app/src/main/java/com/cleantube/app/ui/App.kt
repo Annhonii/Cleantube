@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -18,7 +19,12 @@ import androidx.compose.ui.viewinterop.AndroidView
 @Composable
 fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
     LaunchedEffect(Unit) { Session.refresh() }
-    CompositionLocalProvider(LocalNav provides nav, LocalFullscreen provides fullscreen) {
+    // LocalContentColor: any Text without its own colour follows the theme (light or dark).
+    CompositionLocalProvider(
+        LocalNav provides nav,
+        LocalFullscreen provides fullscreen,
+        LocalContentColor provides TextPrimary
+    ) {
         Box(Modifier.fillMaxSize().background(Bg)) {
             val r = nav.current
 
@@ -42,9 +48,8 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
             }
 
             if (nav.isTabRoot) {
-                FloatingNav(
-                    selected = r,
-                    onSelect = { nav.selectTab(it) },
+                FloatingSearchBar(
+                    onClick = { nav.push(Route.Search()) },
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }
