@@ -41,8 +41,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                 }
             }
 
-            // The Shorts tab is full screen (its own back arrow leads home), so the floating tab bar stays away from it.
-            if (nav.isTabRoot && r != Route.Shorts) {
+            if (nav.isTabRoot) {
                 FloatingNav(
                     selected = r,
                     onSelect = { nav.selectTab(it) },
@@ -65,10 +64,12 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
 
         // Back: pop a screen; on a non-Home tab go to Home first; on Home let the system close the app.
         BackHandler(enabled = !nav.isTabRoot || nav.current != Route.Home) {
+            // inside the Shorts page, YouTube's own history goes first
+            if (nav.current == Route.Shorts && ShortsWeb.goBack()) return@BackHandler
             if (!nav.back()) nav.selectTab(Route.Home)
         }
         // Registered last so it wins while a video is fullscreen.
-        BackHandler(enabled = fullscreen.view != null || fullscreen.immersive) {
+        BackHandler(enabled = fullscreen.view != null) {
             fullscreen.requestExit()
         }
     }

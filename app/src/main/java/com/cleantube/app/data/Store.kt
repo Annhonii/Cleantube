@@ -166,17 +166,6 @@ class Store(context: Context) {
         save("playlists", playlists) { it.toJson() }
     }
 
-    // ------------------------------------------------------ Shorts reactions
-
-    /** 1 = liked, -1 = disliked, 0 = nothing. Kept on the phone only; the YouTube account's own likes aren't touched. */
-    fun reaction(videoId: String): Int = sp.getInt("react_$videoId", 0)
-
-    fun setReaction(videoId: String, value: Int) {
-        sp.edit().apply {
-            if (value == 0) remove("react_$videoId") else putInt("react_$videoId", value)
-        }.apply()
-    }
-
     // ------------------------------------------------------ backup / import
 
     fun exportJson(): String = JSONObject()
