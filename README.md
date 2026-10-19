@@ -25,7 +25,7 @@ Login happens in a normal Google sign-in page inside the app; only the cookies s
 | Tab | What it does |
 |---|---|
 | Home | YouTube's home feed (personalized when signed in) |
-| Shorts | Full-screen vertical Shorts feed (swipe up for the next one, tap to pause) with topic chips, Download / Save / Share on every Short |
+| Shorts | Full-screen vertical (9:16) Shorts feed built in the app: swipe up / down for the next Short, tap to pause, double tap left / right to seek 5 s, double tap the middle to like, long press for speed / captions / report, drag the slim bar at the bottom to scrub. Right-hand Like / Dislike / Comments / Share / Remix buttons, channel + Subscribe, caption and audio line, plus Download / Save in the three-dot menu |
 | Feed | Your subscriptions feed (signed in) or newest videos from locally saved subscriptions |
 | Library | Subscriptions and local playlists |
 | Downloads | Live download progress (percent, size, speed, time left), finished files, retry / cancel / delete, "Paste YouTube link" |

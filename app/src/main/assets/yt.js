@@ -254,7 +254,8 @@
     var tw = j.contents && j.contents.twoColumnWatchNextResults;
     var primary = findFirst(tw || j, 'videoPrimaryInfoRenderer') || {};
     var secondary = findFirst(tw || j, 'videoSecondaryInfoRenderer') || {};
-    var owner = (secondary.owner && secondary.owner.videoOwnerRenderer) || {};
+    var owner = (secondary.owner && secondary.owner.videoOwnerRenderer) ||
+                findFirst(tw || j, 'videoOwnerRenderer') || findFirst(j, 'videoOwnerRenderer') || {};
 
     var likes = '';
     walk(primary.videoActions || {}, function (x) {

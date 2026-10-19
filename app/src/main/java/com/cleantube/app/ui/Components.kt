@@ -51,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -260,7 +261,9 @@ fun VideoRow(
     v: VideoItem,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onRemove: (() -> Unit)? = null
+    onRemove: (() -> Unit)? = null,
+    container: Color = Card,
+    square: Boolean = false
 ) {
     val nav = LocalNav.current
     val ctx = LocalContext.current
@@ -271,14 +274,14 @@ fun VideoRow(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 5.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Card)
+            .clip(if (square) RectangleShape else RoundedCornerShape(16.dp))
+            .background(container)
             .clickable(onClick = onClick)
             .padding(10.dp),
         verticalAlignment = Alignment.Top
     ) {
         Box(Modifier.width(144.dp).aspectRatio(16f / 9f)) {
-            AppImage(v.thumb, Modifier.fillMaxSize())
+            AppImage(v.thumb, Modifier.fillMaxSize(), if (square) RectangleShape else RoundedCornerShape(12.dp))
             if (v.live) {
                 Badge("LIVE", Accent, Modifier.align(Alignment.BottomEnd).padding(5.dp))
             } else if (v.durationSec > 0) {
