@@ -551,6 +551,12 @@
       await call(a.on ? 'subscription/subscribe' : 'subscription/unsubscribe',
                  a.on ? { channelIds: [a.id], params: 'EgIIAhgA' } : { channelIds: [a.id] });
       return { ok: true };
+    },
+    /** Like / dislike / clear the rating of a video (signed-in only). a.status: 'like' | 'dislike' | 'none'. */
+    rate: async function (a) {
+      var ep = a.status === 'like' ? 'like/like' : a.status === 'dislike' ? 'like/dislike' : 'like/removelike';
+      await call(ep, { target: { videoId: a.id } });
+      return { ok: true };
     }
   };
 

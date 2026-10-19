@@ -109,6 +109,11 @@ object Api {
         Yt.run("subscribe", args("id" to channelId, "on" to on))
     }
 
+    /** Rates a video on the signed-in account. [status] is "like", "dislike" or "none". */
+    suspend fun rate(videoId: String, status: String) {
+        Yt.run("rate", args("id" to videoId, "status" to status))
+    }
+
     // ---------------------------------------------------------------- search
 
     suspend fun searchVideos(q: String, page: String?): Page<VideoItem> =

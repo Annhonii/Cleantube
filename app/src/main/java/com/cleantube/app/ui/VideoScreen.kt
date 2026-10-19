@@ -1,15 +1,25 @@
 package com.cleantube.app.ui
 
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -21,13 +31,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,22 +55,26 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cleantube.app.data.Api
 import com.cleantube.app.data.ApiException
 import com.cleantube.app.data.ChannelItem
 import com.cleantube.app.data.Comment
 import com.cleantube.app.data.Graph
 import com.cleantube.app.data.Page
 import com.cleantube.app.data.Paged
+import com.cleantube.app.data.Session
 import com.cleantube.app.data.VideoDetails
 import com.cleantube.app.data.VideoItem
-import com.cleantube.app.data.Api
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
-/** Soft blue used only for the likes chip, same as the reference design. */
+/** Soft blue shown on the Like chip only after the video has actually been liked. */
 private val LikeBlue = Color(0xFF5B9BD5)
 
 @Composable
@@ -71,12 +88,35 @@ fun VideoScreen(route: Route.Video) {
     var channel by remember(route.id) { mutableStateOf<ChannelItem?>(null) }
     var error by remember(route.id) { mutableStateOf<ApiException?>(null) }
     var reload by remember(route.id) { mutableStateOf(0) }
-    var tab by remember(route.id) { mutableStateOf(0) }
+    var commentsOpen by remember(route.id) { mutableStateOf(false) }
     var descOpen by remember(route.id) { mutableStateOf(false) }
     var saveDialog by remember(route.id) { mutableStateOf(false) }
     var downloadDialog by remember(route.id) { mutableStateOf(false) }
+    // 1 = liked, -1 = disliked, 0 = no rating. Only what was done in this screen is known:
+    // YouTube's earlier rating of the video isn't read from the page.
+    var rating by remember(route.id) { mutableStateOf(0) }
 
     val video = details?.video ?: route.seed
+
+    fun rate(target: Int) {
+        if (!Session.loggedIn) {
+            Toast.makeText(ctx, "Sign in with your Google account (Settings) to like or dislike.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val before = rating
+        val next = if (before == target) 0 else target
+        rating = next
+        scope.launch {
+            try {
+                Api.rate(route.id, when (next) { 1 -> "like"; -1 -> "dislike"; else -> "none" })
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                rating = before
+                Toast.makeText(ctx, "Couldn't update your rating. Try again.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     // Opening a video counts as watching it (the player itself works without any API call).
     LaunchedEffect(route.id) { route.seed?.let { store.addHistory(it) } }
@@ -102,16 +142,17 @@ fun VideoScreen(route: Route.Video) {
     val comments = remember(route.id) {
         Paged(scope) { token -> Api.comments(route.id, token) }
     }
-    // tab 0 = Up next, tab 1 = comments opened from the comments card
-    val active: Paged<*> = if (tab == 0) more else comments
     val listState = rememberLazyListState()
 
-    LaunchedEffect(tab, details) {
-        if (tab == 0 && details != null && more.items.isEmpty()) more.loadMore()
-        // comments are also loaded while closed, the card above shows the first one as a preview
-        if ((tab == 1 || details != null) && comments.items.isEmpty()) comments.loadMore()
+    LaunchedEffect(details) {
+        if (details != null && more.items.isEmpty()) more.loadMore()
+        // loaded up front: the comments card shows the first one as a preview
+        if (details != null && comments.items.isEmpty()) comments.loadMore()
     }
-    LoadMoreEffect(listState, active)
+    LoadMoreEffect(listState, more)
+
+    // Back closes the comments panel first, only then the video page.
+    BackHandler(enabled = commentsOpen) { commentsOpen = false }
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         // rounded player "card"
@@ -123,183 +164,193 @@ fun VideoScreen(route: Route.Video) {
                 .clip(RoundedCornerShape(24.dp))
         )
 
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 32.dp)) {
+        Box(Modifier.fillMaxSize()) {
+            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 32.dp)) {
 
-            // ---- title (tap to open the description) + stats
-            item {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { descOpen = !descOpen }
-                        .padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = 4.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.Top) {
-                        Text(
-                            video?.title ?: "Loading…",
-                            color = TextPrimary,
-                            fontSize = 18.sp,
-                            lineHeight = 24.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = if (descOpen) Int.MAX_VALUE else 3,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).padding(top = 2.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Icon(
-                            Icons.Rounded.KeyboardArrowDown,
-                            contentDescription = if (descOpen) "Hide description" else "Show description",
-                            tint = TextPrimary,
-                            modifier = Modifier.size(28.dp).rotate(if (descOpen) 180f else 0f)
-                        )
-                    }
-                    val meta = listOfNotNull(
-                        video?.viewsText?.takeIf { it.isNotEmpty() },
-                        video?.ageText?.takeIf { it.isNotEmpty() }
-                    ).joinToString(" • ")
-                    if (meta.isNotEmpty()) {
-                        Text(meta, color = TextMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
-                    }
-                }
-            }
-
-            // ---- description (opens under the title)
-            val description = details?.description.orEmpty()
-            if (descOpen && description.isNotBlank()) {
+                // ---- title (tap to open the description) + stats
                 item {
-                    Text(
-                        description,
-                        color = TextPrimary,
-                        fontSize = 13.sp,
-                        lineHeight = 19.sp,
-                        modifier = Modifier
+                    Column(
+                        Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Card)
-                            .padding(16.dp)
-                    )
-                }
-            }
-
-            // ---- actions
-            item {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Likes are shown as a number only: the app has no way to like a video.
-                    val likes = details?.likesText.orEmpty()
-                    if (likes.isNotEmpty()) {
-                        ActionChip(likes, Icons.Rounded.ThumbUp, onClick = null, container = LikeBlue, content = Color.White)
+                            .clickable { descOpen = !descOpen }
+                            .padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = 4.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Text(
+                                video?.title ?: "Loading…",
+                                color = TextPrimary,
+                                fontSize = 18.sp,
+                                lineHeight = 24.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = if (descOpen) Int.MAX_VALUE else 3,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f).padding(top = 2.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Icon(
+                                Icons.Rounded.KeyboardArrowDown,
+                                contentDescription = if (descOpen) "Hide description" else "Show description",
+                                tint = TextPrimary,
+                                modifier = Modifier.size(28.dp).rotate(if (descOpen) 180f else 0f)
+                            )
+                        }
+                        val meta = listOfNotNull(
+                            video?.viewsText?.takeIf { it.isNotEmpty() },
+                            video?.ageText?.takeIf { it.isNotEmpty() }
+                        ).joinToString(" • ")
+                        if (meta.isNotEmpty()) {
+                            Text(meta, color = TextMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+                        }
                     }
-                    ActionChip("Share", Icons.Rounded.Share, onClick = { shareVideo(ctx, route.id) })
-                    ActionChip("Save", Icons.Rounded.Add, onClick = { if (video != null) saveDialog = true })
-                    ActionChip("Download", Icons.Rounded.Download, onClick = { if (video != null) downloadDialog = true })
-                    ActionChip("YouTube", Icons.Rounded.PlayArrow, onClick = { openInYouTube(ctx, route.id) })
                 }
-            }
 
-            // ---- channel card
-            if (video != null && video.channelId.isNotEmpty()) {
+                // ---- description (opens under the title)
+                val description = details?.description.orEmpty()
+                if (descOpen && description.isNotBlank()) {
+                    item {
+                        Text(
+                            description,
+                            color = TextPrimary,
+                            fontSize = 13.sp,
+                            lineHeight = 19.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Card)
+                                .padding(16.dp)
+                        )
+                    }
+                }
+
+                // ---- actions
                 item {
-                    val ch = channel ?: ChannelItem(video.channelId, video.channelTitle)
-                    val subscribed = store.isSubscribed(ch.id)
                     Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val likes = details?.likesText.orEmpty()
+                        ActionChip(
+                            likes.ifEmpty { "Like" },
+                            Icons.Rounded.ThumbUp,
+                            onClick = { rate(1) },
+                            container = if (rating == 1) LikeBlue else Card,
+                            content = if (rating == 1) Color.White else TextPrimary
+                        )
+                        ActionChip(
+                            "Dislike",
+                            Icons.Rounded.ThumbDown,
+                            onClick = { rate(-1) },
+                            container = if (rating == -1) TextPrimary else Card,
+                            content = if (rating == -1) Bg else TextPrimary
+                        )
+                        ActionChip("Share", Icons.Rounded.Share, onClick = { shareVideo(ctx, route.id) })
+                        ActionChip("Save", Icons.Rounded.Add, onClick = { if (video != null) saveDialog = true })
+                        ActionChip("Download", Icons.Rounded.Download, onClick = { if (video != null) downloadDialog = true })
+                        ActionChip("YouTube", Icons.Rounded.PlayArrow, onClick = { openInYouTube(ctx, route.id) })
+                    }
+                }
+
+                // ---- channel card
+                if (video != null && video.channelId.isNotEmpty()) {
+                    item {
+                        val ch = channel ?: ChannelItem(video.channelId, video.channelTitle)
+                        val subscribed = store.isSubscribed(ch.id)
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 6.dp)
+                                .clip(RoundedCornerShape(22.dp))
+                                .background(Card)
+                                .clickable { nav.push(Route.Channel(ch.id, ch)) }
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AppImage(ch.thumb, Modifier.size(46.dp), CircleShape)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    ch.title,
+                                    color = TextPrimary,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (ch.subsText.isNotEmpty()) {
+                                    Text(ch.subsText, color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                                }
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                if (subscribed) "Subscribed" else "Subscribe",
+                                color = if (subscribed) TextPrimary else Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(if (subscribed) Hairline else Accent)
+                                    .clickable { toggleSubscription(scope, ch) }
+                                    .padding(horizontal = 20.dp, vertical = 11.dp)
+                            )
+                        }
+                    }
+                }
+
+                // ---- comments card (first comment as a preview, tap to open the comments panel)
+                item {
+                    val count = details?.commentCountText.orEmpty()
+                    val first = comments.items.firstOrNull()
+                    Column(
                         Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 14.dp, vertical = 6.dp)
                             .clip(RoundedCornerShape(22.dp))
                             .background(Card)
-                            .clickable { nav.push(Route.Channel(ch.id, ch)) }
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .clickable { commentsOpen = true }
+                            .padding(16.dp)
                     ) {
-                        AppImage(ch.thumb, Modifier.size(46.dp), CircleShape)
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                ch.title,
-                                color = TextPrimary,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Comments", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                            if (count.isNotEmpty()) {
+                                Text("  $count", color = TextMuted, fontSize = 12.sp)
+                            }
+                            Spacer(Modifier.weight(1f))
+                            Icon(
+                                Icons.Rounded.UnfoldMore,
+                                contentDescription = "Show all comments",
+                                tint = TextMuted,
+                                modifier = Modifier.size(22.dp)
                             )
-                            if (ch.subsText.isNotEmpty()) {
-                                Text(ch.subsText, color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                        }
+                        if (first != null) {
+                            Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.Top) {
+                                AppImage(first.avatar, Modifier.size(28.dp), CircleShape)
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    first.text,
+                                    color = TextPrimary,
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
                         }
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            if (subscribed) "Subscribed" else "Subscribe",
-                            color = if (subscribed) TextPrimary else Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(if (subscribed) Hairline else Accent)
-                                .clickable { toggleSubscription(scope, ch) }
-                                .padding(horizontal = 20.dp, vertical = 11.dp)
-                        )
                     }
                 }
-            }
 
-            // ---- comments card (first comment as a preview, tap to open them all)
-            item {
-                val count = details?.commentCountText.orEmpty()
-                val first = comments.items.firstOrNull()
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 6.dp)
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(Card)
-                        .clickable { tab = if (tab == 1) 0 else 1 }
-                        .padding(16.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Comments", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                        if (count.isNotEmpty()) {
-                            Text("  $count", color = TextMuted, fontSize = 12.sp)
-                        }
-                        Spacer(Modifier.weight(1f))
-                        Icon(
-                            Icons.Rounded.UnfoldMore,
-                            contentDescription = if (tab == 1) "Show up next" else "Show all comments",
-                            tint = TextMuted,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                    if (first != null && tab == 0) {
-                        Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.Top) {
-                            AppImage(first.avatar, Modifier.size(28.dp), CircleShape)
-                            Spacer(Modifier.width(10.dp))
-                            Text(
-                                first.text,
-                                color = TextPrimary,
-                                fontSize = 13.sp,
-                                lineHeight = 18.sp,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
+                // ---- general error (video details failed, e.g. quota)
+                val err = error
+                if (err != null && details == null) {
+                    item { ErrorBox(err, onRetry = { reload++ }) }
                 }
-            }
 
-            // ---- general error (video details failed, e.g. quota)
-            val err = error
-            if (err != null && details == null) {
-                item { ErrorBox(err, onRetry = { reload++ }) }
-            }
-
-            // ---- up next / comments
-            if (tab == 0) {
+                // ---- up next
                 item {
                     Text(
                         "Up next",
@@ -314,20 +365,30 @@ fun VideoScreen(route: Route.Video) {
                     val v = vids[i]
                     VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
                 }
-            } else {
-                val list = comments.items
-                items(list.size) { i -> CommentRow(list[i]) }
+
+                item {
+                    val e = more.error
+                    if (e != null) {
+                        ErrorBox(e, onRetry = { more.loadMore() })
+                    } else if (more.loading) {
+                        Loading()
+                    } else if (more.items.isEmpty() && more.finished) {
+                        EmptyState("No other videos.")
+                    }
+                }
             }
 
-            item {
-                val e = active.error
-                if (e != null) {
-                    ErrorBox(e, onRetry = { active.loadMore() })
-                } else if (active.loading) {
-                    Loading()
-                } else if (active.items.isEmpty() && active.finished) {
-                    EmptyState(if (tab == 0) "No other videos." else "No comments.")
-                }
+            // ---- comments panel: slides up under the player, the video keeps playing
+            AnimatedVisibility(
+                visible = commentsOpen,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut()
+            ) {
+                CommentsPanel(
+                    comments = comments,
+                    count = details?.commentCountText.orEmpty(),
+                    onClose = { commentsOpen = false }
+                )
             }
         }
     }
@@ -337,6 +398,56 @@ fun VideoScreen(route: Route.Video) {
     }
     if (saveDialog && video != null) {
         SaveToPlaylistDialog(video) { saveDialog = false }
+    }
+}
+
+/** Full comments list in a rounded sheet that fills the area under the player. Loads more while scrolling. */
+@Composable
+private fun CommentsPanel(comments: Paged<Comment>, count: String, onClose: () -> Unit) {
+    val state = rememberLazyListState()
+    LoadMoreEffect(state, comments)
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(Card)
+            // swallow taps so nothing underneath the panel reacts
+            .pointerInput(Unit) { detectTapGestures { } }
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 6.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Comments", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            if (count.isNotEmpty()) {
+                Text("  $count", color = TextMuted, fontSize = 13.sp)
+            }
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = onClose) {
+                Icon(Icons.Rounded.Close, contentDescription = "Close comments", tint = TextPrimary)
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Hairline))
+
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            state = state,
+            contentPadding = PaddingValues(top = 6.dp, bottom = 32.dp)
+        ) {
+            val list = comments.items
+            items(list.size) { i -> CommentRow(list[i]) }
+            item {
+                val e = comments.error
+                if (e != null) {
+                    ErrorBox(e, onRetry = { comments.loadMore() })
+                } else if (comments.loading) {
+                    Loading()
+                } else if (list.isEmpty() && comments.finished) {
+                    EmptyState("No comments.")
+                }
+            }
+        }
     }
 }
 
