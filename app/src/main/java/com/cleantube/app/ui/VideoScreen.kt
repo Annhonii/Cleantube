@@ -139,7 +139,7 @@ fun VideoScreen(route: Route.Video) {
     LoadMoreEffect(listState, more)
 
     // Leaving the page must also leave fullscreen.
-    DisposableEffect(Unit) { onDispose { host.setImmersive(false) } }
+    DisposableEffect(Unit) { onDispose { host.setImmersiveMode(false) } }
     val immersive = host.immersive
 
     BoxWithConstraints(Modifier.fillMaxSize().background(VBg)) {
@@ -370,8 +370,8 @@ fun VideoScreen(route: Route.Video) {
         VideoPlayerCard(
             videoId = route.id,
             immersive = immersive,
-            onBack = { if (host.immersive) host.setImmersive(false) else if (!nav.back()) nav.selectTab(Route.Home) },
-            onToggleImmersive = { host.setImmersive(!host.immersive) },
+            onBack = { if (host.immersive) host.setImmersiveMode(false) else if (!nav.back()) nav.selectTab(Route.Home) },
+            onToggleImmersive = { host.setImmersiveMode(!host.immersive) },
             onOpenInYouTube = { openInYouTube(ctx, route.id) },
             modifier = if (immersive) {
                 Modifier.fillMaxSize()

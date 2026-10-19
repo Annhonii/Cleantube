@@ -63,7 +63,7 @@ class FullscreenHost {
     var immersive by mutableStateOf(false)
         private set
 
-    fun setImmersive(on: Boolean) {
+    fun setImmersiveMode(on: Boolean) {
         if (immersive == on) return
         immersive = on
         onChanged?.invoke(on)
@@ -72,7 +72,7 @@ class FullscreenHost {
     /** Back button while fullscreen. */
     fun requestExit() {
         if (immersive) {
-            setImmersive(false)
+            setImmersiveMode(false)
             return
         }
         val e = exit
