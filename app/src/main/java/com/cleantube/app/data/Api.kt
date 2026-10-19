@@ -143,6 +143,8 @@ object Api {
 
     private class Watch(val commentsToken: String?)
     private val watches = ConcurrentHashMap<String, Watch>()
+    /** videoId -> token YouTube wants when posting a new comment (read from the first comments page). */
+    private val createParams = ConcurrentHashMap<String, String>()
 
     suspend fun videoDetails(id: String): VideoDetails {
         val j = Yt.run("watch", args("id" to id))
@@ -183,6 +185,7 @@ object Api {
         ?: throw ApiException(ApiException.Kind.COMMENTS_OFF, "Comments are turned off for this video.")
         val j = Yt.run("comments", args("token" to token))
         if (j.optBoolean("disabled")) throw ApiException(ApiException.Kind.COMMENTS_OFF, "Comments are turned off for this video.")
+        if (page == null) j.optString("create").takeIf { it.isNotEmpty() }?.let { createParams[videoId] = it }
         val list = (j.optJSONArray("items") ?: JSONArray()).mapObjects {
             Comment(
                 author = it.optString("author"),
@@ -196,6 +199,13 @@ object Api {
             )
         }
         return Page(list, j.nextToken())
+    }
+
+    /** Posts a new top-level comment on the signed-in account. */
+    suspend fun postComment(videoId: String, text: String) {
+        val p = createParams[videoId]
+            ?: throw ApiException(ApiException.Kind.OTHER, "The comment box isn't available for this video (sign in and reopen the comments).")
+        Yt.run("postComment", args("params" to p, "text" to text))
     }
 
     // ---------------------------------------------------------------- channel

@@ -370,7 +370,14 @@
       return false;
     });
     var disabled = !items.length && JSON.stringify(j).indexOf('Comments are turned off') >= 0;
-    return { items: items, next: token, disabled: disabled };
+    // token needed to post a new top-level comment (only present in the first page, and only when signed in)
+    var create = '';
+    walk(j, function (x) {
+      if (create) return true;
+      if (typeof x.createCommentParams === 'string') { create = x.createCommentParams; return true; }
+      return false;
+    });
+    return { items: items, next: token, disabled: disabled, create: create };
   }
 
   /** Channel page (browse with browseId, optionally followed by continuation). */
@@ -580,6 +587,11 @@
     rate: async function (a) {
       var ep = a.status === 'like' ? 'like/like' : a.status === 'dislike' ? 'like/dislike' : 'like/removelike';
       await call(ep, { target: { videoId: a.id } });
+      return { ok: true };
+    },
+    /** Posts a new top-level comment (signed-in only). a.params = createCommentParams, a.text = the comment. */
+    postComment: async function (a) {
+      await call('comment/create_comment', { commentText: a.text, createCommentParams: a.params });
       return { ok: true };
     }
   };

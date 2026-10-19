@@ -64,6 +64,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.animate
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
+import kotlin.math.roundToInt
 import com.cleantube.app.data.Api
 import com.cleantube.app.data.BackgroundPlay
 import com.cleantube.app.data.Streams
@@ -445,82 +466,215 @@ fun VideoScreen(route: Route.Video) {
     }
 }
 
-/** Full comments list in a rounded sheet that fills the area under the player. Loads more while scrolling. */
+/**
+ * Full comments list in a rounded sheet that fills the area under the player. Loads more while scrolling.
+ * Drag the sheet (header, or pull the list down while it is at the top) to close it; a floating
+ * "Add a comment" pill sits at the bottom.
+ */
 @Composable
 private fun CommentsPanel(videoId: String, comments: Paged<Comment>, count: String, onClose: () -> Unit) {
     val state = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
     LoadMoreEffect(state, comments)
     // opened replies, by the comment's replies token: each one is its own paged list
     val expanded = remember { mutableStateMapOf<String, Paged<Comment>>() }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-            .background(Card)
-            // swallow taps so nothing underneath the panel reacts
-            .pointerInput(Unit) { detectTapGestures { } }
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 6.dp, bottom = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Comments", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-            if (count.isNotEmpty()) {
-                Text("  $count", color = TextMuted, fontSize = 13.sp)
+    // ---- drag down to close
+    var dragY by remember { mutableFloatStateOf(0f) }
+    val closeAt = with(LocalDensity.current) { 120.dp.toPx() }
+    suspend fun settle(velocity: Float) {
+        if (dragY > closeAt || velocity > 1800f) onClose()
+        else animate(dragY, 0f) { v, _ -> dragY = v }
+    }
+    val headerDrag = rememberDraggableState { d -> dragY = (dragY + d).coerceAtLeast(0f) }
+    val nested = remember {
+        object : NestedScrollConnection {
+            // list is being pushed back up while the sheet is pulled down: move the sheet first
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < 0f && dragY > 0f) {
+                    val c = maxOf(available.y, -dragY)
+                    dragY += c
+                    return Offset(0f, c)
+                }
+                return Offset.Zero
             }
-            Spacer(Modifier.weight(1f))
-            IconButton(onClick = onClose) {
-                Icon(Icons.Rounded.Close, contentDescription = "Close comments", tint = TextPrimary)
-            }
-        }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Hairline))
 
-        LazyColumn(
-            Modifier.fillMaxSize(),
-            state = state,
-            contentPadding = PaddingValues(top = 6.dp, bottom = 32.dp)
-        ) {
-            val list = comments.items
-            list.forEach { c ->
-                val token = c.repliesToken
-                val rp = if (token.isNotEmpty()) expanded[token] else null
-                item {
-                    CommentRow(
-                        c,
-                        repliesOpen = rp != null,
-                        onToggleReplies = if (token.isNotEmpty()) {
-                            {
-                                if (rp != null) {
-                                    expanded.remove(token)
-                                } else {
-                                    // first page uses the thread's token, later pages the one the previous page returned
-                                    val p = Paged<Comment>(scope) { t -> Api.comments(videoId, t ?: token) }
-                                    expanded[token] = p
-                                    p.loadMore()
-                                }
-                            }
-                        } else null
-                    )
+            // list is already at the top and the finger keeps pulling down: drag the sheet
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (available.y > 0f && source == NestedScrollSource.UserInput) {
+                    dragY += available.y
+                    return Offset(0f, available.y)
                 }
-                if (rp != null) {
-                    val replies = rp.items
-                    items(replies.size) { i -> CommentRow(replies[i], reply = true) }
-                    item { RepliesFooter(rp, onHide = { expanded.remove(token) }) }
+                return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (dragY > 0f) {
+                    settle(available.y)
+                    return available
+                }
+                return Velocity.Zero
+            }
+        }
+    }
+
+    // ---- add comment
+    var composing by remember { mutableStateOf(false) }
+    var draft by remember { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
+
+    Box(Modifier.fillMaxSize().offset { IntOffset(0, dragY.roundToInt()) }) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .background(Card)
+                // swallow taps so nothing underneath the panel reacts
+                .pointerInput(Unit) { detectTapGestures { } }
+        ) {
+            Column(
+                Modifier.fillMaxWidth().draggable(
+                    state = headerDrag,
+                    orientation = Orientation.Vertical,
+                    onDragStopped = { v -> settle(v) }
+                )
+            ) {
+                Box(
+                    Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(top = 8.dp)
+                        .size(width = 36.dp, height = 4.dp)
+                        .clip(CircleShape)
+                        .background(Hairline)
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Comments", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    if (count.isNotEmpty()) {
+                        Text("  $count", color = TextMuted, fontSize = 13.sp)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close comments", tint = TextPrimary)
+                    }
                 }
             }
-            item {
-                val e = comments.error
-                if (e != null) {
-                    ErrorBox(e, onRetry = { comments.loadMore() })
-                } else if (comments.loading) {
-                    Loading()
-                } else if (list.isEmpty() && comments.finished) {
-                    EmptyState("No comments.")
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Hairline))
+
+            LazyColumn(
+                Modifier.fillMaxSize().nestedScroll(nested),
+                state = state,
+                // room at the bottom so the floating pill never hides the last comment
+                contentPadding = PaddingValues(top = 6.dp, bottom = 110.dp)
+            ) {
+                val list = comments.items
+                list.forEach { c ->
+                    val token = c.repliesToken
+                    val rp = if (token.isNotEmpty()) expanded[token] else null
+                    item {
+                        CommentRow(
+                            c,
+                            repliesOpen = rp != null,
+                            onToggleReplies = if (token.isNotEmpty()) {
+                                {
+                                    if (rp != null) {
+                                        expanded.remove(token)
+                                    } else {
+                                        // first page uses the thread's token, later pages the one the previous page returned
+                                        val p = Paged<Comment>(scope) { t -> Api.comments(videoId, t ?: token) }
+                                        expanded[token] = p
+                                        p.loadMore()
+                                    }
+                                }
+                            } else null
+                        )
+                    }
+                    if (rp != null) {
+                        val replies = rp.items
+                        items(replies.size) { i -> CommentRow(replies[i], reply = true) }
+                        item { RepliesFooter(rp, onHide = { expanded.remove(token) }) }
+                    }
+                }
+                item {
+                    val e = comments.error
+                    if (e != null) {
+                        ErrorBox(e, onRetry = { comments.loadMore() })
+                    } else if (comments.loading) {
+                        Loading()
+                    } else if (list.isEmpty() && comments.finished) {
+                        EmptyState("No comments.")
+                    }
                 }
             }
         }
+
+        AddCommentPill(
+            onClick = {
+                if (Session.loggedIn) composing = true
+                else Toast.makeText(ctx, "Sign in to write a comment.", Toast.LENGTH_SHORT).show()
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        )
+    }
+
+    if (composing) {
+        AlertDialog(
+            onDismissRequest = { if (!sending) composing = false },
+            containerColor = Card,
+            title = { Text("Add a comment") },
+            text = { PillTextField(draft, { draft = it }, "Add a comment…", Modifier.fillMaxWidth()) },
+            confirmButton = {
+                TextButton(
+                    enabled = draft.isNotBlank() && !sending,
+                    onClick = {
+                        sending = true
+                        scope.launch {
+                            try {
+                                Api.postComment(videoId, draft.trim())
+                                Toast.makeText(ctx, "Comment posted.", Toast.LENGTH_SHORT).show()
+                                draft = ""
+                                composing = false
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Toast.makeText(ctx, "Couldn't post: ${e.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
+                            } finally {
+                                sending = false
+                            }
+                        }
+                    }
+                ) { Text(if (sending) "Posting…" else "Post", color = TextPrimary) }
+            },
+            dismissButton = {
+                TextButton(enabled = !sending, onClick = { composing = false }) { Text("Cancel", color = TextMuted) }
+            }
+        )
+    }
+}
+
+/** Floating pill at the bottom of the comments sheet. */
+@Composable
+private fun AddCommentPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .shadow(10.dp, CircleShape)
+            .clip(CircleShape)
+            .background(Color(0xFF2A2A2A))
+            .border(BorderStroke(1.dp, Hairline), CircleShape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Rounded.Edit, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Text("Add a comment…", color = TextMuted, fontSize = 15.sp, maxLines = 1)
     }
 }
 
