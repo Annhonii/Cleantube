@@ -1,5 +1,6 @@
 package com.cleantube.app.ui
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
