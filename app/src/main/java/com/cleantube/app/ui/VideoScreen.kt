@@ -380,7 +380,7 @@ fun VideoScreen(route: Route.Video) {
             }
 
             // ---- comments panel: slides up under the player, the video keeps playing
-            AnimatedVisibility(
+            androidx.compose.animation.AnimatedVisibility(
                 visible = commentsOpen,
                 enter = slideInVertically { it } + fadeIn(),
                 exit = slideOutVertically { it } + fadeOut()
