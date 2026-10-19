@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.FullscreenExit
@@ -194,7 +193,7 @@ class VideoPlayerState {
 private class SeekHint(val id: Int, val forward: Boolean, val at: Offset)
 
 /**
- * The video page's player: rounded card, own controls (minimise chevron, big play / pause button, time labels,
+ * The video page's player: square card, own controls (minimise chevron, big play / pause button, time labels,
  * red progress bar with buffered part, fullscreen button). Tap = show / hide controls, double tap on the sides
  * = skip 10 s, double tap in the middle = play / pause.
  *
@@ -270,7 +269,7 @@ fun VideoPlayerCard(
         }
     }
 
-    val shape = if (immersive) RectangleShape else RoundedCornerShape(28.dp)
+    val shape = RectangleShape
 
     Box(modifier.clip(shape).background(Color.Black)) {
         AndroidView(factory = { playerView }, modifier = Modifier.fillMaxSize())

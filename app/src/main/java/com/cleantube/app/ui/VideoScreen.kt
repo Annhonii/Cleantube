@@ -24,7 +24,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ContentCut
@@ -50,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +73,9 @@ private val VBlue = Color(0xFF6BA5E7)
 private val VRed = Color(0xFFE9524D)
 private val VSoft = Color(0xFFD0D0D0)
 private val VMuted = Color(0xFFA8A8A8)
+
+/** Corner shape of every card, chip and button on the video page: square (0 % rounding). */
+private val VShape = RectangleShape
 
 /** Side margin of the player card, and of the cards / chips below it. */
 private val PlayerMargin = 8.dp
@@ -206,7 +209,7 @@ fun VideoScreen(route: Route.Video) {
                                     .fillMaxWidth()
                                     .padding(horizontal = PageMargin)
                                     .padding(top = 12.dp)
-                                    .clip(RoundedCornerShape(22.dp))
+                                    .clip(VShape)
                                     .background(VCard)
                                     .padding(14.dp)
                             )
@@ -253,7 +256,7 @@ fun VideoScreen(route: Route.Video) {
                                     .fillMaxWidth()
                                     .padding(horizontal = PageMargin)
                                     .padding(top = 16.dp)
-                                    .clip(RoundedCornerShape(22.dp))
+                                    .clip(VShape)
                                     .background(VCard)
                                     .clickable { nav.push(Route.Channel(ch.id, ch)) }
                                     .padding(14.dp),
@@ -282,7 +285,7 @@ fun VideoScreen(route: Route.Video) {
                                     fontWeight = FontWeight.Medium,
                                     maxLines = 1,
                                     modifier = Modifier
-                                        .clip(CircleShape)
+                                        .clip(VShape)
                                         .background(if (subscribed) VChip else VRed)
                                         .clickable { toggleSubscription(scope, ch) }
                                         .padding(horizontal = 22.dp, vertical = 10.dp)
@@ -301,7 +304,7 @@ fun VideoScreen(route: Route.Video) {
                                 .fillMaxWidth()
                                 .padding(horizontal = PageMargin)
                                 .padding(top = 16.dp)
-                                .clip(RoundedCornerShape(22.dp))
+                                .clip(VShape)
                                 .background(VCard)
                                 .clickable { commentsOpen = true }
                                 .padding(14.dp)
@@ -348,7 +351,7 @@ fun VideoScreen(route: Route.Video) {
                     item { Spacer(Modifier.height(8.dp)) }
                     items(vids.size) { i ->
                         val v = vids[i]
-                        VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) }, container = VCard)
+                        VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) }, container = VCard, square = true)
                     }
 
                     item {
@@ -404,7 +407,7 @@ private fun ActionChip(icon: ImageVector, label: String, active: Boolean = false
     Row(
         Modifier
             .height(40.dp)
-            .clip(CircleShape)
+            .clip(VShape)
             .background(if (active) VBlue else VChip)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp),
