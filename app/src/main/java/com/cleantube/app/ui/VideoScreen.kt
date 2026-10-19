@@ -33,6 +33,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Share
@@ -63,6 +65,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cleantube.app.data.Api
+import com.cleantube.app.data.BackgroundPlay
+import com.cleantube.app.data.Streams
 import com.cleantube.app.data.ApiException
 import com.cleantube.app.data.ChannelItem
 import com.cleantube.app.data.Comment
@@ -119,6 +123,34 @@ fun VideoScreen(route: Route.Video) {
         }
     }
 
+    // Background play: the sound keeps going with the screen off (see BackgroundPlay).
+    var bgLoading by remember(route.id) { mutableStateOf(false) }
+    fun toggleBackground() {
+        if (BackgroundPlay.activeId == route.id) {
+            BackgroundPlay.stop(ctx)
+            return
+        }
+        if (bgLoading) return
+        bgLoading = true
+        Toast.makeText(ctx, "Starting background play…", Toast.LENGTH_SHORT).show()
+        scope.launch {
+            try {
+                val audio = Streams.fetch(route.id).options.filter { it.audioOnly }
+                val pick = audio.firstOrNull { it.ext == "m4a" } ?: audio.firstOrNull()
+                    ?: throw ApiException(ApiException.Kind.OTHER, "No audio stream found for this video.")
+                val startMs = (PlayerControl.second * 1000).toLong()
+                PlayerControl.pause?.invoke()
+                BackgroundPlay.start(ctx, route.id, video?.title.orEmpty(), pick.url, pick.userAgent, startMs)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Toast.makeText(ctx, "Couldn't start background play: ${e.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
+            } finally {
+                bgLoading = false
+            }
+        }
+    }
+
     // Opening a video counts as watching it (the player itself works without any API call).
     LaunchedEffect(route.id) { route.seed?.let { store.addHistory(it) } }
 
@@ -155,17 +187,19 @@ fun VideoScreen(route: Route.Video) {
     // Back closes the comments panel first, only then the video page.
     BackHandler(enabled = commentsOpen) { commentsOpen = false }
 
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    val inPopup = PipHost.active
+    Column(if (inPopup) Modifier.fillMaxSize() else Modifier.fillMaxSize().statusBarsPadding()) {
         // rounded player "card"
         PlayerBox(
             videoId = route.id,
             embeddable = details?.embeddable ?: true,
-            modifier = Modifier
+            modifier = if (inPopup) Modifier else Modifier
                 .padding(horizontal = 8.dp, vertical = 6.dp)
                 .clip(RoundedCornerShape(24.dp))
         )
 
-        Box(Modifier.fillMaxSize()) {
+        // everything below the player is hidden while the video is in the popup window
+        if (!inPopup) Box(Modifier.fillMaxSize()) {
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 32.dp)) {
 
                 // ---- title (tap to open the description) + stats
@@ -251,7 +285,15 @@ fun VideoScreen(route: Route.Video) {
                         ActionChip("Share", Icons.Rounded.Share, onClick = { shareVideo(ctx, route.id) })
                         ActionChip("Save", Icons.Rounded.Add, onClick = { if (video != null) saveDialog = true })
                         ActionChip("Download", Icons.Rounded.Download, onClick = { if (video != null) downloadDialog = true })
-                        ActionChip("YouTube", Icons.Rounded.PlayArrow, onClick = { openInYouTube(ctx, route.id) })
+                        val bgOn = BackgroundPlay.activeId == route.id
+                        ActionChip(
+                            "Background",
+                            Icons.Rounded.Headphones,
+                            onClick = { if (video != null) toggleBackground() },
+                            container = if (bgOn) TextPrimary else Card,
+                            content = if (bgOn) Bg else TextPrimary
+                        )
+                        ActionChip("Popup", Icons.Rounded.PictureInPictureAlt, onClick = { PipHost.enter?.invoke() })
                     }
                 }
 

@@ -66,6 +66,19 @@ class FullscreenHost {
     }
 }
 
+/** Lets other screens read / control the embedded player (used by "Background" to carry on from the same second). */
+object PlayerControl {
+    @Volatile var second: Float = 0f
+    var owner: Any? = null
+    var pause: (() -> Unit)? = null
+}
+
+/** Picture-in-picture ("Popup") state. The activity sets [enter] and flips [active]. */
+object PipHost {
+    var active by mutableStateOf(false)
+    var enter: (() -> Unit)? = null
+}
+
 val LocalFullscreen = staticCompositionLocalOf<FullscreenHost> { error("FullscreenHost not provided") }
 
 /**
@@ -107,6 +120,12 @@ fun PlayerBox(videoId: String, embeddable: Boolean, modifier: Modifier = Modifie
         playerView.initialize(object : AbstractYouTubePlayerListener() {
             override fun onReady(youTubePlayer: YouTubePlayer) {
                 player = youTubePlayer
+                PlayerControl.owner = playerView
+                PlayerControl.pause = { youTubePlayer.pause() }
+            }
+
+            override fun onCurrentSecond(youTubePlayer: YouTubePlayer, second: Float) {
+                PlayerControl.second = second
             }
 
             override fun onError(youTubePlayer: YouTubePlayer, error: PlayerConstants.PlayerError) {
@@ -115,6 +134,10 @@ fun PlayerBox(videoId: String, embeddable: Boolean, modifier: Modifier = Modifie
         }, options)
 
         onDispose {
+            if (PlayerControl.owner === playerView) {
+                PlayerControl.owner = null
+                PlayerControl.pause = null
+            }
             owner?.lifecycle?.removeObserver(playerView)
             player = null
             playerView.release()
@@ -122,12 +145,13 @@ fun PlayerBox(videoId: String, embeddable: Boolean, modifier: Modifier = Modifie
     }
 
     LaunchedEffect(player, videoId) {
+        PlayerControl.second = 0f
         player?.loadVideo(videoId, 0f)
     }
 
     val failed = !embeddable || failedId == videoId
 
-    Box(modifier.aspectRatio(16f / 9f).background(Color.Black)) {
+    Box((if (PipHost.active) modifier.fillMaxSize() else modifier.aspectRatio(16f / 9f)).background(Color.Black)) {
         AndroidView(factory = { playerView }, modifier = Modifier.fillMaxSize())
         if (failed) {
             Column(
