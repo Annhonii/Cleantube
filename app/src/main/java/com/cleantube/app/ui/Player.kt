@@ -59,8 +59,22 @@ class FullscreenHost {
         onChanged?.invoke(false)
     }
 
+    /** The video page's own fullscreen (landscape, system bars hidden); its player card then fills the screen. */
+    var immersive by mutableStateOf(false)
+        private set
+
+    fun setImmersive(on: Boolean) {
+        if (immersive == on) return
+        immersive = on
+        onChanged?.invoke(on)
+    }
+
     /** Back button while fullscreen. */
     fun requestExit() {
+        if (immersive) {
+            setImmersive(false)
+            return
+        }
         val e = exit
         if (e != null) e() else leave()
     }

@@ -444,7 +444,7 @@ fun ShortsScreen() {
 
     val cv = commentsFor
     if (cv != null) {
-        ShortsCommentsSheet(
+        CommentsSheet(
             video = cv,
             hasDetails = meta[cv.id]?.details != null,
             countText = meta[cv.id]?.details?.commentCountText.orEmpty(),

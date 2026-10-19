@@ -260,7 +260,8 @@ fun VideoRow(
     v: VideoItem,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onRemove: (() -> Unit)? = null
+    onRemove: (() -> Unit)? = null,
+    container: Color = Card
 ) {
     val nav = LocalNav.current
     val ctx = LocalContext.current
@@ -272,7 +273,7 @@ fun VideoRow(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 5.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(Card)
+            .background(container)
             .clickable(onClick = onClick)
             .padding(10.dp),
         verticalAlignment = Alignment.Top

@@ -68,7 +68,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
             if (!nav.back()) nav.selectTab(Route.Home)
         }
         // Registered last so it wins while a video is fullscreen.
-        BackHandler(enabled = fullscreen.view != null) {
+        BackHandler(enabled = fullscreen.view != null || fullscreen.immersive) {
             fullscreen.requestExit()
         }
     }

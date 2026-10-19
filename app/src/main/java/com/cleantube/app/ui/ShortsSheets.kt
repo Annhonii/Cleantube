@@ -31,7 +31,6 @@ import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.SmartDisplay
-import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -226,9 +225,9 @@ private fun CommentRow(c: Comment) {
     }
 }
 
-/** Comment section as a bottom sheet (the Short keeps playing behind it). */
+/** Comment section as a bottom sheet (the video keeps playing behind it). */
 @Composable
-internal fun ShortsCommentsSheet(
+internal fun CommentsSheet(
     video: VideoItem,
     hasDetails: Boolean,
     countText: String,
