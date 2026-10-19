@@ -1,8 +1,6 @@
 package com.cleantube.app.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -24,8 +22,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.ThumbUp
+import androidx.compose.material.icons.rounded.UnfoldMore
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +39,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,9 +56,9 @@ import com.cleantube.app.data.Paged
 import com.cleantube.app.data.VideoDetails
 import com.cleantube.app.data.VideoItem
 import com.cleantube.app.data.Api
-import com.cleantube.app.data.formatCount
-import com.cleantube.app.data.timeAgo
-import com.cleantube.app.data.uploadsPlaylistOf
+
+/** Soft blue used only for the likes chip, same as the reference design. */
+private val LikeBlue = Color(0xFF5B9BD5)
 
 @Composable
 fun VideoScreen(route: Route.Video) {
@@ -72,7 +77,6 @@ fun VideoScreen(route: Route.Video) {
     var downloadDialog by remember(route.id) { mutableStateOf(false) }
 
     val video = details?.video ?: route.seed
-    val channelId = video?.channelId.orEmpty()
 
     // Opening a video counts as watching it (the player itself works without any API call).
     LaunchedEffect(route.id) { route.seed?.let { store.addHistory(it) } }
@@ -98,42 +102,82 @@ fun VideoScreen(route: Route.Video) {
     val comments = remember(route.id) {
         Paged(scope) { token -> Api.comments(route.id, token) }
     }
+    // tab 0 = Up next, tab 1 = comments opened from the comments card
     val active: Paged<*> = if (tab == 0) more else comments
     val listState = rememberLazyListState()
 
     LaunchedEffect(tab, details) {
         if (tab == 0 && details != null && more.items.isEmpty()) more.loadMore()
-        if (tab == 1 && comments.items.isEmpty()) comments.loadMore()
+        // comments are also loaded while closed, the card above shows the first one as a preview
+        if ((tab == 1 || details != null) && comments.items.isEmpty()) comments.loadMore()
     }
     LoadMoreEffect(listState, active)
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        // rounded player "card"
         PlayerBox(
             videoId = route.id,
-            embeddable = details?.embeddable ?: true
+            embeddable = details?.embeddable ?: true,
+            modifier = Modifier
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+                .clip(RoundedCornerShape(24.dp))
         )
 
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 32.dp)) {
 
-            // ---- title + stats
+            // ---- title (tap to open the description) + stats
             item {
-                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    Text(
-                        video?.title ?: "Loading…",
-                        color = TextPrimary,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { descOpen = !descOpen }
+                        .padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = 4.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.Top) {
+                        Text(
+                            video?.title ?: "Loading…",
+                            color = TextPrimary,
+                            fontSize = 18.sp,
+                            lineHeight = 24.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = if (descOpen) Int.MAX_VALUE else 3,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).padding(top = 2.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            Icons.Rounded.KeyboardArrowDown,
+                            contentDescription = if (descOpen) "Hide description" else "Show description",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(28.dp).rotate(if (descOpen) 180f else 0f)
+                        )
+                    }
                     val meta = listOfNotNull(
                         video?.viewsText?.takeIf { it.isNotEmpty() },
-                        details?.likesText?.takeIf { it.isNotEmpty() }?.let { "$it likes" },
                         video?.ageText?.takeIf { it.isNotEmpty() }
                     ).joinToString(" • ")
                     if (meta.isNotEmpty()) {
-                        Text(meta, color = TextMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                        Text(meta, color = TextMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
                     }
+                }
+            }
+
+            // ---- description (opens under the title)
+            val description = details?.description.orEmpty()
+            if (descOpen && description.isNotBlank()) {
+                item {
+                    Text(
+                        description,
+                        color = TextPrimary,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Card)
+                            .padding(16.dp)
+                    )
                 }
             }
 
@@ -143,21 +187,22 @@ fun VideoScreen(route: Route.Video) {
                     Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 12.dp),
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Pill("Share", onClick = { shareVideo(ctx, route.id) }, icon = Icons.Rounded.Share)
-                    Pill(
-                        "Save",
-                        onClick = { if (video != null) saveDialog = true },
-                        icon = Icons.Rounded.Add
-                    )
-                    Pill("Download", onClick = { if (video != null) downloadDialog = true }, icon = Icons.Rounded.Download)
-                    Pill("Open in YouTube", onClick = { openInYouTube(ctx, route.id) }, icon = Icons.Rounded.PlayArrow)
+                    // Likes are shown as a number only: the app has no way to like a video.
+                    val likes = details?.likesText.orEmpty()
+                    if (likes.isNotEmpty()) {
+                        ActionChip(likes, Icons.Rounded.ThumbUp, onClick = null, container = LikeBlue, content = Color.White)
+                    }
+                    ActionChip("Share", Icons.Rounded.Share, onClick = { shareVideo(ctx, route.id) })
+                    ActionChip("Save", Icons.Rounded.Add, onClick = { if (video != null) saveDialog = true })
+                    ActionChip("Download", Icons.Rounded.Download, onClick = { if (video != null) downloadDialog = true })
+                    ActionChip("YouTube", Icons.Rounded.PlayArrow, onClick = { openInYouTube(ctx, route.id) })
                 }
             }
 
-            // ---- channel box
+            // ---- channel card
             if (video != null && video.channelId.isNotEmpty()) {
                 item {
                     val ch = channel ?: ChannelItem(video.channelId, video.channelTitle)
@@ -165,56 +210,85 @@ fun VideoScreen(route: Route.Video) {
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 12.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .border(BorderStroke(1.dp, Hairline), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(Card)
                             .clickable { nav.push(Route.Channel(ch.id, ch)) }
-                            .padding(12.dp),
+                            .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        AppImage(ch.thumb, Modifier.size(42.dp), CircleShape)
+                        AppImage(ch.thumb, Modifier.size(46.dp), CircleShape)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
                                 ch.title,
                                 color = TextPrimary,
-                                fontSize = 15.sp,
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             if (ch.subsText.isNotEmpty()) {
-                                Text(ch.subsText, color = TextMuted, fontSize = 12.sp)
+                                Text(ch.subsText, color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
                             }
                         }
                         Spacer(Modifier.width(8.dp))
-                        Pill(
+                        Text(
                             if (subscribed) "Subscribed" else "Subscribe",
-                            onClick = { toggleSubscription(scope, ch) },
-                            active = !subscribed
+                            color = if (subscribed) TextPrimary else Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(if (subscribed) Hairline else Accent)
+                                .clickable { toggleSubscription(scope, ch) }
+                                .padding(horizontal = 20.dp, vertical = 11.dp)
                         )
                     }
                 }
             }
 
-            // ---- description
-            val description = details?.description.orEmpty()
-            if (description.isNotBlank()) {
-                item {
-                    Text(
-                        description,
-                        color = TextPrimary,
-                        fontSize = 13.sp,
-                        maxLines = if (descOpen) Int.MAX_VALUE else 3,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Card)
-                            .clickable { descOpen = !descOpen }
-                            .padding(14.dp)
-                    )
+            // ---- comments card (first comment as a preview, tap to open them all)
+            item {
+                val count = details?.commentCountText.orEmpty()
+                val first = comments.items.firstOrNull()
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Card)
+                        .clickable { tab = if (tab == 1) 0 else 1 }
+                        .padding(16.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Comments", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                        if (count.isNotEmpty()) {
+                            Text("  $count", color = TextMuted, fontSize = 12.sp)
+                        }
+                        Spacer(Modifier.weight(1f))
+                        Icon(
+                            Icons.Rounded.UnfoldMore,
+                            contentDescription = if (tab == 1) "Show up next" else "Show all comments",
+                            tint = TextMuted,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    if (first != null && tab == 0) {
+                        Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.Top) {
+                            AppImage(first.avatar, Modifier.size(28.dp), CircleShape)
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                first.text,
+                                color = TextPrimary,
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -224,23 +298,17 @@ fun VideoScreen(route: Route.Video) {
                 item { ErrorBox(err, onRetry = { reload++ }) }
             }
 
-            // ---- tabs
-            item {
-                Row(
-                    Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Pill("Up next", onClick = { tab = 0 }, active = tab == 0)
-                    val c = details?.commentCountText.orEmpty()
-                    Pill(
-                        if (c.isNotEmpty()) "Comments · $c" else "Comments",
-                        onClick = { tab = 1 },
-                        active = tab == 1
+            // ---- up next / comments
+            if (tab == 0) {
+                item {
+                    Text(
+                        "Up next",
+                        color = TextMuted,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(start = 20.dp, top = 14.dp, bottom = 2.dp)
                     )
                 }
-            }
-
-            if (tab == 0) {
                 val vids = more.items.filter { it.id != route.id }
                 items(vids.size) { i ->
                     val v = vids[i]
@@ -272,9 +340,32 @@ fun VideoScreen(route: Route.Video) {
     }
 }
 
+/** Rounded action chip. [onClick] = null makes it a plain label (no ripple, not tappable). */
+@Composable
+private fun ActionChip(
+    text: String,
+    icon: ImageVector,
+    onClick: (() -> Unit)?,
+    container: Color = Card,
+    content: Color = TextPrimary
+) {
+    Row(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(container)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(text, color = content, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+    }
+}
+
 @Composable
 private fun CommentRow(c: Comment) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 9.dp)) {
         AppImage(c.avatar, Modifier.size(34.dp), CircleShape)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
