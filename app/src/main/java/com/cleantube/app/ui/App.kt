@@ -48,8 +48,9 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
             }
 
             if (nav.isTabRoot) {
-                FloatingSearchBar(
-                    onClick = { nav.push(Route.Search()) },
+                FloatingNav(
+                    selected = r,
+                    onSelect = { nav.selectTab(it) },
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }

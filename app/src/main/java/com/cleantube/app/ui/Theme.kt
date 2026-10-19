@@ -32,8 +32,13 @@ private object Palette {
     var accentSoft by mutableStateOf(Color(0xFFFFDAD6))
     var onAccentSoft by mutableStateOf(Color(0xFF410002))
     var danger by mutableStateOf(Color(0xFFBA1A1A))
+    var nav by mutableStateOf(Color(0xFF1B1B1F))
+    var onNav by mutableStateOf(Color.White)
 
-    fun apply(s: ColorScheme) {
+    fun apply(s: ColorScheme, dark: Boolean) {
+        // the bottom pill is always the "dark" element: near-black in dark mode, inverse surface in light mode
+        nav = if (dark) s.surfaceContainerLowest else s.inverseSurface
+        onNav = if (dark) s.onSurface else s.inverseOnSurface
         bg = s.background
         card = s.surfaceContainerHigh
         hairline = s.outlineVariant
@@ -66,6 +71,10 @@ val OnAccent: Color get() = Palette.onAccent
 /** Soft tinted background of the selected tab and the colour for its icon / label. */
 val AccentSoft: Color get() = Palette.accentSoft
 val OnAccentSoft: Color get() = Palette.onAccentSoft
+
+/** Bottom navigation pill, and the colour of the icons / selected chip on it. */
+val NavBg: Color get() = Palette.nav
+val OnNavBg: Color get() = Palette.onNav
 
 /** Errors and destructive actions. */
 val Danger: Color get() = Palette.danger
@@ -124,7 +133,7 @@ fun CleanTubeTheme(content: @Composable () -> Unit) {
         }
     }
     // Set before the content is composed, so the first frame already has the right colours.
-    Palette.apply(scheme)
+    Palette.apply(scheme, dark)
     // No custom typography: the system font is used everywhere.
     MaterialTheme(colorScheme = scheme, content = content)
 }
