@@ -149,12 +149,13 @@ val LocalTabPos = staticCompositionLocalOf<Animatable<Float, AnimationVector1D>>
 /** How much wider than a normal cell the selected tab is (room for its name next to the icon). */
 private const val SELECTED_WEIGHT = 2.6f
 
+/** Height the pill row takes at the top of a tab screen (58dp pill + 8dp above and below). */
+val TabPillSpace = 74.dp
+
 /**
- * Top bar of the tab screens: a black pill with the visible tabs and the account photo. The selected tab is
- * a light chip with its name next to the icon; all the other cells share the rest of the width equally, for
- * 3 tabs or 6. The chip is one shape that slides and resizes with a spring when the tab changes (tap,
- * swipe on the screen, or dragging the pill). [actions] (refresh, clear...) go on a thin row below.
- * [title] and [brand] are kept for the callers; the selected tab already says where you are.
+ * Top of a tab screen: an empty strip the size of the pill (the pill itself is drawn once, above the pager,
+ * see [TabPill], so it stays put while the pages slide under it) and, below it, the screen's [actions]
+ * (refresh, clear...). [title] and [brand] are kept for the callers; the selected tab already says where you are.
  */
 @Composable
 fun TabTopBar(
@@ -162,40 +163,51 @@ fun TabTopBar(
     brand: Boolean = false,
     actions: (@Composable RowScope.() -> Unit)? = null
 ) {
-    val nav = LocalNav.current
-    val store = Graph.store
-    val tabs = visibleTabs(store)
-    val n = tabs.size
-    // The route this bar belongs to, fixed for the life of the screen: while the screen slides out after a switch,
-    // its bar must not decide the selected tab again (the new screen's bar does that).
-    val myRoute = remember { nav.current }
-    val selIndex = tabs.indexOfFirst { it.route == myRoute }
-    val downloading = Downloads.items.any { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
-
-    // pos = the selected tab's index as a number that glides from one tab to the next. Every size and the
-    // chip are computed from it, so everything moves together. -1 = no tab of the bar is open.
-    // It lives above the screens (every tab screen has its own bar), so the glide carries on across the switch.
-    val posAnim = LocalTabPos.current
-    LaunchedEffect(selIndex) {
-        posAnim.animateTo(selIndex.toFloat(), spring(dampingRatio = 0.72f, stiffness = 650f))
-    }
-    val pos by posAnim.asState()
-    // 1 right on the cell that pos points at, falling to 0 one cell away
-    fun bump(i: Int): Float = (1f - abs(pos - i)).coerceIn(0f, 1f)
-    val weights = List(n) { i -> 1f + (SELECTED_WEIGHT - 1f) * bump(i) }
-    val total = weights.sum() + 1f // + the profile cell
-
-    // dragging the pill: one tab per ~44dp, the chip follows the finger
-    val stepPx = with(LocalDensity.current) { 44.dp.toPx() }
-    val haptic = LocalHapticFeedback.current
-    val navState = rememberUpdatedState(nav)
-
     Column(
         Modifier
             .fillMaxWidth()
             .background(Bg)
             .statusBarsPadding()
     ) {
+        Spacer(Modifier.height(TabPillSpace))
+        if (actions != null) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                actions()
+            }
+        }
+    }
+}
+
+/**
+ * The black pill with the visible tabs and the account photo. [position] is where the selected chip is, as a
+ * tab index with a fraction (1.4 = 40% of the way from tab 1 to tab 2): it comes straight from the pager,
+ * so the chip slides, stretches and shrinks together with the finger while you swipe the page,
+ * and glides with the pager's spring after a tap. -1 = no tab of the bar is open.
+ * Dragging the pill itself also changes tabs (one tab per ~44dp).
+ */
+@Composable
+fun TabPill(position: () -> Float, modifier: Modifier = Modifier) {
+    val nav = LocalNav.current
+    val store = Graph.store
+    val tabs = visibleTabs(store)
+    val n = tabs.size
+    val downloading = Downloads.items.any { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
+
+    val pos = position()
+    // 1 right on the cell that pos points at, falling to 0 one cell away
+    fun bump(i: Int): Float = (1f - abs(pos - i)).coerceIn(0f, 1f)
+    val weights = List(n) { i -> 1f + (SELECTED_WEIGHT - 1f) * bump(i) }
+    val total = weights.sum() + 1f // + the profile cell
+
+    val stepPx = with(LocalDensity.current) { 44.dp.toPx() }
+    val haptic = LocalHapticFeedback.current
+    val navState = rememberUpdatedState(nav)
+
+    Column(modifier.fillMaxWidth().statusBarsPadding()) {
         BoxWithConstraints(
             Modifier
                 .fillMaxWidth()
@@ -233,7 +245,7 @@ fun TabTopBar(
         ) {
             val inner = maxWidth
 
-            // the sliding chip: between the two cells pos is between, its start and width blend the same way
+            // the sliding chip: between two cells its start and width blend the same way as the cells do
             if (n > 0 && pos > -0.5f) {
                 val i0 = floor(pos).toInt().coerceIn(0, n - 1)
                 val i1 = (i0 + 1).coerceAtMost(n - 1)
@@ -263,15 +275,6 @@ fun TabTopBar(
                     )
                 }
                 ProfileCell(onClick = { nav.push(Route.Settings) }, modifier = Modifier.weight(1f))
-            }
-        }
-        if (actions != null) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                actions()
             }
         }
     }

@@ -1,5 +1,15 @@
 package com.cleantube.app.ui
 
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlin.math.absoluteValue
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
@@ -39,8 +49,39 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
     // The app starts on Home; if the user turned Home off in Settings, start on the first visible tab instead.
     val visible = visibleTabs(Graph.store)
     val firstRoute = visible.first().route
-    // where the top bar's chip is (the selected tab's index); above the screens so the slide survives a tab switch
-    val tabPos = remember { Animatable(visible.indexOfFirst { it.route == nav.current }.toFloat()) }
+    val visibleRoutes = visible.map { it.route }
+    val navState = rememberUpdatedState(nav)
+    val visibleState = rememberUpdatedState(visible)
+
+    // The tab screens live in a pager: they follow the finger while you swipe, both pages are visible side by
+    // side, and the pill's chip reads its position from this state.
+    val pagerState = rememberPagerState(
+        initialPage = visible.indexOfFirst { it.route == nav.current }.coerceAtLeast(0)
+    ) { visible.size }
+    val pagerLive = remember { mutableStateOf(false) }
+
+    // swipe finished on another page -> that tab is now the open one
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { page ->
+            val route = visibleState.value.getOrNull(page)?.route ?: return@collect
+            val n = navState.value
+            if (n.isTabRoot && n.current != route && visibleState.value.any { it.route == n.current }) {
+                n.selectTab(route)
+            }
+        }
+    }
+    // a tab was picked some other way (tap on the pill, drag on the pill, back) -> the pager glides there
+    val currentRoute = nav.current
+    LaunchedEffect(currentRoute, visibleRoutes) {
+        if (!navState.value.isTabRoot) return@LaunchedEffect
+        val idx = visibleRoutes.indexOf(currentRoute)
+        if (idx < 0 || pagerState.targetPage == idx) return@LaunchedEffect
+        if (pagerLive.value) pagerState.animateScrollToPage(idx, animationSpec = spring(dampingRatio = 0.82f, stiffness = 340f))
+        else pagerState.scrollToPage(idx)
+    }
+    val chipPosition: () -> Float = {
+        if (navState.value.current in visibleRoutes) pagerState.currentPage + pagerState.currentPageOffsetFraction else -1f
+    }
     LaunchedEffect(Unit) {
         if (nav.isTabRoot && nav.current == Route.Home && visible.none { it.route == Route.Home }) {
             nav.selectTab(firstRoute)
@@ -50,65 +91,33 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
     CompositionLocalProvider(
         LocalNav provides nav,
         LocalFullscreen provides fullscreen,
-        LocalTabPos provides tabPos,
         LocalContentColor provides TextPrimary
     ) {
         Box(Modifier.fillMaxSize().background(Bg)) {
             val r = nav.current
 
-            // Swipe left / right anywhere on a tab screen: next / previous tab (in the user's order, hidden tabs
-            // skipped). Vertical scrolling and horizontal lists inside the screen get the gesture first.
-            val swipePx = with(LocalDensity.current) { 90.dp.toPx() }
-            val navState = rememberUpdatedState(nav)
-            Box(
-                Modifier.fillMaxSize().pointerInput(Unit) {
-                    var total = 0f
-                    detectHorizontalDragGestures(
-                        onDragStart = { total = 0f },
-                        onDragCancel = { total = 0f },
-                        onDragEnd = {
-                            val n = navState.value
-                            if (n.isTabRoot) {
-                                val target = when {
-                                    total <= -swipePx -> adjacentTab(Graph.store, n.current, 1)
-                                    total >= swipePx -> adjacentTab(Graph.store, n.current, -1)
-                                    else -> null
-                                }
-                                if (target != null) n.selectTab(target)
-                            }
-                            total = 0f
-                        },
-                        onHorizontalDrag = { _, amount -> total += amount }
-                    )
-                }
-            ) {
-            val tabRoutes = visible.map { it.route }
             AnimatedContent(
                 targetState = r,
-                transitionSpec = { screenTransition(nav, tabRoutes) },
+                transitionSpec = { screenTransition(nav, visibleRoutes) },
+                contentKey = { if (it in visibleRoutes) "tabs" else it },
                 modifier = Modifier.fillMaxSize(),
                 label = "screens"
             ) { route ->
                 // every screen paints its own background, so the one underneath never shows through while sliding
                 Box(Modifier.fillMaxSize().background(Bg)) {
-                    when (route) {
-                        Route.Home -> HomeScreen()
-                        Route.Shorts -> ShortsScreen()
-                        Route.Feed -> FeedScreen()
-                        Route.Library -> LibraryScreen()
-                        Route.History -> HistoryScreen()
-                        Route.Settings -> SettingsScreen()
-                        Route.Login -> LoginScreen()
-                        Route.Downloads -> DownloadsScreen()
-                        is Route.LocalPlay -> LocalPlayScreen(route)
-                        is Route.Search -> SearchScreen(route)
-                        is Route.Video -> VideoScreen(route)
-                        is Route.Channel -> ChannelScreen(route)
-                        is Route.Playlist -> PlaylistScreen(route)
-                        is Route.LocalList -> LocalListScreen(route)
-                    }
+                    if (route in visibleRoutes) TabsPager(pagerState, visible, pagerLive)
+                    else OtherScreen(route)
                 }
             }
+
+            // the pill stays put while the pages slide under it; it leaves upwards when a screen is pushed
+            AnimatedVisibility(
+                visible = nav.isTabRoot,
+                modifier = Modifier.align(Alignment.TopCenter),
+                enter = slideInVertically(spring(dampingRatio = 0.75f, stiffness = 420f)) { -it } + fadeIn(tween(220)),
+                exit = slideOutVertically(tween(240, easing = Motion.EmphasizedAccelerate)) { -it } + fadeOut(tween(160))
+            ) {
+                TabPill(position = chipPosition)
             }
 
             // the search bar floats up when a tab opens and drops away when a screen is pushed
@@ -144,5 +153,62 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
         BackHandler(enabled = fullscreen.view != null) {
             fullscreen.requestExit()
         }
+    }
+}
+
+/** The tab screens side by side. Swiping drags the pages with the finger; the far page fades and shrinks a little. */
+@Composable
+private fun TabsPager(state: PagerState, tabs: List<TabSpec>, live: MutableState<Boolean>) {
+    DisposableEffect(Unit) {
+        live.value = true
+        onDispose { live.value = false }
+    }
+    HorizontalPager(
+        state = state,
+        modifier = Modifier.fillMaxSize(),
+        // the Shorts page is a web page that scrolls by itself: switch away from it with the pill
+        userScrollEnabled = tabs.getOrNull(state.settledPage)?.route != Route.Shorts,
+        key = { tabs.getOrNull(it)?.id ?: it },
+        flingBehavior = PagerDefaults.flingBehavior(
+            state = state,
+            snapAnimationSpec = spring(dampingRatio = 0.82f, stiffness = 320f)
+        )
+    ) { page ->
+        val route = tabs.getOrNull(page)?.route
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Bg)
+                .graphicsLayer {
+                    val off = ((state.currentPage - page) + state.currentPageOffsetFraction).absoluteValue.coerceIn(0f, 1f)
+                    alpha = 1f - 0.4f * off
+                    val s = 1f - 0.05f * off
+                    scaleX = s
+                    scaleY = s
+                }
+        ) {
+            if (route != null) OtherScreen(route)
+        }
+    }
+}
+
+/** One screen by its route (the tab screens as well as the pushed ones). */
+@Composable
+private fun OtherScreen(route: Route) {
+    when (route) {
+        Route.Home -> HomeScreen()
+        Route.Shorts -> ShortsScreen()
+        Route.Feed -> FeedScreen()
+        Route.Library -> LibraryScreen()
+        Route.History -> HistoryScreen()
+        Route.Settings -> SettingsScreen()
+        Route.Login -> LoginScreen()
+        Route.Downloads -> DownloadsScreen()
+        is Route.LocalPlay -> LocalPlayScreen(route)
+        is Route.Search -> SearchScreen(route)
+        is Route.Video -> VideoScreen(route)
+        is Route.Channel -> ChannelScreen(route)
+        is Route.Playlist -> PlaylistScreen(route)
+        is Route.LocalList -> LocalListScreen(route)
     }
 }
