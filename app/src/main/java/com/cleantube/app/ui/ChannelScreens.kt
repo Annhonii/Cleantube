@@ -1,5 +1,8 @@
 package com.cleantube.app.ui
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -134,6 +137,7 @@ private fun ChannelHeader(ch: ChannelItem) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 14.dp)
+                    .animateContentSize(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow))
                     .clip(RoundedCornerShape(16.dp))
                     .background(Card)
                     .clickable { open = !open }

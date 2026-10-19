@@ -237,9 +237,9 @@ fun LibraryScreen() {
                         Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp, vertical = 5.dp)
+                            .bouncyClickable(pressedScale = 0.975f) { nav.push(Route.LocalList(p.id)) }
                             .clip(RoundedCornerShape(16.dp))
                             .background(Card)
-                            .clickable { nav.push(Route.LocalList(p.id)) }
                             .padding(16.dp)
                     ) {
                         Text(

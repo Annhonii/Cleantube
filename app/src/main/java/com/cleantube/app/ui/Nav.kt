@@ -26,18 +26,25 @@ sealed interface Route {
 
 val TabRoutes: List<Route> = listOf(Route.Home, Route.Shorts, Route.Feed, Route.Library, Route.Downloads, Route.History)
 
+enum class NavKind { PUSH, POP, TAB }
+
 /** A tiny back stack. Tabs replace the whole stack, everything else is pushed on top. */
 class Nav(start: Route = Route.Home) {
     val stack = mutableStateListOf(start)
+
+    /** What the last navigation was; the screen transition reads it to pick its animation. */
+    var lastKind: NavKind = NavKind.TAB
 
     val current: Route get() = stack.last()
     val isTabRoot: Boolean get() = stack.size == 1 && current in TabRoutes
 
     fun push(r: Route) {
+        lastKind = NavKind.PUSH
         stack.add(r)
     }
 
     fun selectTab(r: Route) {
+        lastKind = NavKind.TAB
         stack.clear()
         stack.add(r)
     }
@@ -45,6 +52,7 @@ class Nav(start: Route = Route.Home) {
     /** Pops one screen. Returns false when there is nothing left to pop. */
     fun back(): Boolean {
         if (stack.size > 1) {
+            lastKind = NavKind.POP
             stack.removeAt(stack.lastIndex)
             return true
         }

@@ -1,5 +1,8 @@
 package com.cleantube.app.ui
 
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
@@ -208,12 +211,12 @@ private fun DownloadRow(d: DownloadItem) {
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 5.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Card)
-            .clickable(enabled = d.status == DlStatus.DONE) {
+            .bouncyClickable(enabled = d.status == DlStatus.DONE, pressedScale = 0.98f) {
                 if (Downloads.exists(ctx, d)) nav.push(Route.LocalPlay(Downloads.uriOf(d).toString(), d.title))
                 else android.widget.Toast.makeText(ctx, "The file is gone (deleted or moved).", android.widget.Toast.LENGTH_LONG).show()
             }
+            .clip(RoundedCornerShape(16.dp))
+            .background(Card)
             .padding(10.dp),
         verticalAlignment = Alignment.Top
     ) {
@@ -248,9 +251,11 @@ private fun DownloadRow(d: DownloadItem) {
                 DlStatus.CANCELLED -> Text("Cancelled", color = TextMuted, fontSize = 12.sp)
             }
 
+            // the bar glides to each new value instead of jumping
+            val shownProgress by animateFloatAsState(d.progress, tween(500, easing = LinearOutSlowInEasing), label = "dlProgress")
             if (live) {
                 if (running && d.phase.isEmpty() && d.progress > 0f) {
-                    LinearProgressIndicator(progress = { d.progress }, modifier = Modifier.fillMaxWidth(), color = Accent, trackColor = Hairline)
+                    LinearProgressIndicator(progress = { shownProgress }, modifier = Modifier.fillMaxWidth(), color = Accent, trackColor = Hairline)
                 } else {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Accent, trackColor = Hairline)
                 }

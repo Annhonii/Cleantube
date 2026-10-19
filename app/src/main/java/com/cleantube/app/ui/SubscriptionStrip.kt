@@ -72,8 +72,8 @@ fun SubscriptionStrip(channels: List<ChannelItem>, videos: List<VideoItem>) {
                 Column(
                     Modifier
                         .width(68.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { nav.push(Route.Channel(c.id, c)) },
+                        .bouncyClickable(pressedScale = 0.88f) { nav.push(Route.Channel(c.id, c)) }
+                        .clip(RoundedCornerShape(12.dp)),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     AppImage(c.thumb, Modifier.size(60.dp), CircleShape)

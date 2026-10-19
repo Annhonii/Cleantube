@@ -1,5 +1,13 @@
 package com.cleantube.app.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
@@ -74,31 +82,43 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                     )
                 }
             ) {
-            key(r) {
-                when (r) {
-                    Route.Home -> HomeScreen()
-                    Route.Shorts -> ShortsScreen()
-                    Route.Feed -> FeedScreen()
-                    Route.Library -> LibraryScreen()
-                    Route.History -> HistoryScreen()
-                    Route.Settings -> SettingsScreen()
-                    Route.Login -> LoginScreen()
-                    Route.Downloads -> DownloadsScreen()
-                    is Route.LocalPlay -> LocalPlayScreen(r)
-                    is Route.Search -> SearchScreen(r)
-                    is Route.Video -> VideoScreen(r)
-                    is Route.Channel -> ChannelScreen(r)
-                    is Route.Playlist -> PlaylistScreen(r)
-                    is Route.LocalList -> LocalListScreen(r)
+            val tabRoutes = visible.map { it.route }
+            AnimatedContent(
+                targetState = r,
+                transitionSpec = { screenTransition(nav, tabRoutes) },
+                modifier = Modifier.fillMaxSize(),
+                label = "screens"
+            ) { route ->
+                // every screen paints its own background, so the one underneath never shows through while sliding
+                Box(Modifier.fillMaxSize().background(Bg)) {
+                    when (route) {
+                        Route.Home -> HomeScreen()
+                        Route.Shorts -> ShortsScreen()
+                        Route.Feed -> FeedScreen()
+                        Route.Library -> LibraryScreen()
+                        Route.History -> HistoryScreen()
+                        Route.Settings -> SettingsScreen()
+                        Route.Login -> LoginScreen()
+                        Route.Downloads -> DownloadsScreen()
+                        is Route.LocalPlay -> LocalPlayScreen(route)
+                        is Route.Search -> SearchScreen(route)
+                        is Route.Video -> VideoScreen(route)
+                        is Route.Channel -> ChannelScreen(route)
+                        is Route.Playlist -> PlaylistScreen(route)
+                        is Route.LocalList -> LocalListScreen(route)
+                    }
                 }
             }
             }
 
-            if (nav.isTabRoot) {
-                FloatingSearchBar(
-                    onClick = { nav.push(Route.Search()) },
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
+            // the search bar floats up when a tab opens and drops away when a screen is pushed
+            AnimatedVisibility(
+                visible = nav.isTabRoot,
+                modifier = Modifier.align(Alignment.BottomCenter),
+                enter = slideInVertically(spring(dampingRatio = 0.72f, stiffness = 420f)) { it } + fadeIn(tween(220)),
+                exit = slideOutVertically(tween(240, easing = Motion.EmphasizedAccelerate)) { it } + fadeOut(tween(160))
+            ) {
+                FloatingSearchBar(onClick = { nav.push(Route.Search()) })
             }
 
             // Fullscreen video from the YouTube player, drawn above everything.

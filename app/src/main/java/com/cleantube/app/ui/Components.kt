@@ -1,5 +1,10 @@
 package com.cleantube.app.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -80,14 +85,18 @@ import com.cleantube.app.data.timeAgo
 
 @Composable
 fun AppImage(url: String, modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(12.dp)) {
-    AsyncImage(
-        model = url.ifEmpty { null },
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = modifier
-            .clip(shape)
-            .background(Hairline)
-    )
+    // the picture fades in over the grey tile instead of popping in
+    var loaded by remember(url) { mutableStateOf(false) }
+    val fade by animateFloatAsState(if (loaded) 1f else 0f, tween(300), label = "img")
+    Box(modifier.clip(shape).background(Hairline)) {
+        AsyncImage(
+            model = url.ifEmpty { null },
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            onSuccess = { loaded = true },
+            modifier = Modifier.matchParentSize().alpha(fade)
+        )
+    }
 }
 
 /** Rounded button / chip. [active] = inverted (white pill, black text). */
@@ -99,14 +108,15 @@ fun Pill(
     icon: ImageVector? = null,
     active: Boolean = false
 ) {
-    val bg = if (active) TextPrimary else Card
-    val fg = if (active) Bg else TextPrimary
+    val bg by animateColorAsState(if (active) TextPrimary else Card, tween(240), label = "pillBg")
+    val fg by animateColorAsState(if (active) Bg else TextPrimary, tween(240), label = "pillFg")
+    val edge by animateColorAsState(if (active) TextPrimary else Hairline, tween(240), label = "pillEdge")
     Row(
         modifier = modifier
+            .bouncyClickable(pressedScale = 0.92f, onClick = onClick)
             .clip(CircleShape)
             .background(bg)
-            .border(BorderStroke(1.dp, if (active) bg else Hairline), CircleShape)
-            .clickable(onClick = onClick)
+            .border(BorderStroke(1.dp, edge), CircleShape)
             .padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
@@ -233,16 +243,27 @@ fun <T> PagedColumn(
 ) {
     LaunchedEffect(paged) { paged.loadMore() }
     LoadMoreEffect(state, paged)
+    // rows that were already shown don't animate again when scrolled back into view
+    val seen = remember(paged) { HashSet<Any>() }
 
     LazyColumn(modifier = modifier.fillMaxSize(), state = state, contentPadding = contentPadding) {
         header?.invoke(this)
-        items(paged.items.size) { i -> row(paged.items[i]) }
+        items(paged.items.size) { i ->
+            Box(Modifier.entrance(seen, i, if (i < 6) 60 + i * 55 else 0)) { row(paged.items[i]) }
+        }
         item {
             val err = paged.error
             if (err != null) {
                 ErrorBox(err, onRetry = { paged.loadMore() })
             } else if (paged.loading) {
-                Loading()
+                if (paged.items.isEmpty()) {
+                    // first page still loading: shimmering placeholders instead of a lonely spinner
+                    Column {
+                        repeat(3) { VideoRowSkeleton() }
+                    }
+                } else {
+                    Loading()
+                }
             } else if (paged.items.isEmpty() && paged.finished) {
                 EmptyState(emptyText)
             }
@@ -275,7 +296,7 @@ fun VideoRow(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .bouncyClickable(pressedScale = 0.975f, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 9.dp)
     ) {
         Box(
@@ -367,12 +388,21 @@ fun VideoRow(
 @Composable
 private fun VideoThumb(id: String, modifier: Modifier = Modifier) {
     var fallback by remember(id) { mutableStateOf(false) }
+    var loaded by remember(id) { mutableStateOf(false) }
+    // fades in while settling from a slight zoom: the thumbnail "arrives" instead of popping
+    val show by animateFloatAsState(if (loaded) 1f else 0f, tween(420, easing = Motion.Emphasized), label = "thumb")
     AsyncImage(
         model = if (fallback) "https://i.ytimg.com/vi/$id/mqdefault.jpg" else "https://i.ytimg.com/vi/$id/hq720.jpg",
         contentDescription = null,
         contentScale = ContentScale.Crop,
+        onSuccess = { loaded = true },
         onError = { fallback = true },
-        modifier = modifier
+        modifier = modifier.graphicsLayer {
+            alpha = show
+            val s = 1.07f - 0.07f * show
+            scaleX = s
+            scaleY = s
+        }
     )
 }
 
@@ -431,9 +461,9 @@ fun ChannelRow(c: ChannelItem, onClick: () -> Unit, trailing: (@Composable () ->
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 5.dp)
+            .bouncyClickable(pressedScale = 0.97f, onClick = onClick)
             .clip(RoundedCornerShape(16.dp))
             .background(Card)
-            .clickable(onClick = onClick)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -463,9 +493,9 @@ fun PlaylistRow(p: PlaylistItem, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 5.dp)
+            .bouncyClickable(pressedScale = 0.97f, onClick = onClick)
             .clip(RoundedCornerShape(16.dp))
             .background(Card)
-            .clickable(onClick = onClick)
             .padding(10.dp),
         verticalAlignment = Alignment.Top
     ) {

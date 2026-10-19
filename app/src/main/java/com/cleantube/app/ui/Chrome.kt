@@ -1,6 +1,7 @@
 package com.cleantube.app.ui
 
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -10,6 +11,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -164,7 +166,10 @@ fun TabTopBar(
     val store = Graph.store
     val tabs = visibleTabs(store)
     val n = tabs.size
-    val selIndex = tabs.indexOfFirst { it.route == nav.current }
+    // The route this bar belongs to, fixed for the life of the screen: while the screen slides out after a switch,
+    // its bar must not decide the selected tab again (the new screen's bar does that).
+    val myRoute = remember { nav.current }
+    val selIndex = tabs.indexOfFirst { it.route == myRoute }
     val downloading = Downloads.items.any { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
 
     // pos = the selected tab's index as a number that glides from one tab to the next. Every size and the
@@ -172,7 +177,7 @@ fun TabTopBar(
     // It lives above the screens (every tab screen has its own bar), so the glide carries on across the switch.
     val posAnim = LocalTabPos.current
     LaunchedEffect(selIndex) {
-        posAnim.animateTo(selIndex.toFloat(), spring(dampingRatio = 0.9f, stiffness = 1100f))
+        posAnim.animateTo(selIndex.toFloat(), spring(dampingRatio = 0.72f, stiffness = 650f))
     }
     val pos by posAnim.asState()
     // 1 right on the cell that pos points at, falling to 0 one cell away
@@ -278,8 +283,8 @@ private fun PillCell(t: TabSpec, bump: Float, dot: Boolean, onClick: () -> Unit,
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
+            .bouncyClickable(pressedScale = 0.86f, onClick = onClick)
+            .clip(CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -288,7 +293,14 @@ private fun PillCell(t: TabSpec, bump: Float, dot: Boolean, onClick: () -> Unit,
                     t.icon,
                     contentDescription = t.label,
                     tint = lerp(OnNavBg, NavBg, bump),
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier
+                        .size(22.dp)
+                        // the selected tab's icon swells a little as the chip arrives
+                        .graphicsLayer {
+                            val s = 1f + 0.16f * bump
+                            scaleX = s
+                            scaleY = s
+                        }
                 )
                 // dot on the Downloads tab while something is downloading
                 if (dot && bump < 0.5f) {
@@ -324,8 +336,8 @@ private fun ProfileCell(onClick: () -> Unit, modifier: Modifier) {
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
+            .bouncyClickable(pressedScale = 0.86f, onClick = onClick)
+            .clip(CircleShape),
         contentAlignment = Alignment.Center
     ) {
         if (thumb.isNotEmpty()) {
@@ -345,10 +357,10 @@ fun FloatingSearchBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
             .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .fillMaxWidth()
+            .bouncyClickable(pressedScale = 0.97f, onClick = onClick)
             .shadow(8.dp, shape)
             .clip(shape)
             .background(Card)
-            .clickable(onClick = onClick)
             .height(56.dp)
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically

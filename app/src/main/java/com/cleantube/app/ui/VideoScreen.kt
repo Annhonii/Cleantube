@@ -1,5 +1,13 @@
 package com.cleantube.app.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -195,6 +203,8 @@ fun VideoScreen(route: Route.Video) {
         Paged(scope) { token -> Api.comments(route.id, token) }
     }
     val listState = rememberLazyListState()
+    // which parts of this page already played their entrance (so scrolling back doesn't replay it)
+    val seen = remember(route.id) { HashSet<Any>() }
 
     LaunchedEffect(details) {
         if (details != null && more.items.isEmpty()) more.loadMore()
@@ -223,10 +233,17 @@ fun VideoScreen(route: Route.Video) {
 
                 // ---- title (tap to open the description) + stats
                 item {
+                    val arrow by animateFloatAsState(
+                        if (descOpen) 180f else 0f,
+                        spring(dampingRatio = 0.6f, stiffness = 360f),
+                        label = "arrow"
+                    )
                     Column(
                         Modifier
+                            .entrance(seen, "title", 120)
                             .fillMaxWidth()
                             .clickable { descOpen = !descOpen }
+                            .animateContentSize(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow))
                             .padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = 4.dp)
                     ) {
                         Row(verticalAlignment = Alignment.Top) {
@@ -245,7 +262,7 @@ fun VideoScreen(route: Route.Video) {
                                 Icons.Rounded.KeyboardArrowDown,
                                 contentDescription = if (descOpen) "Hide description" else "Show description",
                                 tint = TextPrimary,
-                                modifier = Modifier.size(28.dp).rotate(if (descOpen) 180f else 0f)
+                                modifier = Modifier.size(28.dp).rotate(arrow)
                             )
                         }
                         val meta = listOfNotNull(
@@ -260,20 +277,30 @@ fun VideoScreen(route: Route.Video) {
 
                 // ---- description (opens under the title)
                 val description = details?.description.orEmpty()
-                if (descOpen && description.isNotBlank()) {
+                if (description.isNotBlank()) {
                     item {
-                        Text(
-                            description,
-                            color = TextPrimary,
-                            fontSize = 13.sp,
-                            lineHeight = 19.sp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 8.dp)
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(Card)
-                                .padding(16.dp)
-                        )
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = descOpen,
+                            enter = androidx.compose.animation.expandVertically(
+                                spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+                            ) + fadeIn(tween(260)),
+                            exit = androidx.compose.animation.shrinkVertically(
+                                tween(260, easing = Motion.Emphasized)
+                            ) + fadeOut(tween(160))
+                        ) {
+                            Text(
+                                description,
+                                color = TextPrimary,
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(Card)
+                                    .padding(16.dp)
+                            )
+                        }
                     }
                 }
 
@@ -281,6 +308,7 @@ fun VideoScreen(route: Route.Video) {
                 item {
                     Row(
                         Modifier
+                            .entrance(seen, "actions", 200)
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState())
                             .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -321,13 +349,16 @@ fun VideoScreen(route: Route.Video) {
                     item {
                         val ch = channel ?: ChannelItem(video.channelId, video.channelTitle)
                         val subscribed = store.isSubscribed(ch.id)
+                        val subBg by animateColorAsState(if (subscribed) Hairline else Accent, tween(280), label = "subBg")
+                        val subFg by animateColorAsState(if (subscribed) TextPrimary else OnAccent, tween(280), label = "subFg")
                         Row(
                             Modifier
+                                .entrance(seen, "channel", 280)
                                 .fillMaxWidth()
                                 .padding(horizontal = 14.dp, vertical = 6.dp)
+                                .bouncyClickable(pressedScale = 0.97f) { nav.push(Route.Channel(ch.id, ch)) }
                                 .clip(RoundedCornerShape(22.dp))
                                 .background(Card)
-                                .clickable { nav.push(Route.Channel(ch.id, ch)) }
                                 .padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -349,13 +380,13 @@ fun VideoScreen(route: Route.Video) {
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 if (subscribed) "Subscribed" else "Subscribe",
-                                color = if (subscribed) TextPrimary else OnAccent,
+                                color = subFg,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
                                 modifier = Modifier
+                                    .bouncyClickable(pressedScale = 0.88f) { toggleSubscription(scope, ch) }
                                     .clip(CircleShape)
-                                    .background(if (subscribed) Hairline else Accent)
-                                    .clickable { toggleSubscription(scope, ch) }
+                                    .background(subBg)
                                     .padding(horizontal = 20.dp, vertical = 11.dp)
                             )
                         }
@@ -368,11 +399,13 @@ fun VideoScreen(route: Route.Video) {
                     val first = comments.items.firstOrNull()
                     Column(
                         Modifier
+                            .entrance(seen, "comments", 360)
                             .fillMaxWidth()
                             .padding(horizontal = 14.dp, vertical = 6.dp)
+                            .bouncyClickable(pressedScale = 0.975f) { commentsOpen = true }
                             .clip(RoundedCornerShape(22.dp))
                             .background(Card)
-                            .clickable { commentsOpen = true }
+                            .animateContentSize(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow))
                             .padding(16.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -425,7 +458,9 @@ fun VideoScreen(route: Route.Video) {
                 val vids = more.items.filter { it.id != route.id }
                 items(vids.size) { i ->
                     val v = vids[i]
-                    VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
+                    Box(Modifier.entrance(seen, "up" + v.id, if (i < 4) 420 + i * 70 else 0)) {
+                        VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
+                    }
                 }
 
                 item {
@@ -443,8 +478,8 @@ fun VideoScreen(route: Route.Video) {
             // ---- comments panel: slides up under the player, the video keeps playing
             androidx.compose.animation.AnimatedVisibility(
                 visible = commentsOpen,
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut()
+                enter = slideInVertically(spring(dampingRatio = 0.86f, stiffness = 320f)) { it } + fadeIn(tween(220)),
+                exit = slideOutVertically(tween(300, easing = Motion.EmphasizedAccelerate)) { it } + fadeOut(tween(220))
             ) {
                 CommentsPanel(
                     videoId = route.id,
@@ -685,17 +720,38 @@ private fun ActionChip(
     container: Color = Card,
     content: Color = TextPrimary
 ) {
+    val bg by animateColorAsState(container, tween(260), label = "chipBg")
+    val fg by animateColorAsState(content, tween(260), label = "chipFg")
+    // the icon pops (squash, then a bouncy return) whenever the chip switches on or off, e.g. a like
+    val pop = remember { Animatable(1f) }
+    var firstRun by remember { mutableStateOf(true) }
+    LaunchedEffect(container) {
+        if (firstRun) {
+            firstRun = false
+        } else {
+            pop.snapTo(0.55f)
+            pop.animateTo(1f, spring(dampingRatio = 0.32f, stiffness = 380f))
+        }
+    }
     Row(
         modifier = Modifier
+            .then(if (onClick != null) Modifier.bouncyClickable(pressedScale = 0.9f, onClick = onClick) else Modifier)
             .clip(CircleShape)
-            .background(container)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .background(bg)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = fg,
+            modifier = Modifier.size(18.dp).graphicsLayer {
+                scaleX = pop.value
+                scaleY = pop.value
+            }
+        )
         Spacer(Modifier.width(8.dp))
-        Text(text, color = content, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Text(text, color = fg, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }
 
