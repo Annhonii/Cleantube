@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
@@ -50,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
@@ -267,67 +270,144 @@ fun VideoRow(
     var menu by remember { mutableStateOf(false) }
     var saveDialog by remember { mutableStateOf(false) }
 
-    Row(
+    // Big rounded thumbnail (channel pill top-left, duration top-right) with the title
+    // underneath, so the title never covers the picture.
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 5.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Card)
             .clickable(onClick = onClick)
-            .padding(10.dp),
-        verticalAlignment = Alignment.Top
+            .padding(horizontal = 14.dp, vertical = 9.dp)
     ) {
-        Box(Modifier.width(144.dp).aspectRatio(16f / 9f)) {
-            AppImage(v.thumb, Modifier.fillMaxSize())
-            if (v.live) {
-                Badge("LIVE", Accent, Modifier.align(Alignment.BottomEnd).padding(5.dp))
-            } else if (v.durationSec > 0) {
-                Badge(formatDuration(v.durationSec), Color(0xAA000000), Modifier.align(Alignment.BottomEnd).padding(5.dp))
-            }
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                v.title,
-                color = TextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(22.dp))
+                .background(Hairline)
+        ) {
+            VideoThumb(v.id, Modifier.fillMaxSize())
+            // soft scrim so the pill and badge stay readable on bright thumbnails
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .background(Brush.verticalGradient(listOf(Color(0x80000000), Color.Transparent)))
             )
-            Spacer(Modifier.size(4.dp))
-            Text(v.channelTitle, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(videoMeta(v), color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Box {
-            IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = TextMuted)
+            if (v.channelTitle.isNotEmpty()) {
+                ChannelPill(
+                    name = v.channelTitle,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(10.dp)
+                        .widthIn(max = 220.dp),
+                    onClick = if (v.channelId.isNotEmpty()) {
+                        { nav.push(Route.Channel(v.channelId)) }
+                    } else null
+                )
             }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(
-                    text = { Text("Save to playlist") },
-                    onClick = { menu = false; saveDialog = true }
+            if (v.live) {
+                Badge("LIVE", Accent, Modifier.align(Alignment.TopEnd).padding(12.dp))
+            } else if (v.durationSec > 0) {
+                Badge(formatDuration(v.durationSec), Color(0x99000000), Modifier.align(Alignment.TopEnd).padding(12.dp))
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 6.dp, top = 10.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    v.title,
+                    color = TextPrimary,
+                    fontSize = 15.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
-                DropdownMenuItem(
-                    text = { Text("Share") },
-                    onClick = { menu = false; shareVideo(ctx, v.id) }
-                )
-                if (v.channelId.isNotEmpty()) {
-                    DropdownMenuItem(
-                        text = { Text("Go to channel") },
-                        onClick = { menu = false; nav.push(Route.Channel(v.channelId)) }
-                    )
+                val meta = videoMeta(v)
+                if (meta.isNotEmpty()) {
+                    Spacer(Modifier.size(3.dp))
+                    Text(meta, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                if (onRemove != null) {
+            }
+            Box {
+                IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = TextMuted)
+                }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(
-                        text = { Text("Remove") },
-                        onClick = { menu = false; onRemove() }
+                        text = { Text("Save to playlist") },
+                        onClick = { menu = false; saveDialog = true }
                     )
+                    DropdownMenuItem(
+                        text = { Text("Share") },
+                        onClick = { menu = false; shareVideo(ctx, v.id) }
+                    )
+                    if (v.channelId.isNotEmpty()) {
+                        DropdownMenuItem(
+                            text = { Text("Go to channel") },
+                            onClick = { menu = false; nav.push(Route.Channel(v.channelId)) }
+                        )
+                    }
+                    if (onRemove != null) {
+                        DropdownMenuItem(
+                            text = { Text("Remove") },
+                            onClick = { menu = false; onRemove() }
+                        )
+                    }
                 }
             }
         }
     }
     if (saveDialog) SaveToPlaylistDialog(v) { saveDialog = false }
+}
+
+/** Sharp 720p thumbnail when YouTube has one, otherwise the standard medium one. */
+@Composable
+private fun VideoThumb(id: String, modifier: Modifier = Modifier) {
+    var fallback by remember(id) { mutableStateOf(false) }
+    AsyncImage(
+        model = if (fallback) "https://i.ytimg.com/vi/$id/mqdefault.jpg" else "https://i.ytimg.com/vi/$id/hq720.jpg",
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        onError = { fallback = true },
+        modifier = modifier
+    )
+}
+
+/** Small frosted pill with the channel's initial and name, like the reference design. */
+@Composable
+private fun ChannelPill(name: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+    Row(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(Color(0xB3FFFFFF))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(start = 3.dp, end = 10.dp, top = 3.dp, bottom = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(22.dp).clip(CircleShape).background(Bg),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                name.trim().firstOrNull()?.uppercase() ?: "•",
+                color = TextPrimary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+        Spacer(Modifier.width(6.dp))
+        Text(
+            name,
+            color = Bg,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
 }
 
 @Composable
