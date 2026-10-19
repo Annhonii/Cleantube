@@ -48,7 +48,9 @@ data class Comment(
     val likes: Long,
     val publishedAt: String,
     val replies: Int,
-    val likesText: String = ""
+    val likesText: String = "",
+    /** Continuation that loads this comment's replies; empty when it has none. */
+    val repliesToken: String = ""
 )
 
 data class VideoDetails(

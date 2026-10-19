@@ -45,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -385,6 +386,7 @@ fun VideoScreen(route: Route.Video) {
                 exit = slideOutVertically { it } + fadeOut()
             ) {
                 CommentsPanel(
+                    videoId = route.id,
                     comments = comments,
                     count = details?.commentCountText.orEmpty(),
                     onClose = { commentsOpen = false }
@@ -403,9 +405,12 @@ fun VideoScreen(route: Route.Video) {
 
 /** Full comments list in a rounded sheet that fills the area under the player. Loads more while scrolling. */
 @Composable
-private fun CommentsPanel(comments: Paged<Comment>, count: String, onClose: () -> Unit) {
+private fun CommentsPanel(videoId: String, comments: Paged<Comment>, count: String, onClose: () -> Unit) {
     val state = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     LoadMoreEffect(state, comments)
+    // opened replies, by the comment's replies token: each one is its own paged list
+    val expanded = remember { mutableStateMapOf<String, Paged<Comment>>() }
 
     Column(
         Modifier
@@ -436,7 +441,33 @@ private fun CommentsPanel(comments: Paged<Comment>, count: String, onClose: () -
             contentPadding = PaddingValues(top = 6.dp, bottom = 32.dp)
         ) {
             val list = comments.items
-            items(list.size) { i -> CommentRow(list[i]) }
+            list.forEach { c ->
+                val token = c.repliesToken
+                val rp = if (token.isNotEmpty()) expanded[token] else null
+                item {
+                    CommentRow(
+                        c,
+                        repliesOpen = rp != null,
+                        onToggleReplies = if (token.isNotEmpty()) {
+                            {
+                                if (rp != null) {
+                                    expanded.remove(token)
+                                } else {
+                                    // first page uses the thread's token, later pages the one the previous page returned
+                                    val p = Paged<Comment>(scope) { t -> Api.comments(videoId, t ?: token) }
+                                    expanded[token] = p
+                                    p.loadMore()
+                                }
+                            }
+                        } else null
+                    )
+                }
+                if (rp != null) {
+                    val replies = rp.items
+                    items(replies.size) { i -> CommentRow(replies[i], reply = true) }
+                    item { RepliesFooter(rp, onHide = { expanded.remove(token) }) }
+                }
+            }
             item {
                 val e = comments.error
                 if (e != null) {
@@ -474,10 +505,58 @@ private fun ActionChip(
     }
 }
 
+/** Under an opened comment's replies: status, "Show more replies" and "Hide replies". */
 @Composable
-private fun CommentRow(c: Comment) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 9.dp)) {
-        AppImage(c.avatar, Modifier.size(34.dp), CircleShape)
+private fun RepliesFooter(replies: Paged<Comment>, onHide: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 56.dp, end = 20.dp, top = 2.dp, bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (replies.error != null) {
+            Text(
+                "Couldn't load replies. Tap to retry",
+                color = TextPrimary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.clickable { replies.loadMore() }.padding(vertical = 6.dp)
+            )
+        } else if (replies.loading) {
+            Text("Loading replies…", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp))
+        } else {
+            if (!replies.finished) {
+                Text(
+                    "Show more replies",
+                    color = TextPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clickable { replies.loadMore() }.padding(vertical = 6.dp)
+                )
+            }
+            Text(
+                "Hide replies",
+                color = TextMuted,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.clickable(onClick = onHide).padding(vertical = 6.dp)
+            )
+        }
+    }
+}
+
+/**
+ * One comment. [reply] = a reply (indented, smaller avatar). [onToggleReplies] != null adds the
+ * "N replies" button that opens / closes the replies; [repliesOpen] turns its arrow around.
+ */
+@Composable
+private fun CommentRow(
+    c: Comment,
+    reply: Boolean = false,
+    repliesOpen: Boolean = false,
+    onToggleReplies: (() -> Unit)? = null
+) {
+    Row(Modifier.fillMaxWidth().padding(start = if (reply) 56.dp else 20.dp, end = 20.dp, top = 9.dp, bottom = 9.dp)) {
+        AppImage(c.avatar, Modifier.size(if (reply) 24.dp else 34.dp), CircleShape)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
@@ -488,12 +567,33 @@ private fun CommentRow(c: Comment) {
                 overflow = TextOverflow.Ellipsis
             )
             Text(c.text, color = TextPrimary, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
-            val extra = listOfNotNull(
-                if (c.likesText.isNotEmpty() && c.likesText != "0") "${c.likesText} likes" else null,
-                if (c.replies > 0) "${c.replies} replies" else null
-            ).joinToString(" • ")
-            if (extra.isNotEmpty()) {
-                Text(extra, color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            if (c.likesText.isNotEmpty() && c.likesText != "0") {
+                Text("${c.likesText} likes", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            }
+            if (onToggleReplies != null) {
+                val n = c.replies
+                Row(
+                    Modifier
+                        .padding(top = 4.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onToggleReplies)
+                        .padding(end = 10.dp, top = 4.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Rounded.KeyboardArrowDown,
+                        contentDescription = if (repliesOpen) "Hide replies" else "Show replies",
+                        tint = TextPrimary,
+                        modifier = Modifier.size(18.dp).rotate(if (repliesOpen) 180f else 0f)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        if (n > 0) "$n ${if (n == 1) "reply" else "replies"}" else "Replies",
+                        color = TextPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
     }

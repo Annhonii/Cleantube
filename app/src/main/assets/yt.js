@@ -320,21 +320,45 @@
     });
     var items = [];
     var token = null;
+
+    function toItem(p, replyToken) {
+      return {
+        t: 'm',
+        author: (p.author && p.author.displayName) || '',
+        avatar: fixUrl(p.author && p.author.avatarThumbnailUrl),
+        text: (p.properties && p.properties.content && p.properties.content.content) || '',
+        likes: (p.toolbar && (p.toolbar.likeCountNotliked || p.toolbar.likeCountLiked)) || '',
+        age: (p.properties && p.properties.publishedTime) || '',
+        replies: (p.toolbar && p.toolbar.replyCount) || 0,
+        replyToken: replyToken || ''
+      };
+    }
+
+    /** Continuation that loads the replies of a comment thread (null when it has none). */
+    function replyTokenOf(replies) {
+      if (!replies) return null;
+      var t = lastToken(replies);
+      if (t) return t;
+      walk(replies, function (x) {
+        if (!t && x.continuationCommand && x.continuationCommand.token) { t = x.continuationCommand.token; return true; }
+        return !!t;
+      });
+      return t;
+    }
+
     walk(j.onResponseReceivedEndpoints || j, function (x) {
       if (x.commentThreadRenderer) {
-        var vm = x.commentThreadRenderer.commentViewModel && x.commentThreadRenderer.commentViewModel.commentViewModel;
+        var thread = x.commentThreadRenderer;
+        var vm = thread.commentViewModel && thread.commentViewModel.commentViewModel;
         var p = vm && payloads[vm.commentKey];
-        if (p) {
-          items.push({
-            t: 'm',
-            author: (p.author && p.author.displayName) || '',
-            avatar: fixUrl(p.author && p.author.avatarThumbnailUrl),
-            text: (p.properties && p.properties.content && p.properties.content.content) || '',
-            likes: (p.toolbar && (p.toolbar.likeCountNotliked || p.toolbar.likeCountLiked)) || '',
-            age: (p.properties && p.properties.publishedTime) || '',
-            replies: (p.toolbar && p.toolbar.replyCount) || 0
-          });
-        }
+        if (p) items.push(toItem(p, replyTokenOf(thread.replies)));
+        return true;
+      }
+      // Replies come without the thread wrapper: a plain commentViewModel per reply.
+      if (x.commentViewModel) {
+        var rv = x.commentViewModel.commentViewModel || x.commentViewModel;
+        var rp = rv && payloads[rv.commentKey];
+        if (rp) items.push(toItem(rp, null));
         return true;
       }
       if (x.continuationItemRenderer) {

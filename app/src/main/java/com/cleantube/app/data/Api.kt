@@ -191,7 +191,8 @@ object Api {
                 likes = 0,
                 publishedAt = it.optString("age"),
                 replies = it.optString("replies").toIntOrNull() ?: 0,
-                likesText = it.optString("likes")
+                likesText = it.optString("likes"),
+                repliesToken = it.optString("replyToken")
             )
         }
         return Page(list, j.nextToken())
