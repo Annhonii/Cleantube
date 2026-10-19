@@ -18,27 +18,22 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LocalFireDepartment
-import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PersonOutline
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Subscriptions
 import androidx.compose.material.icons.rounded.VideoLibrary
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,7 +46,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cleantube.app.data.DlStatus
 import com.cleantube.app.data.Downloads
-import com.cleantube.app.data.Session
 
 /** Top bar of a pushed screen: back arrow + title. */
 @Composable
@@ -89,13 +83,21 @@ fun ScreenTitle(
     }
 }
 
-private fun downloading(): Boolean =
-    Downloads.items.any { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
+private data class TabSpec(val route: Route, val label: String, val icon: ImageVector)
+
+private val tabs = listOf(
+    TabSpec(Route.Home, "Home", Icons.Rounded.Home),
+    TabSpec(Route.Shorts, "Shorts", Icons.Rounded.LocalFireDepartment),
+    TabSpec(Route.Feed, "Feed", Icons.Rounded.Subscriptions),
+    TabSpec(Route.Library, "Library", Icons.Rounded.VideoLibrary),
+    TabSpec(Route.Downloads, "Downloads", Icons.Rounded.Download),
+    TabSpec(Route.History, "History", Icons.Rounded.History)
+)
 
 /**
- * Top bar of the tab screens: round Search and Downloads buttons on the left (the Downloads one gets a
- * red dot while something is downloading) and the account photo on the right, which opens Settings.
- * Screens other than Home also show their [title] under it. [actions] (refresh, clear...) go on a thin row below.
+ * Top bar of the tab screens: the tabs as icons (the selected one grows into a tinted chip with its
+ * label) and the profile / settings icon at the end. [actions] (refresh, clear...) go on a thin row below.
+ * [title] and [brand] are kept for the callers; the selected tab already says where you are.
  */
 @Composable
 fun TabTopBar(
@@ -104,6 +106,7 @@ fun TabTopBar(
     actions: (@Composable RowScope.() -> Unit)? = null
 ) {
     val nav = LocalNav.current
+    val selected = nav.current
     Column(
         Modifier
             .fillMaxWidth()
@@ -113,29 +116,16 @@ fun TabTopBar(
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            RoundButton(Icons.Rounded.Search, "Search", onClick = { nav.push(Route.Search()) })
-            Spacer(Modifier.width(10.dp))
-            RoundButton(
-                Icons.Rounded.Download,
-                "Downloads",
-                dot = downloading(),
-                onClick = { nav.selectTab(Route.Downloads) }
-            )
+            tabs.forEach { t ->
+                TabButton(t, selected = t.route == selected, onClick = { nav.selectTab(t.route) })
+            }
             Spacer(Modifier.weight(1f))
-            Avatar(onClick = { nav.push(Route.Settings) })
-        }
-        if (!brand) {
-            Text(
-                title,
-                color = TextPrimary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 26.sp,
-                maxLines = 1,
-                modifier = Modifier.padding(start = 20.dp, top = 2.dp, bottom = 4.dp)
-            )
+            IconButton(onClick = { nav.push(Route.Settings) }, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.Rounded.PersonOutline, contentDescription = "Settings", tint = TextMuted)
+            }
         }
         if (actions != null) {
             Row(
@@ -149,142 +139,29 @@ fun TabTopBar(
     }
 }
 
-/** 44dp round button on a soft tile, optional red dot in the corner. */
 @Composable
-private fun RoundButton(icon: ImageVector, description: String, onClick: () -> Unit, dot: Boolean = false) {
-    Box(
-        Modifier
-            .size(44.dp)
-            .clip(CircleShape)
-            .background(Card)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription = description, tint = TextPrimary, modifier = Modifier.size(22.dp))
-        if (dot) {
-            Box(
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 10.dp, end = 10.dp)
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(Accent)
-            )
-        }
-    }
-}
-
-/** The signed-in account's photo (or a person icon when signed out). Opens Settings. */
-@Composable
-private fun Avatar(onClick: () -> Unit) {
-    val thumb = Session.thumb
-    Box(
-        Modifier
-            .size(44.dp)
-            .clip(CircleShape)
-            .background(AccentSoft)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        if (thumb.isNotEmpty()) {
-            AppImage(thumb, Modifier.size(44.dp), CircleShape)
-        } else {
-            Icon(Icons.Rounded.Person, contentDescription = "Settings", tint = OnAccentSoft, modifier = Modifier.size(24.dp))
-        }
-    }
-}
-
-private data class TabSpec(val route: Route, val label: String, val icon: ImageVector)
-
-/** Always visible in the bottom pill. */
-private val mainTabs = listOf(
-    TabSpec(Route.Home, "Home", Icons.Rounded.Home),
-    TabSpec(Route.Shorts, "Shorts", Icons.Rounded.LocalFireDepartment),
-    TabSpec(Route.Feed, "Feed", Icons.Rounded.Subscriptions),
-    TabSpec(Route.Library, "Library", Icons.Rounded.VideoLibrary)
-)
-
-/** Behind the grid button at the end of the pill. */
-private val moreTabs = listOf(
-    TabSpec(Route.Downloads, "Downloads", Icons.Rounded.Download),
-    TabSpec(Route.History, "History", Icons.Rounded.History)
-)
-
-/**
- * Floating black pill at the bottom: the selected tab is a light chip with its label, the grid button at the
- * end opens the tabs that don't fit (Downloads, History). Search is the round button in the top bar.
- */
-@Composable
-fun FloatingNav(
-    selected: Route,
-    onSelect: (Route) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var menu by remember { mutableStateOf(false) }
-    val inMore = moreTabs.firstOrNull { it.route == selected }
-
-    Row(
-        modifier = modifier
-            .navigationBarsPadding()
-            .padding(bottom = 12.dp)
-            .shadow(10.dp, CircleShape)
-            .clip(CircleShape)
-            .background(NavBg)
-            .padding(6.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        mainTabs.forEach { t ->
-            NavItem(t.icon, t.label, selected = t.route == selected, onClick = { onSelect(t.route) })
-        }
-        Box {
-            // When Downloads / History is open, the grid button shows it as the selected chip.
-            NavItem(
-                icon = inMore?.icon ?: Icons.Rounded.Apps,
-                label = inMore?.label ?: "More",
-                selected = inMore != null,
-                dot = inMore == null && downloading(),
-                onClick = { menu = true }
-            )
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                moreTabs.forEach { t ->
-                    DropdownMenuItem(
-                        text = { Text(t.label) },
-                        leadingIcon = { Icon(t.icon, contentDescription = null) },
-                        onClick = { menu = false; onSelect(t.route) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun NavItem(
-    icon: ImageVector,
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    dot: Boolean = false
-) {
+private fun TabButton(t: TabSpec, selected: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
-            .height(46.dp)
+            .height(40.dp)
             .clip(CircleShape)
-            .background(if (selected) OnNavBg else Color.Transparent)
+            .background(if (selected) AccentSoft else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(horizontal = if (selected) 14.dp else 12.dp)
+            .padding(horizontal = if (selected) 12.dp else 7.dp)
             .animateContentSize(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box {
             Icon(
-                icon,
-                contentDescription = label,
-                tint = if (selected) NavBg else OnNavBg,
+                t.icon,
+                contentDescription = t.label,
+                tint = if (selected) OnAccentSoft else TextMuted,
                 modifier = Modifier.size(22.dp)
             )
-            if (dot && !selected) {
+            // dot on the Downloads tab while something is downloading
+            if (t.route == Route.Downloads && !selected &&
+                Downloads.items.any { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
+            ) {
                 Box(
                     Modifier
                         .align(Alignment.TopEnd)
@@ -296,13 +173,52 @@ private fun NavItem(
         }
         AnimatedVisibility(visible = selected) {
             Text(
-                label,
-                color = NavBg,
+                t.label,
+                color = OnAccentSoft,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 modifier = Modifier.padding(start = 8.dp)
             )
         }
+    }
+}
+
+/** Floating search bar at the bottom of the tab screens. Tapping it opens the search page. */
+@Composable
+fun FloatingSearchBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(28.dp)
+    Row(
+        modifier = modifier
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .fillMaxWidth()
+            .shadow(8.dp, shape)
+            .clip(shape)
+            .background(Card)
+            .clickable(onClick = onClick)
+            .height(56.dp)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // small rounded "play" badge, like the logo in the reference design
+        Box(
+            Modifier
+                .size(width = 34.dp, height = 24.dp)
+                .clip(RoundedCornerShape(7.dp))
+                .background(Accent),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = OnAccent, modifier = Modifier.size(18.dp))
+        }
+        Spacer(Modifier.width(14.dp))
+        Text(
+            "Search",
+            color = TextMuted,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(Icons.Rounded.Search, contentDescription = "Search", tint = TextPrimary)
     }
 }
