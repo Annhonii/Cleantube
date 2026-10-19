@@ -26,6 +26,14 @@ sealed interface Route {
 
 val TabRoutes: List<Route> = listOf(Route.Home, Route.Shorts, Route.Feed, Route.Library, Route.Downloads, Route.History)
 
+/** The tab [delta] steps after [from] in [TabRoutes] (negative = before), or null at either end / for non-tabs. */
+fun tabAfter(from: Route, delta: Int): Route? {
+    val i = TabRoutes.indexOf(from)
+    if (i < 0) return null
+    val j = (i + delta).coerceIn(0, TabRoutes.lastIndex)
+    return if (j == i) null else TabRoutes[j]
+}
+
 /** A tiny back stack. Tabs replace the whole stack, everything else is pushed on top. */
 class Nav(start: Route = Route.Home) {
     val stack = mutableStateListOf(start)

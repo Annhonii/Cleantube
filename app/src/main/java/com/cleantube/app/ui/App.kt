@@ -3,12 +3,17 @@ package com.cleantube.app.ui
 import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import com.cleantube.app.data.Session
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
@@ -28,6 +33,32 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
         Box(Modifier.fillMaxSize().background(Bg)) {
             val r = nav.current
 
+            // Swipe left / right anywhere on a tab screen to go to the next / previous tab. Vertical scrolling and
+            // horizontal lists inside the screen get the gesture first, so they keep working.
+            val swipePx = with(LocalDensity.current) { 90.dp.toPx() }
+            val navState = rememberUpdatedState(nav)
+            Box(
+                Modifier.fillMaxSize().pointerInput(Unit) {
+                    var total = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { total = 0f },
+                        onDragCancel = { total = 0f },
+                        onDragEnd = {
+                            val n = navState.value
+                            if (n.isTabRoot) {
+                                val target = when {
+                                    total <= -swipePx -> tabAfter(n.current, 1)
+                                    total >= swipePx -> tabAfter(n.current, -1)
+                                    else -> null
+                                }
+                                if (target != null) n.selectTab(target)
+                            }
+                            total = 0f
+                        },
+                        onHorizontalDrag = { _, amount -> total += amount }
+                    )
+                }
+            ) {
             key(r) {
                 when (r) {
                     Route.Home -> HomeScreen()
@@ -45,6 +76,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                     is Route.Playlist -> PlaylistScreen(r)
                     is Route.LocalList -> LocalListScreen(r)
                 }
+            }
             }
 
             if (nav.isTabRoot) {
