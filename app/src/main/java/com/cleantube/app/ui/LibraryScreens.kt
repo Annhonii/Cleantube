@@ -41,6 +41,7 @@ import com.cleantube.app.data.Paged
 import com.cleantube.app.data.Session
 import com.cleantube.app.data.VideoItem
 import com.cleantube.app.data.Api
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 private val listPadding = PaddingValues(bottom = 120.dp)
@@ -77,13 +78,37 @@ private fun AccountFeedScreen() {
     val nav = LocalNav.current
     val scope = rememberCoroutineScope()
     val paged = remember { Paged(scope) { token -> Api.accountFeed(token) } }
+
+    // channel logos on top (YouTube account's subscriptions; falls back to the locally saved ones)
+    var accountChannels by remember { mutableStateOf(AccountChannelsCache.list) }
+    LaunchedEffect(Unit) {
+        if (!AccountChannelsCache.valid()) {
+            try {
+                val list = Api.accountChannels()
+                if (list.isNotEmpty()) {
+                    AccountChannelsCache.put(list)
+                    accountChannels = list
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // no logos then; the feed itself still works
+            }
+        }
+    }
+    val stripChannels = accountChannels.ifEmpty { Graph.store.subscriptions }
+
     Column(Modifier.fillMaxSize()) {
         TabTopBar("Feed", actions = {
             IconButton(onClick = { paged.refresh() }) {
                 Icon(Icons.Rounded.Refresh, contentDescription = "Refresh", tint = TextPrimary)
             }
         })
-        PagedColumn(paged, emptyText = "Subscribe to channels and their newest videos show up here.") { v ->
+        PagedColumn(
+            paged,
+            emptyText = "Subscribe to channels and their newest videos show up here.",
+            header = { item { SubscriptionStrip(stripChannels, paged.items) } }
+        ) { v ->
             VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
         }
     }
@@ -137,6 +162,7 @@ private fun LocalFeedScreen() {
             list == null || (loading && list.isEmpty()) -> Loading()
             list.isEmpty() -> EmptyState("No recent videos.")
             else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = listPadding) {
+                item { SubscriptionStrip(subs, list) }
                 items(list.size) { i ->
                     val v = list[i]
                     VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
