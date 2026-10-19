@@ -1,0 +1,612 @@
+/* CleanTube InnerTube engine.
+ *
+ * Runs inside a hidden WebView that is on https://www.youtube.com (so the user's login cookies,
+ * TLS fingerprint and headers are the real browser's). Kotlin calls CT.run(id, command, argsJson);
+ * the answer comes back through AndroidBridge.onResult(id, ok, json).
+ *
+ * The parsers (section 1) are pure functions and are tested against recorded YouTube responses.
+ * YouTube changes its JSON now and then: when something stops showing up, this is the file to fix.
+ */
+(function (root) {
+  'use strict';
+
+  /* ================================================================== 1. parsers */
+
+  function txt(o) {
+    if (o == null) return '';
+    if (typeof o === 'string') return o;
+    if (o.simpleText) return o.simpleText;
+    if (typeof o.content === 'string') return o.content;
+    if (Array.isArray(o.runs)) return o.runs.map(function (r) { return r.text || ''; }).join('');
+    return '';
+  }
+
+  /** Depth-first walk. visit(obj) may return true to NOT descend into obj. */
+  function walk(o, visit) {
+    if (Array.isArray(o)) {
+      for (var i = 0; i < o.length; i++) walk(o[i], visit);
+    } else if (o && typeof o === 'object') {
+      if (visit(o) === true) return;
+      for (var k in o) walk(o[k], visit);
+    }
+  }
+
+  function findFirst(o, key) {
+    var found;
+    walk(o, function (x) {
+      if (found !== undefined) return true;
+      if (key in x) { found = x[key]; return true; }
+      return false;
+    });
+    return found;
+  }
+
+  function fixUrl(u) { return (u && u.indexOf('//') === 0) ? 'https:' + u : (u || ''); }
+
+  function lastThumb(t) {
+    var a = t && (t.thumbnails || t.sources);
+    return a && a.length ? fixUrl(a[a.length - 1].url) : '';
+  }
+  function firstThumb(t) {
+    var a = t && (t.thumbnails || t.sources);
+    return a && a.length ? fixUrl(a[0].url) : '';
+  }
+
+  function browseIdIn(o) {
+    var id = '';
+    walk(o, function (x) {
+      if (id) return true;
+      if (x.browseEndpoint && typeof x.browseEndpoint.browseId === 'string' &&
+          x.browseEndpoint.browseId.indexOf('UC') === 0) { id = x.browseEndpoint.browseId; return true; }
+      return false;
+    });
+    return id;
+  }
+
+  var DUR_RE = /^(?:\d+:)?\d{1,2}:\d{2}$/;
+
+  function durSeconds(s) {
+    if (!s || !DUR_RE.test(s)) return -1;
+    var p = s.split(':').map(Number), n = 0;
+    for (var i = 0; i < p.length; i++) n = n * 60 + p[i];
+    return n;
+  }
+
+  // Everything below an ad container is dropped, so the feeds stay ad free.
+  var AD_KEYS = {
+    adSlotRenderer: 1, promotedSparklesWebRenderer: 1, promotedVideoRenderer: 1, inFeedAdLayoutRenderer: 1,
+    displayAdRenderer: 1, bannerPromoRenderer: 1, statementBannerRenderer: 1, compactPromotedVideoRenderer: 1,
+    adBreakServiceRenderer: 1, searchPyvRenderer: 1, promotedSparklesTextSearchRenderer: 1
+  };
+
+  function mkVideo(id, title, ch, chId, dur, views, age, live, short) {
+    return { t: 'v', id: id, title: title || '', ch: ch || '', chId: chId || '', dur: dur == null ? -1 : dur,
+             views: views || '', age: age || '', live: !!live, short: !!short };
+  }
+
+  /** videoRenderer, compactVideoRenderer, gridVideoRenderer, reelItemRenderer */
+  function parseClassicVideo(r) {
+    if (!r.videoId) return null;
+    var by = r.longBylineText || r.shortBylineText || r.ownerText || null;
+    var ch = by && by.runs && by.runs[0] ? by.runs[0].text : '';
+    var chId = browseIdIn(by) || browseIdIn(r.channelThumbnailSupportedRenderers) || browseIdIn(r.ownerText);
+    var lenText = txt(r.lengthText);
+    var live = false;
+    walk(r.thumbnailOverlays || [], function (x) {
+      if (x.thumbnailOverlayTimeStatusRenderer) {
+        var tr = x.thumbnailOverlayTimeStatusRenderer;
+        if (!lenText) lenText = txt(tr.text);
+        if (tr.style === 'LIVE') live = true;
+      }
+      return false;
+    });
+    (r.badges || []).forEach(function (b) {
+      var m = b.metadataBadgeRenderer;
+      if (m && (m.style === 'BADGE_STYLE_TYPE_LIVE_NOW' || m.label === 'LIVE')) live = true;
+    });
+    var views = txt(r.viewCountText) || txt(r.shortViewCountText);
+    var short = !!r.reelWatchEndpoint || /\/shorts\//.test(JSON.stringify(r.navigationEndpoint || '').slice(0, 400));
+    return mkVideo(r.videoId, txt(r.title) || txt(r.headline), ch, chId, durSeconds(lenText),
+                   views, txt(r.publishedTimeText), live, short);
+  }
+
+  function metadataRows(lock) {
+    var m = lock.metadata && lock.metadata.lockupMetadataViewModel;
+    var rows = m && m.metadata && m.metadata.contentMetadataViewModel && m.metadata.contentMetadataViewModel.metadataRows;
+    return rows || [];
+  }
+
+  function rowText(row) {
+    return (row.metadataParts || []).map(function (p) { return txt(p.text); }).filter(Boolean);
+  }
+
+  /** lockupViewModel: the new format for videos and playlists in feeds, search, related, playlists. */
+  function parseLockup(l) {
+    var type = l.contentType || '';
+    var id = l.contentId;
+    if (!id) return null;
+    var meta = l.metadata && l.metadata.lockupMetadataViewModel;
+    var title = meta ? txt(meta.title) : '';
+    var rows = metadataRows(l);
+    var chName = '';
+    var VA = /\bviews?\b|watching|\bago\b|streamed|premiere|scheduled|waiting|^\d+(\.\d+)?[KMB]?$/i;
+    var allParts = [];
+    rows.forEach(function (r) { rowText(r).forEach(function (s) { allParts.push(s); }); });
+    for (var pi = 0; pi < allParts.length; pi++) { if (!VA.test(allParts[pi])) { chName = allParts[pi]; break; } }
+    var chId = browseIdIn(rows) || browseIdIn(meta && meta.image);
+
+    // thumbnail badges: duration / "N videos" / LIVE
+    var badges = [];
+    walk(l.contentImage || {}, function (x) {
+      if (x.thumbnailBadgeViewModel) badges.push(txt(x.thumbnailBadgeViewModel.text) || '');
+      return false;
+    });
+
+    if (type === 'LOCKUP_CONTENT_TYPE_VIDEO' || type === 'LOCKUP_CONTENT_TYPE_UNKNOWN' || !type) {
+      var dur = -1, live = false;
+      badges.forEach(function (b) {
+        if (durSeconds(b) >= 0) dur = durSeconds(b);
+        if (/^live$/i.test(b)) live = true;
+      });
+      var r1 = allParts;
+      var views = '', age = '';
+      r1.forEach(function (s) {
+        if (/view|watching/i.test(s)) views = s;
+        else if (/ago|streamed|premiere|scheduled|waiting/i.test(s)) age = s;
+      });
+      if (/watching/i.test(views)) live = true;
+      return mkVideo(id, title, chName, chId, dur, views, age, live, false);
+    }
+    if (type === 'LOCKUP_CONTENT_TYPE_PLAYLIST' || type === 'LOCKUP_CONTENT_TYPE_PODCAST' ||
+        type === 'LOCKUP_CONTENT_TYPE_ALBUM') {
+      var count = '';
+      badges.forEach(function (b) { if (/video|episode|track/i.test(b)) count = b; });
+      var thumb = '';
+      walk(l.contentImage || {}, function (x) {
+        if (!thumb && x.image && x.image.sources) { thumb = lastThumb(x.image); return true; }
+        return false;
+      });
+      return { t: 'p', id: id, title: title, ch: chName, thumb: thumb, count: count };
+    }
+    return null;
+  }
+
+  function parseShortsLockup(s) {
+    var id = (s.onTap && s.onTap.innertubeCommand && s.onTap.innertubeCommand.reelWatchEndpoint &&
+              s.onTap.innertubeCommand.reelWatchEndpoint.videoId) ||
+             (s.inlinePlayerData && s.inlinePlayerData.onVisible && s.inlinePlayerData.onVisible.innertubeCommand &&
+              s.inlinePlayerData.onVisible.innertubeCommand.watchEndpoint &&
+              s.inlinePlayerData.onVisible.innertubeCommand.watchEndpoint.videoId);
+    if (!id) return null;
+    var om = s.overlayMetadata || {};
+    return mkVideo(id, txt(om.primaryText), '', '', -1, txt(om.secondaryText), '', false, true);
+  }
+
+  function parseChannelRenderer(c) {
+    var id = c.channelId;
+    if (!id) return null;
+    var a = txt(c.subscriberCountText), b = txt(c.videoCountText);
+    var subs = /subscriber/i.test(a) ? a : (/subscriber/i.test(b) ? b : a || b);
+    var handle = /^@/.test(a) ? a : '';
+    return { t: 'c', id: id, title: txt(c.title), thumb: firstThumb(c.thumbnail), subs: subs, handle: handle,
+             desc: txt(c.descriptionSnippet) };
+  }
+
+  function parsePlaylistRenderer(p) {
+    if (!p.playlistId) return null;
+    var by = p.longBylineText || p.shortBylineText;
+    var thumb = '';
+    walk(p.thumbnails || p.thumbnail || {}, function (x) {
+      if (!thumb && x.thumbnails) { thumb = lastThumb(x); return true; }
+      return false;
+    });
+    return { t: 'p', id: p.playlistId, title: txt(p.title), ch: by && by.runs && by.runs[0] ? by.runs[0].text : '',
+             thumb: thumb, count: p.videoCount ? p.videoCount + ' videos' : txt(p.videoCountText) };
+  }
+
+  /** The continuation token that fetches the NEXT page: the last continuationItemRenderer found. */
+  function lastToken(root_, skipKey) {
+    var tok = null;
+    walk(root_, function (x) {
+      if (skipKey && skipKey in x) return true;
+      if (AD_KEYS[Object.keys(x)[0]]) return true;
+      var c = x.continuationItemRenderer;
+      if (c) {
+        var t = c.continuationEndpoint && c.continuationEndpoint.continuationCommand &&
+                c.continuationEndpoint.continuationCommand.token;
+        if (t) tok = t;
+        return true;
+      }
+      return false;
+    });
+    return tok;
+  }
+
+  /** Every video / channel / playlist in a response, in document order, plus the next page token. */
+  function parseItems(json, scope) {
+    var items = [], seen = {};
+    walk(scope || json, function (x) {
+      for (var k in AD_KEYS) if (k in x) return true;
+      var it = null;
+      if (x.videoRenderer) it = parseClassicVideo(x.videoRenderer);
+      else if (x.compactVideoRenderer) it = parseClassicVideo(x.compactVideoRenderer);
+      else if (x.gridVideoRenderer) it = parseClassicVideo(x.gridVideoRenderer);
+      else if (x.playlistVideoRenderer) it = parseClassicVideo(x.playlistVideoRenderer);
+      else if (x.reelItemRenderer) { it = parseClassicVideo(x.reelItemRenderer); if (it) it.short = true; }
+      else if (x.lockupViewModel) it = parseLockup(x.lockupViewModel);
+      else if (x.shortsLockupViewModel) it = parseShortsLockup(x.shortsLockupViewModel);
+      else if (x.channelRenderer) it = parseChannelRenderer(x.channelRenderer);
+      else if (x.gridChannelRenderer) it = parseChannelRenderer(x.gridChannelRenderer);
+      else if (x.playlistRenderer) it = parsePlaylistRenderer(x.playlistRenderer);
+      else if (x.gridPlaylistRenderer) it = parsePlaylistRenderer(x.gridPlaylistRenderer);
+      else return false;
+      if (it) {
+        var key = it.t + ':' + it.id;
+        if (!seen[key]) { seen[key] = 1; items.push(it); }
+      }
+      return true;
+    });
+    return { items: items, next: lastToken(scope || json) };
+  }
+
+  /** Watch page ("next" endpoint). */
+  function parseWatch(j) {
+    var tw = j.contents && j.contents.twoColumnWatchNextResults;
+    var primary = findFirst(tw || j, 'videoPrimaryInfoRenderer') || {};
+    var secondary = findFirst(tw || j, 'videoSecondaryInfoRenderer') || {};
+    var owner = (secondary.owner && secondary.owner.videoOwnerRenderer) || {};
+
+    var likes = '';
+    walk(primary.videoActions || {}, function (x) {
+      if (likes) return true;
+      var b = x.likeButtonViewModel;
+      if (b) {
+        walk(b, function (y) {
+          if (!likes && typeof y.title === 'string' && /^[\d.,]+\s?[KMB]?$/i.test(y.title)) likes = y.title;
+          return !!likes;
+        });
+        return true;
+      }
+      return false;
+    });
+
+    var description = secondary.attributedDescription ? txt(secondary.attributedDescription) : txt(secondary.description);
+
+    var commentsToken = null, commentCount = '';
+    walk(tw && tw.results, function (x) {
+      var s = x.itemSectionRenderer;
+      if (s && s.sectionIdentifier === 'comment-item-section') { commentsToken = lastToken(s); return true; }
+      return false;
+    });
+    (j.engagementPanels || []).forEach(function (p) {
+      var r = p.engagementPanelSectionListRenderer;
+      if (r && r.panelIdentifier === 'engagement-panel-comments-section') {
+        var ctx = findFirst(r, 'contextualInfo');
+        if (ctx) commentCount = txt(ctx);
+        if (!commentsToken) commentsToken = lastToken(r);
+      }
+    });
+
+    var secRoot = tw && tw.secondaryResults;
+    var rel = secRoot ? parseItems(j, secRoot) : { items: [], next: null };
+    var related = rel.items.filter(function (i) { return i.t === 'v'; });
+
+    return {
+      title: txt(primary.title),
+      views: txt(primary.viewCount && primary.viewCount.videoViewCountRenderer && primary.viewCount.videoViewCountRenderer.viewCount),
+      age: txt(primary.dateText) || txt(primary.relativeDateText),
+      likes: likes,
+      description: description,
+      owner: {
+        id: browseIdIn(owner) || '',
+        name: txt(owner.title),
+        thumb: lastThumb(owner.thumbnail),
+        subs: txt(owner.subscriberCountText)
+      },
+      related: related,
+      relatedNext: rel.next,
+      commentsToken: commentsToken,
+      commentCount: commentCount
+    };
+  }
+
+  /** Comments page (a "next" call with a continuation token). */
+  function parseComments(j) {
+    var payloads = {};
+    var muts = (j.frameworkUpdates && j.frameworkUpdates.entityBatchUpdate && j.frameworkUpdates.entityBatchUpdate.mutations) || [];
+    muts.forEach(function (m) {
+      var p = m.payload && m.payload.commentEntityPayload;
+      if (p && p.key) payloads[p.key] = p;
+    });
+    var items = [];
+    var token = null;
+
+    function toItem(p, replyToken) {
+      return {
+        t: 'm',
+        author: (p.author && p.author.displayName) || '',
+        avatar: fixUrl(p.author && p.author.avatarThumbnailUrl),
+        text: (p.properties && p.properties.content && p.properties.content.content) || '',
+        likes: (p.toolbar && (p.toolbar.likeCountNotliked || p.toolbar.likeCountLiked)) || '',
+        age: (p.properties && p.properties.publishedTime) || '',
+        replies: (p.toolbar && p.toolbar.replyCount) || 0,
+        replyToken: replyToken || ''
+      };
+    }
+
+    /** Continuation that loads the replies of a comment thread (null when it has none). */
+    function replyTokenOf(replies) {
+      if (!replies) return null;
+      var t = lastToken(replies);
+      if (t) return t;
+      walk(replies, function (x) {
+        if (!t && x.continuationCommand && x.continuationCommand.token) { t = x.continuationCommand.token; return true; }
+        return !!t;
+      });
+      return t;
+    }
+
+    walk(j.onResponseReceivedEndpoints || j, function (x) {
+      if (x.commentThreadRenderer) {
+        var thread = x.commentThreadRenderer;
+        var vm = thread.commentViewModel && thread.commentViewModel.commentViewModel;
+        var p = vm && payloads[vm.commentKey];
+        if (p) items.push(toItem(p, replyTokenOf(thread.replies)));
+        return true;
+      }
+      // Replies come without the thread wrapper: a plain commentViewModel per reply.
+      if (x.commentViewModel) {
+        var rv = x.commentViewModel.commentViewModel || x.commentViewModel;
+        var rp = rv && payloads[rv.commentKey];
+        if (rp) items.push(toItem(rp, null));
+        return true;
+      }
+      if (x.continuationItemRenderer) {
+        var c = x.continuationItemRenderer;
+        var t = c.continuationEndpoint && c.continuationEndpoint.continuationCommand && c.continuationEndpoint.continuationCommand.token;
+        if (t) token = t;
+        return true;
+      }
+      return false;
+    });
+    var disabled = !items.length && JSON.stringify(j).indexOf('Comments are turned off') >= 0;
+    // token needed to post a new top-level comment (only present in the first page, and only when signed in)
+    var create = '';
+    walk(j, function (x) {
+      if (create) return true;
+      if (typeof x.createCommentParams === 'string') { create = x.createCommentParams; return true; }
+      return false;
+    });
+    return { items: items, next: token, disabled: disabled, create: create };
+  }
+
+  /** Channel page (browse with browseId, optionally followed by continuation). */
+  function parseChannel(j) {
+    var meta = (j.metadata && j.metadata.channelMetadataRenderer) || {};
+    var hdr = j.header && (j.header.pageHeaderRenderer || j.header.c4TabbedHeaderRenderer) || {};
+    var subs = '', handle = '', videos = '', banner = '';
+    var subscribed = false;
+
+    walk(hdr, function (x) {
+      if (x.metadataRows) {
+        x.metadataRows.forEach(function (row) {
+          rowText(row).forEach(function (s) {
+            if (/subscriber/i.test(s)) subs = s;
+            else if (/^@/.test(s)) handle = s;
+            else if (/\bvideos?\b/i.test(s)) videos = s;
+          });
+        });
+        return true;
+      }
+      return false;
+    });
+    if (hdr.subscriberCountText && !subs) subs = txt(hdr.subscriberCountText);
+
+    // banner
+    walk(hdr, function (x) {
+      if (!banner && x.imageBannerViewModel && x.imageBannerViewModel.image) { banner = lastThumb(x.imageBannerViewModel.image); return true; }
+      if (!banner && x.banner && x.banner.thumbnails) { banner = lastThumb(x.banner); return true; }
+      return false;
+    });
+
+    // "Subscribed" button title means we are already subscribed
+    walk(hdr.content ? hdr.content.pageHeaderViewModel && hdr.content.pageHeaderViewModel.actions : hdr, function (x) {
+      if (x.buttonViewModel && /^subscribed$/i.test(x.buttonViewModel.title || '')) subscribed = true;
+      if (x.subscribeButtonRenderer && x.subscribeButtonRenderer.subscribed) subscribed = true;
+      return false;
+    });
+
+    var title = meta.title || '';
+    if (!title && hdr.content) title = txt(findFirst(hdr.content, 'text'));
+    var tabs = [];
+    var tabsRoot = j.contents && j.contents.twoColumnBrowseResultsRenderer && j.contents.twoColumnBrowseResultsRenderer.tabs;
+    (tabsRoot || []).forEach(function (t) {
+      var r = t.tabRenderer;
+      if (r) tabs.push({ title: r.title || '', selected: !!r.selected, params: r.endpoint && r.endpoint.browseEndpoint && r.endpoint.browseEndpoint.params || '' });
+    });
+
+    var list = parseItems(j, j.contents);
+    return {
+      channel: {
+        id: meta.externalId || '',
+        title: title,
+        desc: meta.description || '',
+        thumb: fixUrl(meta.avatar && meta.avatar.thumbnails && meta.avatar.thumbnails[0] && meta.avatar.thumbnails[0].url),
+        banner: banner,
+        subs: subs,
+        handle: handle,
+        videos: videos,
+        subscribed: subscribed
+      },
+      tabs: tabs,
+      items: list.items,
+      next: list.next
+    };
+  }
+
+  /** Playlist page: header title + videos. */
+  function parsePlaylist(j) {
+    var title = (j.metadata && j.metadata.playlistMetadataRenderer && j.metadata.playlistMetadataRenderer.title) || '';
+    var list = parseItems(j, j.contents || j.onResponseReceivedActions || j);
+    return { title: title, items: list.items.filter(function (i) { return i.t === 'v'; }), next: list.next };
+  }
+
+  function parseAccount(j) {
+    var h = findFirst(j, 'activeAccountHeaderRenderer');
+    if (!h) return { name: '', thumb: '', handle: '' };
+    return { name: txt(h.accountName), thumb: lastThumb(h.accountPhoto), handle: txt(h.channelHandle) };
+  }
+
+  var P = {
+    txt: txt, parseItems: parseItems, parseWatch: parseWatch, parseComments: parseComments,
+    parseChannel: parseChannel, parsePlaylist: parsePlaylist, parseAccount: parseAccount, durSeconds: durSeconds
+  };
+
+  if (typeof module !== 'undefined' && module.exports) { module.exports = P; }
+  if (typeof window === 'undefined') return; // node: parsers only
+
+  /* ================================================================== 2. transport */
+
+  var ENV = null;
+
+  function loadEnvCache() {
+    try {
+      var c = JSON.parse(localStorage.getItem('ct_env') || 'null');
+      if (c && c.key && c.version && Date.now() - c.at < 6 * 3600 * 1000) return c;
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
+  async function boot() {
+    if (ENV) return ENV;
+    var cached = loadEnvCache();
+    if (cached) { ENV = cached; return ENV; }
+    var html = await (await fetch('/', { credentials: 'include' })).text();
+    function pick(re) { var m = html.match(re); return m ? m[1] : ''; }
+    var key = pick(/"INNERTUBE_API_KEY":"([^"]+)"/);
+    var version = pick(/"INNERTUBE_CONTEXT_CLIENT_VERSION":"([^"]+)"/) || pick(/"clientVersion":"([^"]+)"/);
+    var visitor = pick(/"visitorData":"([^"]+)"/);
+    if (!key || !version) throw new Error('Could not read YouTube config');
+    ENV = { key: key, version: version, visitor: visitor, at: Date.now() };
+    try { localStorage.setItem('ct_env', JSON.stringify(ENV)); } catch (e) { /* ignore */ }
+    return ENV;
+  }
+
+  async function sapHash(origin) {
+    var m = document.cookie.match(/(?:^|;\s*)SAPISID=([^;]+)/) ||
+            document.cookie.match(/(?:^|;\s*)__Secure-3PAPISID=([^;]+)/);
+    if (!m) return null;
+    var ts = Math.floor(Date.now() / 1000);
+    var buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(ts + ' ' + m[1] + ' ' + origin));
+    var hex = Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+    return 'SAPISIDHASH ' + ts + '_' + hex;
+  }
+
+  var LOCALE = { hl: 'en', gl: 'IN' };
+
+  async function call(endpoint, body) {
+    var env = await boot();
+    var context = {
+      client: {
+        clientName: 'WEB', clientVersion: env.version, hl: LOCALE.hl, gl: LOCALE.gl,
+        visitorData: env.visitor, platform: 'DESKTOP', userAgent: navigator.userAgent
+      },
+      user: { lockedSafetyMode: false },
+      request: { useSsl: true }
+    };
+    var headers = {
+      'Content-Type': 'application/json',
+      'X-Goog-AuthUser': '0',
+      'X-Origin': location.origin,
+      'X-Youtube-Client-Name': '1',
+      'X-Youtube-Client-Version': env.version
+    };
+    if (env.visitor) headers['X-Goog-Visitor-Id'] = env.visitor;
+    var auth = await sapHash(location.origin);
+    if (auth) headers['Authorization'] = auth;
+    var r = await fetch('/youtubei/v1/' + endpoint + '?prettyPrint=false&key=' + env.key, {
+      method: 'POST', headers: headers, credentials: 'include',
+      body: JSON.stringify(Object.assign({ context: context }, body))
+    });
+    if (r.status === 400 || r.status === 403) {   // stale cached config: refresh once
+      try { localStorage.removeItem('ct_env'); } catch (e) { /* ignore */ }
+      ENV = null;
+    }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }
+
+  var FILTERS = { video: 'EgIQAQ%3D%3D', channel: 'EgIQAg%3D%3D', playlist: 'EgIQAw%3D%3D' };
+  var CHANNEL_VIDEOS = 'EgZ2aWRlb3PyBgQKAjoA';
+
+  function browse(id, token) { return call('browse', token ? { continuation: token } : { browseId: id }); }
+
+  var COMMANDS = {
+    status: async function () {
+      return { loggedIn: /(?:^|;\s*)SAPISID=/.test(document.cookie) || /(?:^|;\s*)__Secure-3PAPISID=/.test(document.cookie) };
+    },
+    reset: async function () { ENV = null; try { localStorage.removeItem('ct_env'); } catch (e) { /* ignore */ } return {}; },
+    locale: async function (a) { LOCALE = { hl: a.hl || 'en', gl: a.gl || 'IN' }; ENV = null; return {}; },
+    home: async function (a) { return parseItems(await browse('FEwhat_to_watch', a.token)); },
+    feed: async function (a) { return parseItems(await browse('FEsubscriptions', a.token)); },
+    history: async function (a) { return parseItems(await browse('FEhistory', a.token)); },
+    channels: async function (a) { return parseItems(await browse('FEchannels', a.token)); },
+    search: async function (a) {
+      var body = a.token ? { continuation: a.token } : { query: a.q, params: decodeURIComponent(FILTERS[a.filter] || FILTERS.video) };
+      return parseItems(await call('search', body));
+    },
+    channel: async function (a) {
+      var j = a.token ? await browse(null, a.token)
+                      : await call('browse', { browseId: a.id, params: CHANNEL_VIDEOS });
+      var r = parseChannel(j);
+      return a.token ? { items: r.items, next: r.next } : r;
+    },
+    handle: async function (a) {
+      var j = await call('navigation/resolve_url', { url: 'https://www.youtube.com/' + a.handle });
+      return { id: (j.endpoint && j.endpoint.browseEndpoint && j.endpoint.browseEndpoint.browseId) || '' };
+    },
+    playlist: async function (a) {
+      var j = await browse('VL' + a.id, a.token);
+      var r = parsePlaylist(j);
+      return a.token ? { items: r.items, next: r.next } : r;
+    },
+    watch: async function (a) { return parseWatch(await call('next', { videoId: a.id, contentCheckOk: true, racyCheckOk: true })); },
+    related: async function (a) {
+      var j = await call('next', { continuation: a.token });
+      var r = parseItems(j);
+      return { items: r.items.filter(function (i) { return i.t === 'v'; }), next: r.next };
+    },
+    comments: async function (a) { return parseComments(await call('next', { continuation: a.token })); },
+    account: async function () { return parseAccount(await call('account/account_menu', {})); },
+    subscribe: async function (a) {
+      await call(a.on ? 'subscription/subscribe' : 'subscription/unsubscribe',
+                 a.on ? { channelIds: [a.id], params: 'EgIIAhgA' } : { channelIds: [a.id] });
+      return { ok: true };
+    },
+    /** Like / dislike / clear the rating of a video (signed-in only). a.status: 'like' | 'dislike' | 'none'. */
+    rate: async function (a) {
+      var ep = a.status === 'like' ? 'like/like' : a.status === 'dislike' ? 'like/dislike' : 'like/removelike';
+      await call(ep, { target: { videoId: a.id } });
+      return { ok: true };
+    },
+    /** Posts a new top-level comment (signed-in only). a.params = createCommentParams, a.text = the comment. */
+    postComment: async function (a) {
+      await call('comment/create_comment', { commentText: a.text, createCommentParams: a.params });
+      return { ok: true };
+    }
+  };
+
+  root.CT = {
+    run: function (id, cmd, argsJson) {
+      var args = {};
+      try { args = JSON.parse(argsJson || '{}'); } catch (e) { /* ignore */ }
+      var fn = COMMANDS[cmd];
+      if (!fn) { AndroidBridge.onResult(id, false, 'unknown command ' + cmd); return; }
+      fn(args).then(
+        function (res) { AndroidBridge.onResult(id, true, JSON.stringify(res)); },
+        function (err) { AndroidBridge.onResult(id, false, String(err && err.message || err)); }
+      );
+    },
+    version: 1
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
