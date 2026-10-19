@@ -100,8 +100,6 @@ import com.cleantube.app.data.VideoItem
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-/** Soft blue shown on the Like chip only after the video has actually been liked. */
-private val LikeBlue = Color(0xFF5B9BD5)
 
 @Composable
 fun VideoScreen(route: Route.Video) {
@@ -293,8 +291,8 @@ fun VideoScreen(route: Route.Video) {
                             likes.ifEmpty { "Like" },
                             Icons.Rounded.ThumbUp,
                             onClick = { rate(1) },
-                            container = if (rating == 1) LikeBlue else Card,
-                            content = if (rating == 1) Color.White else TextPrimary
+                            container = if (rating == 1) Accent else Card,
+                            content = if (rating == 1) OnAccent else TextPrimary
                         )
                         ActionChip(
                             "Dislike",
@@ -666,7 +664,7 @@ private fun AddCommentPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .shadow(10.dp, CircleShape)
             .clip(CircleShape)
-            .background(Color(0xFF2A2A2A))
+            .background(Card)
             .border(BorderStroke(1.dp, Hairline), CircleShape)
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 14.dp),
