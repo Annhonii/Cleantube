@@ -171,7 +171,7 @@ fun TabTopBar(
     // It lives above the screens (every tab screen has its own bar), so the glide carries on across the switch.
     val posAnim = LocalTabPos.current
     LaunchedEffect(selIndex) {
-        posAnim.animateTo(selIndex.toFloat(), spring(dampingRatio = 0.85f, stiffness = 380f))
+        posAnim.animateTo(selIndex.toFloat(), spring(dampingRatio = 0.9f, stiffness = 1100f))
     }
     val pos by posAnim.asState()
     // 1 right on the cell that pos points at, falling to 0 one cell away
