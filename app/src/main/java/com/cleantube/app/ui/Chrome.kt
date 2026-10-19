@@ -5,7 +5,6 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,7 +38,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,10 +45,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -58,7 +52,6 @@ import androidx.compose.ui.unit.sp
 import com.cleantube.app.data.DlStatus
 import com.cleantube.app.data.Downloads
 import com.cleantube.app.data.Session
-import kotlin.math.abs
 
 /** Top bar of a pushed screen: back arrow + title. */
 @Composable
@@ -230,12 +223,6 @@ fun FloatingNav(
     var menu by remember { mutableStateOf(false) }
     val inMore = moreTabs.firstOrNull { it.route == selected }
 
-    // Drag the pill (the light chip) left / right: it steps through the tabs, one per ~44dp, with a tick.
-    val stepPx = with(LocalDensity.current) { 44.dp.toPx() }
-    val haptic = LocalHapticFeedback.current
-    val currentTab = rememberUpdatedState(selected)
-    val select = rememberUpdatedState(onSelect)
-
     Row(
         modifier = modifier
             .navigationBarsPadding()
@@ -243,32 +230,6 @@ fun FloatingNav(
             .shadow(10.dp, CircleShape)
             .clip(CircleShape)
             .background(NavBg)
-            .pointerInput(Unit) {
-                var acc = 0f
-                var cursor: Route = currentTab.value
-                detectHorizontalDragGestures(
-                    onDragStart = { acc = 0f; cursor = currentTab.value },
-                    onDragCancel = { acc = 0f },
-                    onDragEnd = { acc = 0f },
-                    onHorizontalDrag = { change, amount ->
-                        change.consume()
-                        acc += amount
-                        // finger to the right = the chip moves right = next tab
-                        while (abs(acc) >= stepPx) {
-                            val dir = if (acc > 0) 1 else -1
-                            acc -= dir * stepPx
-                            val next = tabAfter(cursor, dir)
-                            if (next == null) {
-                                acc = 0f
-                                break
-                            }
-                            cursor = next
-                            select.value(next)
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        }
-                    }
-                )
-            }
             .padding(6.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically
