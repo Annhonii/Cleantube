@@ -8,6 +8,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Switch
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -190,6 +197,77 @@ private fun SectionTitle(text: String) {
     )
 }
 
+/** Order and visibility of the top bar tabs: arrows move a tab, the switch shows / hides it. */
+@Composable
+private fun TabsSettings(modifier: Modifier = Modifier) {
+    val nav = LocalNav.current
+    val store = Graph.store
+    val all = orderedTabs(store)
+    val hidden = store.hiddenTabs
+    val shown = all.count { it.id !in hidden }
+
+    fun move(index: Int, delta: Int) {
+        val ids = all.map { it.id }.toMutableList()
+        val to = index + delta
+        if (to !in ids.indices) return
+        val moved = ids.removeAt(index)
+        ids.add(to, moved)
+        store.tabOrder = ids
+    }
+
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        all.forEachIndexed { i, t ->
+            val on = t.id !in hidden
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Card)
+                    .padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(t.icon, contentDescription = null, tint = if (on) TextPrimary else TextMuted, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(14.dp))
+                Text(
+                    t.label,
+                    color = if (on) TextPrimary else TextMuted,
+                    fontSize = 15.sp,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = { move(i, -1) }, enabled = i > 0) {
+                    Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = "Move ${t.label} up", tint = if (i > 0) TextPrimary else TextMuted.copy(alpha = 0.4f))
+                }
+                IconButton(onClick = { move(i, 1) }, enabled = i < all.lastIndex) {
+                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Move ${t.label} down", tint = if (i < all.lastIndex) TextPrimary else TextMuted.copy(alpha = 0.4f))
+                }
+                Switch(
+                    checked = on,
+                    // at least one tab always stays on
+                    enabled = !(on && shown <= 1),
+                    onCheckedChange = { checked ->
+                        store.hiddenTabs = if (checked) hidden - t.id else hidden + t.id
+                        // The tab under the Settings page may be the one that was just turned off:
+                        // swap it for the first visible tab so Back doesn't land on a hidden one.
+                        val visibleRoutes = visibleTabs(store).map { it.route }
+                        if (nav.stack.isNotEmpty() && nav.stack[0] in TabRoutes && nav.stack[0] !in visibleRoutes) {
+                            nav.stack[0] = visibleRoutes.first()
+                        }
+                    }
+                )
+            }
+        }
+        Text(
+            "A hidden tab disappears from the top bar. Downloads stay reachable from Settings and the download notification.",
+            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
+        )
+        Pill(
+            "Reset tabs",
+            onClick = { store.tabOrder = emptyList(); store.hiddenTabs = emptySet() },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
 @Composable
 fun SettingsScreen() {
     val nav = LocalNav.current
@@ -218,6 +296,9 @@ fun SettingsScreen() {
 
         SectionTitle("ACCOUNT")
         AccountCard(Modifier.padding(horizontal = 12.dp))
+
+        SectionTitle("TABS (TOP BAR)")
+        TabsSettings(Modifier.padding(horizontal = 12.dp))
 
         SectionTitle("REGION (2-LETTER COUNTRY CODE)")
         PillTextField(

@@ -9,6 +9,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import com.cleantube.app.data.Graph
 import com.cleantube.app.data.Session
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
@@ -19,6 +20,15 @@ import androidx.compose.ui.viewinterop.AndroidView
 @Composable
 fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
     LaunchedEffect(Unit) { Session.refresh() }
+
+    // The app starts on Home; if the user turned Home off in Settings, start on the first visible tab instead.
+    val visible = visibleTabs(Graph.store)
+    val firstRoute = visible.first().route
+    LaunchedEffect(Unit) {
+        if (nav.isTabRoot && nav.current == Route.Home && visible.none { it.route == Route.Home }) {
+            nav.selectTab(firstRoute)
+        }
+    }
     // LocalContentColor: any Text without its own colour follows the theme (light or dark).
     CompositionLocalProvider(
         LocalNav provides nav,
@@ -68,10 +78,10 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
         }
 
         // Back: pop a screen; on a non-Home tab go to Home first; on Home let the system close the app.
-        BackHandler(enabled = !nav.isTabRoot || nav.current != Route.Home) {
+        BackHandler(enabled = !nav.isTabRoot || nav.current != firstRoute) {
             // inside the Shorts page, YouTube's own history goes first
             if (nav.current == Route.Shorts && ShortsWeb.goBack()) return@BackHandler
-            if (!nav.back()) nav.selectTab(Route.Home)
+            if (!nav.back()) nav.selectTab(firstRoute)
         }
         // Registered last so it wins while a video is fullscreen.
         BackHandler(enabled = fullscreen.view != null) {

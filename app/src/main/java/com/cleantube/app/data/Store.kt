@@ -51,6 +51,29 @@ class Store(context: Context) {
             sp.edit().putInt("dl_threads", v).apply()
         }
 
+    // ---------------------------------------------------------------- tabs
+
+    private fun readCsv(key: String): List<String> =
+        sp.getString(key, "").orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }
+
+    private val tabOrderState = mutableStateOf(readCsv("tab_order"))
+    /** Tab ids in the order the user wants them (empty = default order). The UI fills in missing tabs. */
+    var tabOrder: List<String>
+        get() = tabOrderState.value
+        set(value) {
+            tabOrderState.value = value
+            sp.edit().putString("tab_order", value.joinToString(",")).apply()
+        }
+
+    private val hiddenTabsState = mutableStateOf(readCsv("tab_hidden").toSet())
+    /** Tab ids the user turned off. */
+    var hiddenTabs: Set<String>
+        get() = hiddenTabsState.value
+        set(value) {
+            hiddenTabsState.value = value
+            sp.edit().putString("tab_hidden", value.joinToString(",")).apply()
+        }
+
     // ---------------------------------------------------------------- data
 
     var subscriptions by mutableStateOf(readArray("subs").mapObjects { it.toChannel() })
