@@ -3,5 +3,4 @@
     <background android:drawable="@color/ic_launcher_background" />
     <foreground android:drawable="@drawable/ic_launcher_foreground" />
     <!-- Android 13+ themed icons (Monet): the play triangle tinted with the wallpaper colour -->
-    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
 </adaptive-icon>

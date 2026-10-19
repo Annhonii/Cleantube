@@ -1,44 +1,91 @@
 package com.cleantube.app.ui
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 
-// Colours: Material You (Monet). On Android 12+ they come from the wallpaper and follow the
-// system light / dark setting; older phones get the fixed red schemes below.
-// The names below are the colours the screens use; [CleanTubeTheme] points them at the current scheme.
+// Fixed palette, no Monet / wallpaper colours.
+// Light: white, off-white, red.   Dark: pure black, grey, red.
 
-/** Current colours as observable state, so reading them anywhere (also outside composables) stays in sync. */
+private val Red = Color(0xFFD71921)
+private val RedDark = Color(0xFFE5252D)
+
+private val LightScheme = lightColorScheme(
+    primary = Red,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFFDE4E4),
+    onPrimaryContainer = Color(0xFF7A0A0E),
+    secondary = Red,
+    onSecondary = Color.White,
+    background = Color.White,
+    onBackground = Color(0xFF111111),
+    surface = Color.White,
+    onSurface = Color(0xFF111111),
+    surfaceVariant = Color(0xFFF4F1EC),
+    onSurfaceVariant = Color(0xFF5E5A55),
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Color(0xFFF9F7F3),
+    surfaceContainer = Color(0xFFF4F1EC),
+    surfaceContainerHigh = Color(0xFFF4F1EC),
+    surfaceContainerHighest = Color(0xFFEBE7E0),
+    outline = Color(0xFF8A857F),
+    outlineVariant = Color(0xFFE2DED7),
+    error = Red,
+    inverseSurface = Color(0xFF111111),
+    inverseOnSurface = Color.White
+)
+
+private val DarkScheme = darkColorScheme(
+    primary = RedDark,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFF3A1214),
+    onPrimaryContainer = Color(0xFFFFB4B0),
+    secondary = RedDark,
+    onSecondary = Color.White,
+    background = Color.Black,
+    onBackground = Color(0xFFF2F2F2),
+    surface = Color.Black,
+    onSurface = Color(0xFFF2F2F2),
+    surfaceVariant = Color(0xFF1C1C1C),
+    onSurfaceVariant = Color(0xFFA0A0A0),
+    surfaceContainerLowest = Color.Black,
+    surfaceContainerLow = Color(0xFF0D0D0D),
+    surfaceContainer = Color(0xFF141414),
+    surfaceContainerHigh = Color(0xFF1C1C1C),
+    surfaceContainerHighest = Color(0xFF262626),
+    outline = Color(0xFF6B6B6B),
+    outlineVariant = Color(0xFF2E2E2E),
+    error = Color(0xFFFF4B4B),
+    inverseSurface = Color(0xFFF2F2F2),
+    inverseOnSurface = Color.Black
+)
+
+/** Current colours as observable state, so reading them anywhere stays in sync. */
 private object Palette {
     var bg by mutableStateOf(Color.White)
-    var card by mutableStateOf(Color(0xFFEFEFEF))
-    var hairline by mutableStateOf(Color(0xFFD0D0D0))
-    var text by mutableStateOf(Color.Black)
-    var muted by mutableStateOf(Color.Gray)
-    var accent by mutableStateOf(Color(0xFFD71921))
+    var card by mutableStateOf(Color(0xFFF4F1EC))
+    var hairline by mutableStateOf(Color(0xFFE2DED7))
+    var text by mutableStateOf(Color(0xFF111111))
+    var muted by mutableStateOf(Color(0xFF5E5A55))
+    var accent by mutableStateOf(Red)
     var onAccent by mutableStateOf(Color.White)
-    var accentSoft by mutableStateOf(Color(0xFFFFDAD6))
-    var onAccentSoft by mutableStateOf(Color(0xFF410002))
-    var danger by mutableStateOf(Color(0xFFBA1A1A))
-    var nav by mutableStateOf(Color(0xFF1B1B1F))
+    var accentSoft by mutableStateOf(Color(0xFFFDE4E4))
+    var onAccentSoft by mutableStateOf(Color(0xFF7A0A0E))
+    var danger by mutableStateOf(Red)
+    var nav by mutableStateOf(Red)
     var onNav by mutableStateOf(Color.White)
 
-    fun apply(s: ColorScheme, dark: Boolean) {
-        // the bottom pill is always the "dark" element: near-black in dark mode, inverse surface in light mode
-        nav = if (dark) s.surfaceContainerLowest else s.inverseSurface
-        onNav = if (dark) s.onSurface else s.inverseOnSurface
+    fun apply(dark: Boolean) {
+        val s = if (dark) DarkScheme else LightScheme
+        // bottom pill: red in light mode, dark grey in dark mode
+        nav = if (dark) Color(0xFF262626) else Red
+        onNav = if (dark) Color(0xFFF2F2F2) else Color.White
         bg = s.background
         card = s.surfaceContainerHigh
         hairline = s.outlineVariant
@@ -64,7 +111,7 @@ val Hairline: Color get() = Palette.hairline
 val TextPrimary: Color get() = Palette.text
 val TextMuted: Color get() = Palette.muted
 
-/** Main colour (buttons, progress, selected states) and the colour for text / icons on top of it. */
+/** Main colour (buttons, progress, selected states) and the colour on top of it. */
 val Accent: Color get() = Palette.accent
 val OnAccent: Color get() = Palette.onAccent
 
@@ -79,61 +126,10 @@ val OnNavBg: Color get() = Palette.onNav
 /** Errors and destructive actions. */
 val Danger: Color get() = Palette.danger
 
-private val FallbackLight = lightColorScheme(
-    primary = Color(0xFFD71921),
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFDAD6),
-    onPrimaryContainer = Color(0xFF410002),
-    secondary = Color(0xFF775652),
-    onSecondary = Color.White,
-    background = Color(0xFFFFFBFF),
-    onBackground = Color(0xFF201A19),
-    surface = Color(0xFFFFFBFF),
-    onSurface = Color(0xFF201A19),
-    surfaceVariant = Color(0xFFF5DDDA),
-    onSurfaceVariant = Color(0xFF534341),
-    surfaceContainer = Color(0xFFF8EBE9),
-    surfaceContainerHigh = Color(0xFFF2E5E3),
-    surfaceContainerHighest = Color(0xFFECDFDD),
-    outline = Color(0xFF857371),
-    outlineVariant = Color(0xFFD8C2BF),
-    error = Color(0xFFBA1A1A)
-)
-
-private val FallbackDark = darkColorScheme(
-    primary = Color(0xFFFFB4AB),
-    onPrimary = Color(0xFF690005),
-    primaryContainer = Color(0xFF93000A),
-    onPrimaryContainer = Color(0xFFFFDAD6),
-    secondary = Color(0xFFE7BDB7),
-    onSecondary = Color(0xFF442926),
-    background = Color(0xFF201A19),
-    onBackground = Color(0xFFEDE0DD),
-    surface = Color(0xFF201A19),
-    onSurface = Color(0xFFEDE0DD),
-    surfaceVariant = Color(0xFF534341),
-    onSurfaceVariant = Color(0xFFD8C2BF),
-    surfaceContainer = Color(0xFF2D2423),
-    surfaceContainerHigh = Color(0xFF382E2D),
-    surfaceContainerHighest = Color(0xFF433937),
-    outline = Color(0xFFA08C8A),
-    outlineVariant = Color(0xFF534341),
-    error = Color(0xFFFFB4AB)
-)
-
 @Composable
 fun CleanTubeTheme(content: @Composable () -> Unit) {
     val dark = isSystemInDarkTheme()
-    val ctx = LocalContext.current
-    val scheme = remember(dark) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
-        } else {
-            if (dark) FallbackDark else FallbackLight
-        }
-    }
     // Set before the content is composed, so the first frame already has the right colours.
-    Palette.apply(scheme, dark)
-    // No custom typography: the system font is used everywhere.
-    MaterialTheme(colorScheme = scheme, content = content)
+    Palette.apply(dark)
+    MaterialTheme(colorScheme = if (dark) DarkScheme else LightScheme, content = content)
 }
