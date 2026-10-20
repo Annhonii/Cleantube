@@ -54,9 +54,7 @@ object Playback {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // A blocked IP will not be fixed by the NewPipe engine: report it right away.
-                if (Streams.isBlock(e.message)) throw ApiException(ApiException.Kind.OTHER, Streams.blockMessage(e.message))
-                // otherwise fall through to the NewPipe engine
+                // Fall through to the NewPipe engine: it asks YouTube differently and may still get through.
             }
         }
         return Streams.fetch(id)

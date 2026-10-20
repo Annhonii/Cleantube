@@ -72,8 +72,14 @@ object Streams {
     /** True when [msg] looks like YouTube refusing this network / IP (bot check, captcha, rate limit). */
     fun isBlock(msg: String?): Boolean = !msg.isNullOrEmpty() && blockRegex.containsMatchIn(msg)
 
-    fun blockMessage(original: String?): String =
-        "YouTube said: ${original.orEmpty().take(300)}\n\n" +
+    fun blockMessage(original: String?): String {
+        val o = original.orEmpty()
+        if (o.startsWith("YouTube said:")) return o   // already wrapped
+        return blockText(o)
+    }
+
+    private fun blockText(original: String): String =
+        "YouTube said: ${original.take(300)}\n\n" +
             "Your network looks temporarily blocked (bot check / too many requests). " +
             "Wait a few minutes or switch between Wi-Fi and mobile data, then retry."
 
