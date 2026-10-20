@@ -75,9 +75,9 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.geometry.Offset as PullOffset
-import androidx.compose.ui.input.nestedScroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedScroll.NestedScrollSource
-import androidx.compose.ui.input.nestedScroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Velocity
 import com.cleantube.app.data.TabCache
