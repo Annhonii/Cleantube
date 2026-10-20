@@ -76,7 +76,9 @@ import androidx.compose.material.icons.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -310,12 +312,15 @@ private fun ShortsIcon(color: () -> Color, modifier: Modifier = Modifier) {
 
 private val NavHeight = 46.dp
 
-/** Width of every cell of the pill in px: the text tabs share the width by label length; Shorts has no cell (it is the round button). */
+/**
+ * Width of every cell of the pill in px. All text tabs get exactly the same width (so the white chip is the same
+ * size on every tab and the gaps between tabs are equal, whether there are 3, 4 or 5 of them); Shorts has no cell
+ * (it is the round button).
+ */
 private fun cellWidths(tabs: List<TabSpec>, totalPx: Float): FloatArray {
-    val units = tabs.filter { it.route != Route.Shorts }.sumOf { it.label.length + 4 }.toFloat().coerceAtLeast(1f)
-    return FloatArray(tabs.size) { i ->
-        if (tabs[i].route == Route.Shorts) 0f else totalPx * (tabs[i].label.length + 4) / units
-    }
+    val textCount = tabs.count { it.route != Route.Shorts }.coerceAtLeast(1)
+    val each = totalPx / textCount
+    return FloatArray(tabs.size) { i -> if (tabs[i].route == Route.Shorts) 0f else each }
 }
 
 /** The labels of the pill, all in one colour. Drawn twice: plain on the pill, and inverted inside the chip. */
@@ -389,7 +394,8 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
     val navState = rememberUpdatedState(nav)
     val tabsState = rememberUpdatedState(tabs)
     val textTabs = tabs.count { it.route != Route.Shorts }
-    val fontSize = if (textTabs > 4) 11.sp else 12.5.sp
+    val textMeasurer = rememberTextMeasurer()
+    val baseStyle = LocalTextStyle.current
     val shortsIndex = tabs.indexOfFirst { it.route == Route.Shorts }
     val shadowColor = Color.Black.copy(alpha = if (dark) 0.55f else 0.22f)
 
@@ -429,6 +435,24 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
         ) {
             val innerPx = with(density) { (maxWidth - 6.dp).toPx() }
             val widths = cellWidths(tabs, innerPx)
+
+            // Cells are equal, so shrink the label size (never below 9sp) until the longest label fits its cell.
+            val cellDp = if (textTabs > 0) (maxWidth - 6.dp) / textTabs else maxWidth
+            val fontSize = remember(tabs, cellDp, baseStyle) {
+                var size = 12.5f
+                while (size > 9f) {
+                    val widest = tabs.filter { it.route != Route.Shorts }.maxOfOrNull {
+                        textMeasurer.measure(
+                            it.label,
+                            baseStyle.copy(fontSize = size.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.sp),
+                            softWrap = false
+                        ).size.width
+                    } ?: 0
+                    if (with(density) { widest.toDp() } <= cellDp - 10.dp) break
+                    size -= 0.5f
+                }
+                size.sp
+            }
 
             // where the chip is (start, width in px), from the pager position; read only in layout
             fun chipSpan(): Pair<Float, Float> {

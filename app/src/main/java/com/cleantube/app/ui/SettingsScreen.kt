@@ -1,6 +1,22 @@
 package com.cleantube.app.ui
 
 import android.content.Context
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material.icons.rounded.Tab
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -271,6 +287,78 @@ private fun TabsSettings(modifier: Modifier = Modifier) {
     }
 }
 
+private enum class SettingsPage(val title: String) {
+    Account("Account"),
+    Data("Your data"),
+    Appearance("Appearance"),
+    Navigation("Navigation bar"),
+    Content("Content"),
+    Downloads("Downloads"),
+    About("About")
+}
+
+/** One row of the settings list: round coloured icon, title and a one-line subtitle. */
+@Composable
+private fun SettingsRow(
+    icon: ImageVector,
+    iconBg: Color,
+    title: String,
+    subtitle: String,
+    shape: RoundedCornerShape,
+    onClick: () -> Unit
+) {
+    Row(
+        Modifier
+            .bouncyClickable(pressedScale = 0.98f, onClick = onClick)
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Card)
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(48.dp).clip(CircleShape).background(iconBg),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+        }
+        Spacer(Modifier.width(18.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text(subtitle, color = TextMuted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+private class SettingsItem(
+    val page: SettingsPage,
+    val icon: ImageVector,
+    val iconBg: Color,
+    val subtitle: String
+)
+
+private val IconBlue = Color(0xFF4A5D8E)
+private val IconGrey = Color(0xFF5A5F70)
+private val IconPurple = Color(0xFF6E5780)
+
+/** A group of rows: big rounded corners on the outside of the group, small ones between the rows. */
+@Composable
+private fun SettingsGroup(items: List<SettingsItem>, onOpen: (SettingsPage) -> Unit) {
+    val outer = 28.dp
+    val inner = 6.dp
+    Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        items.forEachIndexed { i, it ->
+            val shape = RoundedCornerShape(
+                topStart = if (i == 0) outer else inner,
+                topEnd = if (i == 0) outer else inner,
+                bottomStart = if (i == items.lastIndex) outer else inner,
+                bottomEnd = if (i == items.lastIndex) outer else inner
+            )
+            SettingsRow(it.icon, it.iconBg, it.page.title, it.subtitle, shape) { onOpen(it.page) }
+        }
+    }
+}
+
 @Composable
 fun SettingsScreen() {
     val nav = LocalNav.current
@@ -279,6 +367,9 @@ fun SettingsScreen() {
     val scope = rememberCoroutineScope()
     var message by remember { mutableStateOf("") }
     var regionText by remember { mutableStateOf(store.region) }
+    var page by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
+
+    BackHandler(enabled = page != null) { page = null }
 
     val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch { message = importFromUri(ctx, uri) }
@@ -289,103 +380,156 @@ fun SettingsScreen() {
         if (uri != null) scope.launch { message = exportToUri(ctx, uri) }
     }
 
+    val current = page
     Column(
         Modifier
             .fillMaxSize()
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
     ) {
-        ScreenTitle("Settings", onBack = { nav.back() })
-
-        SectionTitle("ACCOUNT")
-        AccountCard(Modifier.padding(horizontal = 12.dp))
-
-        SectionTitle("FONT")
-        Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Pill("Poppins", onClick = { store.appFont = "poppins" }, active = store.appFont != "system")
-                Pill("System font", onClick = { store.appFont = "system" }, active = store.appFont == "system")
+        if (current == null) {
+            // Main list
+            IconButton(onClick = { nav.back() }, modifier = Modifier.padding(start = 12.dp, top = 12.dp)) {
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = TextPrimary)
             }
             Text(
-                "Poppins is the default. System font uses your phone's own font.",
-                color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
+                "Settings",
+                color = TextPrimary,
+                fontSize = 44.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 20.dp)
             )
-        }
+            SettingsGroup(
+                listOf(
+                    SettingsItem(
+                        SettingsPage.Account, Icons.Rounded.AccountCircle, IconBlue,
+                        if (Session.loggedIn) Session.name.ifEmpty { "Signed in" } else "Sign in and manage account"
+                    ),
+                    SettingsItem(SettingsPage.Data, Icons.Rounded.Storage, IconBlue, "Import, export and history")
+                ),
+                onOpen = { page = it }
+            )
+            Spacer(Modifier.height(16.dp))
+            SettingsGroup(
+                listOf(
+                    SettingsItem(SettingsPage.Appearance, Icons.Rounded.Palette, IconGrey, "Font and visual style"),
+                    SettingsItem(SettingsPage.Navigation, Icons.Rounded.Tab, IconPurple, "Order and visibility of tabs"),
+                    SettingsItem(SettingsPage.Content, Icons.Rounded.Language, IconBlue, "Region and country"),
+                    SettingsItem(SettingsPage.Downloads, Icons.Rounded.Download, IconPurple, "Location and connections")
+                ),
+                onOpen = { page = it }
+            )
+            Spacer(Modifier.height(16.dp))
+            SettingsGroup(
+                listOf(SettingsItem(SettingsPage.About, Icons.Rounded.Info, IconGrey, "Version and info")),
+                onOpen = { page = it }
+            )
+            Spacer(Modifier.height(40.dp))
+        } else {
+            ScreenTitle(current.title, onBack = { page = null })
+            when (current) {
+                SettingsPage.Account -> AccountCard(Modifier.padding(horizontal = 12.dp))
 
-        SectionTitle("TABS (TOP BAR)")
-        TabsSettings(Modifier.padding(horizontal = 12.dp))
-
-        SectionTitle("REGION (2-LETTER COUNTRY CODE)")
-        PillTextField(
-            value = regionText,
-            onValueChange = {
-                regionText = it.uppercase().take(2)
-                if (regionText.length == 2) {
-                    store.region = regionText
-                    Yt.setLocale("en", regionText)
-                    com.cleantube.app.data.TabCache.clear()
+                SettingsPage.Appearance -> {
+                    SectionTitle("FONT")
+                    Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Pill("Poppins", onClick = { store.appFont = "poppins" }, active = store.appFont != "system")
+                            Pill("System font", onClick = { store.appFont = "system" }, active = store.appFont == "system")
+                        }
+                        Text(
+                            "Poppins is the default. System font uses your phone's own font.",
+                            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
                 }
-            },
-            placeholder = "IN",
-            modifier = Modifier.padding(horizontal = 12.dp),
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters)
-        )
 
-        SectionTitle("DOWNLOADS")
-        Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Pill("In app", onClick = { store.downloadWhere = "app" }, active = store.downloadWhere == "app")
-                Pill("Phone storage", onClick = { store.downloadWhere = "phone" }, active = store.downloadWhere == "phone")
-            }
-            Text(
-                "Default place for new downloads. You can change it each time.",
-                color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
-            )
-            Text("Connections per download (more is faster, but YouTube may refuse too many):", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(1, 4, 8, 16, 32).forEach { n ->
-                    Pill("$n", onClick = { store.downloadThreads = n }, active = store.downloadThreads == n)
+                SettingsPage.Navigation -> {
+                    SectionTitle("TABS (BOTTOM BAR)")
+                    TabsSettings(Modifier.padding(horizontal = 12.dp))
+                }
+
+                SettingsPage.Content -> {
+                    SectionTitle("REGION (2-LETTER COUNTRY CODE)")
+                    PillTextField(
+                        value = regionText,
+                        onValueChange = {
+                            regionText = it.uppercase().take(2)
+                            if (regionText.length == 2) {
+                                store.region = regionText
+                                Yt.setLocale("en", regionText)
+                                com.cleantube.app.data.TabCache.clear()
+                            }
+                        },
+                        placeholder = "IN",
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters)
+                    )
+                }
+
+                SettingsPage.Downloads -> {
+                    SectionTitle("DOWNLOADS")
+                    Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Pill("In app", onClick = { store.downloadWhere = "app" }, active = store.downloadWhere == "app")
+                            Pill("Phone storage", onClick = { store.downloadWhere = "phone" }, active = store.downloadWhere == "phone")
+                        }
+                        Text(
+                            "Default place for new downloads. You can change it each time.",
+                            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
+                        )
+                        Text("Connections per download (more is faster, but YouTube may refuse too many):", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(1, 4, 8, 16, 32).forEach { n ->
+                                Pill("$n", onClick = { store.downloadThreads = n }, active = store.downloadThreads == n)
+                            }
+                        }
+                        Pill("Open downloads", onClick = { nav.selectTab(Route.Downloads) }, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+
+                SettingsPage.Data -> {
+                    SectionTitle("STORED ONLY ON THIS PHONE")
+                    Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Pill(
+                            "Import subscriptions (NewPipe or CleanTube .json)",
+                            onClick = { importPicker.launch(arrayOf("*/*")) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Pill(
+                            "Export backup (.json)",
+                            onClick = { exportPicker.launch("cleantube-backup.json") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Pill("Clear watch history", onClick = {
+                            store.clearHistory()
+                            message = "Watch history cleared."
+                        }, modifier = Modifier.fillMaxWidth())
+                        Pill("Clear search history", onClick = {
+                            store.clearSearches()
+                            message = "Search history cleared."
+                        }, modifier = Modifier.fillMaxWidth())
+                        if (message.isNotEmpty()) {
+                            Text(message, color = TextMuted, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp, top = 4.dp))
+                        }
+                    }
+                }
+
+                SettingsPage.About -> {
+                    Text(
+                        "CleanTube ${"2.0"}\n" +
+                            "Browse, search and comments use YouTube's own (unofficial) internal API, no key needed. " +
+                            "Playback uses YouTube's official player, so ads, quality and controls are decided by YouTube. " +
+                            "Background play is not possible with it. Downloads use separate links (see the Download button on a video).\n\n" +
+                            "Layout inspired by NewPipe. Not affiliated with YouTube, Google or NewPipe.",
+                        color = TextMuted,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                    )
                 }
             }
-            Pill("Open downloads", onClick = { nav.selectTab(Route.Downloads) }, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(40.dp))
         }
-
-        SectionTitle("YOUR DATA (STORED ONLY ON THIS PHONE)")
-        Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Pill(
-                "Import subscriptions (NewPipe or CleanTube .json)",
-                onClick = { importPicker.launch(arrayOf("*/*")) },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Pill(
-                "Export backup (.json)",
-                onClick = { exportPicker.launch("cleantube-backup.json") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Pill("Clear watch history", onClick = {
-                store.clearHistory()
-                message = "Watch history cleared."
-            }, modifier = Modifier.fillMaxWidth())
-            Pill("Clear search history", onClick = {
-                store.clearSearches()
-                message = "Search history cleared."
-            }, modifier = Modifier.fillMaxWidth())
-            if (message.isNotEmpty()) {
-                Text(message, color = TextMuted, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp, top = 4.dp))
-            }
-        }
-
-        SectionTitle("ABOUT")
-        Text(
-            "CleanTube ${"2.0"}\n" +
-                "Browse, search and comments use YouTube's own (unofficial) internal API, no key needed. " +
-                "Playback uses YouTube's official player, so ads, quality and controls are decided by YouTube. " +
-                "Background play is not possible with it. Downloads use separate links (see the Download button on a video).\n\n" +
-                "Layout inspired by NewPipe. Not affiliated with YouTube, Google or NewPipe.",
-            color = TextMuted,
-            fontSize = 13.sp,
-            modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 40.dp)
-        )
     }
 }
 
