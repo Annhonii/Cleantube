@@ -161,7 +161,7 @@ fun PillTextField(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
-                textStyle = TextStyle(color = TextPrimary, fontSize = 15.sp),
+                textStyle = TextStyle(color = TextPrimary, fontSize = 15.sp, fontFamily = AppFont),
                 cursorBrush = SolidColor(Accent),
                 keyboardOptions = keyboardOptions,
                 keyboardActions = keyboardActions,

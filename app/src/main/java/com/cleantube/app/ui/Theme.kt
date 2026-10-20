@@ -9,6 +9,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import com.cleantube.app.R
+import com.cleantube.app.data.Graph
 
 // Fixed palette, no Monet / wallpaper colours.
 // Light: white, off-white, red.   Dark: pure black, grey, red.
@@ -126,10 +132,48 @@ val OnNavBg: Color get() = Palette.onNav
 /** Errors and destructive actions. */
 val Danger: Color get() = Palette.danger
 
+/** Poppins, bundled in res/font (SemiBold falls back to the Bold file). */
+val PoppinsFamily = FontFamily(
+    Font(R.font.poppins_light, FontWeight.Light),
+    Font(R.font.poppins_regular, FontWeight.Normal),
+    Font(R.font.poppins_medium, FontWeight.Medium),
+    Font(R.font.poppins_bold, FontWeight.SemiBold),
+    Font(R.font.poppins_bold, FontWeight.Bold)
+)
+
+/** The font the user picked in Settings (Poppins by default, or the phone's system font). */
+val AppFont: FontFamily
+    get() = if (Graph.store.appFont == "system") FontFamily.Default else PoppinsFamily
+
+private fun typographyWith(f: FontFamily): Typography {
+    val t = Typography()
+    return Typography(
+        displayLarge = t.displayLarge.copy(fontFamily = f),
+        displayMedium = t.displayMedium.copy(fontFamily = f),
+        displaySmall = t.displaySmall.copy(fontFamily = f),
+        headlineLarge = t.headlineLarge.copy(fontFamily = f),
+        headlineMedium = t.headlineMedium.copy(fontFamily = f),
+        headlineSmall = t.headlineSmall.copy(fontFamily = f),
+        titleLarge = t.titleLarge.copy(fontFamily = f),
+        titleMedium = t.titleMedium.copy(fontFamily = f),
+        titleSmall = t.titleSmall.copy(fontFamily = f),
+        bodyLarge = t.bodyLarge.copy(fontFamily = f),
+        bodyMedium = t.bodyMedium.copy(fontFamily = f),
+        bodySmall = t.bodySmall.copy(fontFamily = f),
+        labelLarge = t.labelLarge.copy(fontFamily = f),
+        labelMedium = t.labelMedium.copy(fontFamily = f),
+        labelSmall = t.labelSmall.copy(fontFamily = f)
+    )
+}
+
 @Composable
 fun CleanTubeTheme(content: @Composable () -> Unit) {
     val dark = isSystemInDarkTheme()
     // Set before the content is composed, so the first frame already has the right colours.
     Palette.apply(dark)
-    MaterialTheme(colorScheme = if (dark) DarkScheme else LightScheme, content = content)
+    MaterialTheme(
+        colorScheme = if (dark) DarkScheme else LightScheme,
+        typography = typographyWith(AppFont),
+        content = content
+    )
 }

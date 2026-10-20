@@ -76,7 +76,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
         if (!navState.value.isTabRoot) return@LaunchedEffect
         val idx = visibleRoutes.indexOf(currentRoute)
         if (idx < 0 || pagerState.targetPage == idx) return@LaunchedEffect
-        if (pagerLive.value) pagerState.animateScrollToPage(idx, animationSpec = spring(dampingRatio = 0.82f, stiffness = 340f))
+        if (pagerLive.value) pagerState.animateScrollToPage(idx, animationSpec = tween(520, easing = Motion.Emphasized))
         else pagerState.scrollToPage(idx)
     }
     val chipPosition: () -> Float = {
@@ -168,7 +168,7 @@ private fun TabsPager(state: PagerState, tabs: List<TabSpec>, live: MutableState
         key = { tabs.getOrNull(it)?.id ?: it },
         flingBehavior = PagerDefaults.flingBehavior(
             state = state,
-            snapAnimationSpec = spring(dampingRatio = 0.82f, stiffness = 320f)
+            snapAnimationSpec = spring(dampingRatio = 0.92f, stiffness = 300f)
         )
     ) { page ->
         val route = tabs.getOrNull(page)?.route
@@ -178,8 +178,8 @@ private fun TabsPager(state: PagerState, tabs: List<TabSpec>, live: MutableState
                 .background(Bg)
                 .graphicsLayer {
                     val off = ((state.currentPage - page) + state.currentPageOffsetFraction).absoluteValue.coerceIn(0f, 1f)
-                    alpha = 1f - 0.4f * off
-                    val s = 1f - 0.05f * off
+                    alpha = 1f - 0.35f * off
+                    val s = 1f - 0.07f * off
                     scaleX = s
                     scaleY = s
                 }

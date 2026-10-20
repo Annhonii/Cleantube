@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlin.math.abs
 import kotlin.math.floor
+import kotlin.math.pow
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
@@ -304,7 +305,7 @@ private fun ShortsIcon(color: () -> Color, modifier: Modifier = Modifier) {
     }
 }
 
-private val NavHeight = 60.dp
+private val NavHeight = 46.dp
 
 /** Width of every cell of the pill in px: the text tabs share the width by label length; Shorts has no cell (it is the round button). */
 private fun cellWidths(tabs: List<TabSpec>, totalPx: Float): FloatArray {
@@ -342,8 +343,8 @@ private fun PillLabels(
                         t.label,
                         color = color,
                         fontSize = fontSize,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 0.1.sp,
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 0.sp,
                         maxLines = 1,
                         softWrap = false,
                         overflow = TextOverflow.Clip
@@ -385,14 +386,14 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
     val navState = rememberUpdatedState(nav)
     val tabsState = rememberUpdatedState(tabs)
     val textTabs = tabs.count { it.route != Route.Shorts }
-    val fontSize = if (textTabs > 4) 12.sp else 14.sp
+    val fontSize = if (textTabs > 4) 11.sp else 12.5.sp
     val shortsIndex = tabs.indexOfFirst { it.route == Route.Shorts }
     val shadowColor = Color.Black.copy(alpha = if (dark) 0.55f else 0.22f)
 
     Row(
         modifier
             .navigationBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 12.dp)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
             .fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -410,11 +411,11 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
                     .bouncyClickable(pressedScale = 0.88f, onClick = { nav.selectTab(Route.Shorts) }),
                 contentAlignment = Alignment.Center
             ) {
-                ShortsIcon({ lerp(plain, onChip, bump()) }, Modifier.size(28.dp))
+                ShortsIcon({ lerp(plain, onChip, bump()) }, Modifier.size(22.dp))
             }
         }
 
-        val shape = RoundedCornerShape(32.dp)
+        val shape = RoundedCornerShape(percent = 50)
         BoxWithConstraints(
             Modifier
                 .weight(1f)
@@ -423,7 +424,7 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
                 .background(surface)
                 .border(1.dp, rim, shape)
         ) {
-            val innerPx = with(density) { (maxWidth - 8.dp).toPx() }
+            val innerPx = with(density) { (maxWidth - 6.dp).toPx() }
             val widths = cellWidths(tabs, innerPx)
 
             // where the chip is (start, width in px), from the pager position; read only in layout
@@ -435,14 +436,20 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
                 val f = (pos - i0).coerceIn(0f, 1f)
                 val s0 = widths.take(i0).sum()
                 val s1 = widths.take(i1).sum()
-                return (s0 + (s1 - s0) * f) to (widths[i0] + (widths[i1] - widths[i0]) * f)
+                // "Liquid" chip: the edge it moves towards runs ahead, the other edge follows, so it
+                // stretches while travelling and settles back to the tab's width.
+                val lead = 1f - (1f - f).pow(1.5f)
+                val trail = f.pow(1.5f)
+                val start = s0 + (s1 - s0) * trail
+                val end = (s0 + widths[i0]) + ((s1 + widths[i1]) - (s0 + widths[i0])) * lead
+                return start to (end - start).coerceAtLeast(0f)
             }
 
             Box(
                 Modifier
-                    .padding(4.dp)
+                    .padding(3.dp)
                     .fillMaxWidth()
-                    .height(NavHeight - 8.dp)
+                    .height(NavHeight - 6.dp)
                     .pointerInput(Unit) {
                         var cursor = -1
                         detectHorizontalDragGestures(
