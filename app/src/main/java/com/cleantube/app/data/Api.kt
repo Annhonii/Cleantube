@@ -120,12 +120,28 @@ object Api {
         videosPage(Yt.run("search", args("q" to q, "filter" to "video", "token" to page)), dropShorts = false)
 
     /**
-     * Shorts feed. YouTube has no public "Shorts" list, so this searches "#shorts" (plus an optional topic)
-     * and keeps only real Shorts: results flagged as short, or videos of a minute or less.
+     * Shorts feed. With no topic it is YouTube's own personalised Shorts feed (reel_watch_sequence), the same one the
+     * official app shows for the signed-in account. Tokens of that feed start with "R:". If it can't be loaded, or a
+     * topic chip is selected, it falls back to searching "#shorts" (plus topic) and keeping only real Shorts.
      */
     suspend fun shorts(token: String?, topic: String = ""): Page<VideoItem> {
+        if (topic.isEmpty() && (token == null || token.startsWith("R:"))) {
+            val official = runCatching {
+                val j = Yt.run("shorts", args("token" to token?.removePrefix("R:")))
+                videosPage(j).let { p -> Page(p.items, p.next?.let { "R:$it" }) }
+            }.getOrNull()
+            if (official != null && official.items.isNotEmpty()) return official
+            // a continuation that expired: start a fresh official sequence instead of ending the feed
+            if (token != null) {
+                runCatching {
+                    val j = Yt.run("shorts")
+                    videosPage(j).let { p -> Page(p.items, p.next?.let { "R:$it" }) }
+                }.getOrNull()?.let { if (it.items.isNotEmpty()) return it }
+            }
+            if (token != null) return Page(emptyList(), null)
+        }
         val q = if (topic.isEmpty()) "#shorts" else "#shorts $topic"
-        val p = searchVideos(q, token)
+        val p = searchVideos(q, token?.takeUnless { it.startsWith("R:") })
         return Page(p.items.filter { it.short || it.durationSec in 1..62 }, p.next)
     }
 

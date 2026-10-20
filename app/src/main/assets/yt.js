@@ -457,9 +457,30 @@
     return { name: txt(h.accountName), thumb: lastThumb(h.accountPhoto), handle: txt(h.channelHandle) };
   }
 
+
+  /** Official Shorts feed ("reel/reel_watch_sequence"): entries[].command.reelWatchEndpoint, in YouTube's own personalised order. */
+  function parseReelSequence(j) {
+    var items = [], seen = {}, lastParams = '';
+    var entries = (j && j.entries) || [];
+    entries.forEach(function (e) {
+      var ep = e && e.command && e.command.reelWatchEndpoint;
+      if (!ep || !ep.videoId || seen[ep.videoId]) return;
+      seen[ep.videoId] = 1;
+      if (ep.sequenceParams) lastParams = ep.sequenceParams;
+      var title = txt(findFirst(e, 'reelTitleText')) || txt(findFirst(e, 'headline'));
+      var ch = txt(findFirst(e, 'channelTitleText'));
+      items.push(mkVideo(ep.videoId, title, ch, browseIdIn(e), -1, '', '', false, true));
+    });
+    var tok = null;
+    var ce = j && j.continuationEndpoint && j.continuationEndpoint.continuationCommand;
+    if (ce && ce.token) tok = 'c:' + ce.token;
+    else if (lastParams) tok = 's:' + lastParams;
+    return { items: items, next: tok };
+  }
+
   var P = {
     txt: txt, parseItems: parseItems, parseWatch: parseWatch, parseComments: parseComments,
-    parseChannel: parseChannel, parsePlaylist: parsePlaylist, parseAccount: parseAccount, durSeconds: durSeconds
+    parseChannel: parseChannel, parsePlaylist: parsePlaylist, parseAccount: parseAccount, parseReelSequence: parseReelSequence, durSeconds: durSeconds
   };
 
   if (typeof module !== 'undefined' && module.exports) { module.exports = P; }
@@ -569,6 +590,21 @@
       var j = await browse('VL' + a.id, a.token);
       var r = parsePlaylist(j);
       return a.token ? { items: r.items, next: r.next } : r;
+    },
+    /** YouTube's own personalised Shorts feed for the logged-in account. a.token: "c:<continuation>" or "s:<sequenceParams>". */
+    shorts: async function (a) {
+      var tries = [];
+      if (a.token && a.token.indexOf('c:') === 0) tries.push({ continuation: a.token.slice(2) });
+      else if (a.token && a.token.indexOf('s:') === 0) tries.push({ sequenceParams: a.token.slice(2) });
+      else { tries.push({ sequenceParams: 'CA8=' }); tries.push({ sequenceParams: 'CA8%3D' }); }
+      var lastErr = null;
+      for (var i = 0; i < tries.length; i++) {
+        try {
+          var r = parseReelSequence(await call('reel/reel_watch_sequence', tries[i]));
+          if (r.items.length) return r;
+        } catch (e) { lastErr = e; }
+      }
+      throw lastErr || new Error('empty shorts feed');
     },
     watch: async function (a) { return parseWatch(await call('next', { videoId: a.id, contentCheckOk: true, racyCheckOk: true })); },
     related: async function (a) {
