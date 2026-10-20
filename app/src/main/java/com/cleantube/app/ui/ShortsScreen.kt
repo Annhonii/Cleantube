@@ -232,8 +232,20 @@ fun ShortsScreen() {
             // kept between tab switches: the feed and the Short you were on stay as they were
             val feed = TabCache.paged<VideoItem>("shorts:$t") { token ->
                 // Shorts that were already shown once never come back (the Shorts already in this feed stay as they are)
-                val page = Api.shorts(token, t)
-                Page(page.items.filter { !Graph.store.isShortSeen(it.id) }, page.next)
+                // YouTube often sends the same Shorts again (esp. at the start of a feed): keep asking for the
+                // next batch until there is something new, instead of showing a page that is all repeats.
+                var tok = token
+                var result: Page<VideoItem>
+                var tries = 0
+                while (true) {
+                    val page = Api.shorts(tok, t)
+                    val fresh = page.items.filter { !Graph.store.isShortSeen(it.id) }
+                    result = Page(fresh, page.next)
+                    tries++
+                    if (fresh.isNotEmpty() || page.next == null || page.next == tok || tries >= 8) break
+                    tok = page.next
+                }
+                result
             }
             LaunchedEffect(feed) { if (feed.items.isEmpty() && !feed.loading) feed.refresh() }
             val items = remember(feed.items) { feed.items.distinctBy { it.id } }
