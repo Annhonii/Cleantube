@@ -75,6 +75,11 @@ class Paged<T>(
         }
     }
 
+    /** Puts one item at the top of the list (e.g. a comment that was just posted). */
+    fun prepend(item: T) {
+        items = listOf(item) + items
+    }
+
     /** Pull-to-refresh: fetch the first page and swap it in; on failure the old list stays. */
     fun pullRefresh() {
         if (refreshing) return

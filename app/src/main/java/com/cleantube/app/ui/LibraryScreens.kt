@@ -264,64 +264,6 @@ fun LibraryScreen() {
     }
 }
 
-// ----------------------------------------------------------------- History
-
-@Composable
-fun HistoryScreen() {
-    val nav = LocalNav.current
-    val store = Graph.store
-    val scope = rememberCoroutineScope()
-    var confirm by remember { mutableStateOf(false) }
-    var account by remember { mutableStateOf(false) }
-    val list = store.history
-    val remote = TabCache.paged("history:${Session.handle}") { token -> Api.accountHistory(token) }
-
-    Column(Modifier.fillMaxSize()) {
-        TabTopBar("History", actions = {
-            if (list.isNotEmpty()) {
-                IconButton(onClick = { confirm = true }) {
-                    Icon(Icons.Rounded.Delete, contentDescription = "Clear history", tint = TextPrimary)
-                }
-            }
-        })
-        if (Session.loggedIn) {
-            Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Pill("This app", onClick = { account = false }, active = !account)
-                Pill("YouTube account", onClick = { account = true }, active = account)
-            }
-        }
-        if (account && Session.loggedIn) {
-            PagedColumn(remote, emptyText = "Your YouTube watch history is empty.") { v ->
-                VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
-            }
-        } else if (list.isEmpty()) {
-            EmptyState("Videos you open show up here.")
-        } else {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = listPadding) {
-                items(list.size) { i ->
-                    val v = list[i]
-                    VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
-                }
-            }
-        }
-    }
-
-    if (confirm) {
-        AlertDialog(
-            onDismissRequest = { confirm = false },
-            containerColor = Card,
-            title = { Text("Clear watch history?") },
-            text = { Text("This only removes it from this phone.", color = TextMuted) },
-            confirmButton = {
-                TextButton(onClick = { store.clearHistory(); confirm = false }) { Text("Clear", color = Danger) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirm = false }) { Text("Cancel", color = TextPrimary) }
-            }
-        )
-    }
-}
-
 // -------------------------------------------------------- Local playlists
 
 @Composable

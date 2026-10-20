@@ -199,7 +199,7 @@ private fun OtherScreen(route: Route) {
         Route.Feed -> FeedScreen()
         Route.Trending -> TrendingScreen()
         Route.Library -> LibraryScreen()
-        Route.History -> HistoryScreen()
+        Route.Notifications -> NotificationsScreen()
         Route.Settings -> SettingsScreen()
         Route.Login -> LoginScreen()
         Route.Downloads -> DownloadsScreen()

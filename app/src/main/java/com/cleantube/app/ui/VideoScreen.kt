@@ -124,9 +124,9 @@ fun VideoScreen(route: Route.Video) {
     var descOpen by remember(route.id) { mutableStateOf(false) }
     var saveDialog by remember(route.id) { mutableStateOf(false) }
     var downloadDialog by remember(route.id) { mutableStateOf(false) }
-    // 1 = liked, -1 = disliked, 0 = no rating. Only what was done in this screen is known:
-    // YouTube's earlier rating of the video isn't read from the page.
+    // 1 = liked, -1 = disliked, 0 = no rating. Starts from what YouTube says about this account once the page is loaded.
     var rating by remember(route.id) { mutableStateOf(0) }
+    var ratingTouched by remember(route.id) { mutableStateOf(false) }
 
     val video = details?.video ?: route.seed
 
@@ -137,6 +137,7 @@ fun VideoScreen(route: Route.Video) {
         }
         val before = rating
         val next = if (before == target) 0 else target
+        ratingTouched = true
         rating = next
         scope.launch {
             try {
@@ -145,7 +146,7 @@ fun VideoScreen(route: Route.Video) {
                 throw e
             } catch (e: Exception) {
                 rating = before
-                Toast.makeText(ctx, "Couldn't update your rating. Try again.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx, "Couldn't update your rating: ${e.message ?: "try again"}", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -186,6 +187,7 @@ fun VideoScreen(route: Route.Video) {
         try {
             val d = Api.videoDetails(route.id)
             details = d
+            if (!ratingTouched) rating = when (d.likeStatus) { "LIKE" -> 1; "DISLIKE" -> -1; else -> 0 }
             channel = d.channel
             if (route.seed == null) store.addHistory(d.video)
         } catch (e: ApiException) {
@@ -668,10 +670,21 @@ fun CommentsPanel(videoId: String, comments: Paged<Comment>, count: String, onCl
                     enabled = draft.isNotBlank() && !sending,
                     onClick = {
                         sending = true
+                        val sentText = draft.trim()
                         scope.launch {
                             try {
-                                Api.postComment(videoId, draft.trim())
+                                Api.postComment(videoId, sentText)
                                 Toast.makeText(ctx, "Comment posted.", Toast.LENGTH_SHORT).show()
+                                comments.prepend(
+                                    Comment(
+                                        author = Session.name.ifEmpty { "You" },
+                                        avatar = Session.thumb,
+                                        text = sentText,
+                                        likes = 0,
+                                        publishedAt = "just now",
+                                        replies = 0
+                                    )
+                                )
                                 draft = ""
                                 composing = false
                             } catch (e: CancellationException) {

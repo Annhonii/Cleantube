@@ -4,7 +4,7 @@ A native Android YouTube client (Kotlin + Jetpack Compose) with a NewPipe-style 
 
 - **Browse, search, channels, playlists, comments:** YouTube's own internal (InnerTube) API, the same one the website uses. No API key, no Google Cloud Console.
 - **Playback:** CleanTube's own native player (Media3 / ExoPlayer) fed with the NewPipe stream links. No YouTube web player or page is shown anywhere: custom minimal controls, a loading animation, quality + speed menu, double-tap to skip 10 s, fullscreen, popup (PiP).
-- **Sign in with Google (optional):** Home becomes YouTube's real recommendations for you, Feed is your real subscriptions feed, History can show your YouTube history.
+- **Sign in with Google (optional):** Home becomes YouTube's real recommendations for you, Feed is your real subscriptions feed, Notification shows your real YouTube notification bell.
 
 ## How it works
 
@@ -17,7 +17,7 @@ Login happens in a normal Google sign-in page inside the app; only the cookies s
 - It is **unofficial**. YouTube can change its responses any day and a screen may stop loading until `yt.js` is updated.
 - Google's terms don't allow unofficial clients. Use an account you can afford to risk.
 - Google may refuse sign-in inside an app WebView. If it does, the app still works signed out.
-- Videos opened in CleanTube are not added to your YouTube watch history; the History tab keeps a local list and can also show your YouTube one.
+- Videos opened in CleanTube are not added to your YouTube watch history; a local watch list is still kept on the phone (clear it in Settings).
 - Playback needs the NewPipe engine to find stream links. If YouTube changes something and a video stops loading, bump the `NewPipeExtractor` version in `app/build.gradle.kts`; the player then shows Retry / "Open in YouTube".
 
 ## Tabs
@@ -29,7 +29,7 @@ Login happens in a normal Google sign-in page inside the app; only the cookies s
 | Feed | Your subscriptions feed (signed in) or newest videos from locally saved subscriptions |
 | Library | Subscriptions and local playlists |
 | Downloads | Live download progress (percent, size, speed, time left), finished files, retry / cancel / delete, "Paste YouTube link" |
-| History | Videos you opened, plus your YouTube history when signed in |
+| Notification | YouTube's notification bell when signed in: new uploads, live streams, comments, replies, mentions |
 | Search (magnifier in the top bar) | Videos / channels / playlists, local search history |
 
 Downloads: stream links now come from the **NewPipe engine** ([NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor)); the old built-in method is only a fallback. A stale / refused link is refreshed automatically once. Progress, speed and time left are shown in the Downloads tab and in the notification (with a Cancel button); a separate notification announces finished / failed downloads. When YouTube changes something and downloads break again, bump the `NewPipeExtractor` version in `app/build.gradle.kts` to the newest release.

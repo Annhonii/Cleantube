@@ -98,6 +98,25 @@ object Api {
     suspend fun accountHistory(token: String?): Page<VideoItem> =
         videosPage(Yt.run("history", args("token" to token)))
 
+    private fun JSONObject.notification(): NotificationItem = NotificationItem(
+        id = optString("id"),
+        message = optString("msg"),
+        time = optString("time"),
+        avatar = optString("avatar"),
+        thumb = optString("thumb"),
+        read = optBoolean("read"),
+        kind = optString("kind").ifEmpty { "other" },
+        videoId = optString("vid"),
+        channelId = optString("chId"),
+        handle = optString("handle")
+    )
+
+    /** YouTube's notification bell of the signed-in account: new uploads, live, comments, replies, mentions... */
+    suspend fun notifications(token: String?): Page<NotificationItem> {
+        val j = Yt.run("notifications", args("token" to token))
+        return Page(j.pick("n") { it.notification() }, j.nextToken())
+    }
+
     /** The channels the signed-in account is subscribed to (up to ~10 pages). */
     suspend fun accountChannels(): List<ChannelItem> {
         val out = ArrayList<ChannelItem>()
@@ -117,7 +136,13 @@ object Api {
 
     /** Rates a video on the signed-in account. [status] is "like", "dislike" or "none". */
     suspend fun rate(videoId: String, status: String) {
-        Yt.run("rate", args("id" to videoId, "status" to status))
+        try {
+            Yt.run("rate", args("id" to videoId, "status" to status))
+        } catch (e: ApiException) {
+            // second try with the params YouTube's own buttons send (read from the watch page), if there are any
+            val p = rateParams[videoId]?.optString(status)?.takeIf { it.isNotEmpty() } ?: throw e
+            Yt.run("rate", args("id" to videoId, "status" to status, "params" to p))
+        }
     }
 
     // ---------------------------------------------------------------- search
@@ -167,6 +192,8 @@ object Api {
     private val watches = ConcurrentHashMap<String, Watch>()
     /** videoId -> token YouTube wants when posting a new comment (read from the first comments page). */
     private val createParams = ConcurrentHashMap<String, String>()
+    /** videoId -> params of YouTube's like / dislike / remove-like buttons (keys "like", "dislike", "none"). */
+    private val rateParams = ConcurrentHashMap<String, JSONObject>()
 
     suspend fun videoDetails(id: String): VideoDetails {
         val j = Yt.run("watch", args("id" to id))
@@ -182,6 +209,7 @@ object Api {
             viewsText = j.optString("views"), ageText = j.optString("age")
         )
         watches[id] = Watch(j.optString("commentsToken").takeIf { it.isNotEmpty() && it != "null" })
+        j.optJSONObject("rateParams")?.let { rateParams[id] = it }
         val related = (j.optJSONArray("related") ?: JSONArray()).mapObjects { it.video() }
         return VideoDetails(
             video = vid,
@@ -193,7 +221,8 @@ object Api {
             commentCountText = j.optString("commentCount"),
             channel = channel,
             related = related,
-            relatedNext = j.optString("relatedNext").takeIf { it.isNotEmpty() && it != "null" }
+            relatedNext = j.optString("relatedNext").takeIf { it.isNotEmpty() && it != "null" },
+            likeStatus = j.optString("likeStatus")
         )
     }
 
@@ -225,9 +254,22 @@ object Api {
 
     /** Posts a new top-level comment on the signed-in account. */
     suspend fun postComment(videoId: String, text: String) {
-        val p = createParams[videoId]
-            ?: throw ApiException(ApiException.Kind.OTHER, "The comment box isn't available for this video (sign in and reopen the comments).")
-        Yt.run("postComment", args("params" to p, "text" to text))
+        val first = createParams[videoId] ?: loadCreateParams(videoId)
+            ?: throw ApiException(ApiException.Kind.OTHER, "The comment box isn't available for this video. Make sure you are signed in and comments are on.")
+        try {
+            Yt.run("postComment", args("params" to first, "text" to text))
+        } catch (e: ApiException) {
+            // the token may have gone stale: read a fresh one and try once more
+            val again = loadCreateParams(videoId) ?: throw e
+            Yt.run("postComment", args("params" to again, "text" to text))
+        }
+    }
+
+    /** Reads the first comments page again, only to get the token YouTube wants for a new comment. */
+    private suspend fun loadCreateParams(videoId: String): String? {
+        val token = watches[videoId]?.commentsToken ?: return null
+        val j = Yt.run("comments", args("token" to token))
+        return j.optString("create").takeIf { it.isNotEmpty() }?.also { createParams[videoId] = it }
     }
 
     // ---------------------------------------------------------------- channel

@@ -63,7 +63,26 @@ data class VideoDetails(
     val commentCountText: String = "",
     val channel: ChannelItem? = null,
     val related: List<VideoItem> = emptyList(),
-    val relatedNext: String? = null
+    val relatedNext: String? = null,
+    /** What YouTube says about your own rating of this video: LIKE, DISLIKE or empty. */
+    val likeStatus: String = ""
+)
+
+/** One entry of YouTube's notification inbox (new upload, comment, reply, mention, live...). */
+data class NotificationItem(
+    val id: String,
+    val message: String,
+    val time: String,
+    /** Channel / profile picture. */
+    val avatar: String,
+    /** Video thumbnail (empty when the notification has none). */
+    val thumb: String,
+    val read: Boolean,
+    /** upload | live | premiere | comment | reply | mention | other */
+    val kind: String,
+    val videoId: String = "",
+    val channelId: String = "",
+    val handle: String = ""
 )
 
 data class LocalPlaylist(

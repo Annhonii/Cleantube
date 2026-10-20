@@ -55,7 +55,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Sign-in card. Signing in makes Home, Feed and History your real YouTube ones. */
+/** Sign-in card. Signing in makes Home, Feed and Notification your real YouTube ones. */
 @Composable
 fun AccountCard(modifier: Modifier = Modifier) {
     val nav = LocalNav.current
@@ -136,7 +136,7 @@ fun AccountCard(modifier: Modifier = Modifier) {
                 }
             }
             Text(
-                "Home, Feed and History now come from your YouTube account.",
+                "Home, Feed and Notification now come from your YouTube account.",
                 color = TextMuted,
                 fontSize = 13.sp
             )
@@ -173,7 +173,7 @@ fun AccountCard(modifier: Modifier = Modifier) {
             Text(
                 "CleanTube talks to YouTube the way the website does, so there is no API key. " +
                     "Without signing in you get YouTube's general home feed. After signing in, Home shows YouTube's " +
-                    "recommendations for you, and Feed and History are your real ones.\n\n" +
+                    "recommendations for you, and Feed and Notification are your real ones.\n\n" +
                     "This is not an official YouTube API. It can break when YouTube changes things, " +
                     "and Google's terms don't allow unofficial clients, so use an account you can afford to risk.",
                 color = TextMuted,

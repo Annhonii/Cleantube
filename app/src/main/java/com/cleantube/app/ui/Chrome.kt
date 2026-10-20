@@ -139,7 +139,7 @@ val AllTabs = listOf(
     TabSpec("shorts", Route.Shorts, "Shorts", Icons.Rounded.LocalFireDepartment),
     TabSpec("home", Route.Home, "Home", Icons.Rounded.Home),
     TabSpec("feed", Route.Feed, "Subscription", Icons.Rounded.Subscriptions),
-    TabSpec("history", Route.History, "History", Icons.Rounded.History),
+    TabSpec("notifications", Route.Notifications, "Notification", Icons.Rounded.Notifications),
     TabSpec("downloads", Route.Downloads, "Downloads", Icons.Rounded.Download),
     TabSpec("trending", Route.Trending, "Trending", Icons.Rounded.TrendingUp),
     TabSpec("library", Route.Library, "Library", Icons.Rounded.VideoLibrary)
@@ -273,7 +273,7 @@ fun TopBar(modifier: Modifier = Modifier, overVideo: Boolean = false) {
             Icon(Icons.Rounded.Search, contentDescription = "Search", tint = TextPrimary, modifier = Modifier.size(22.dp))
         }
         Spacer(Modifier.width(10.dp))
-        RoundIconButton(Icons.Rounded.Notifications, "Downloads", onClick = { nav.selectTab(Route.Downloads) }, dot = downloading)
+        RoundIconButton(Icons.Rounded.Download, "Downloads", onClick = { nav.selectTab(Route.Downloads) }, dot = downloading)
         Spacer(Modifier.width(10.dp))
         Box(
             Modifier
@@ -364,7 +364,7 @@ private fun PillLabels(
 
 /**
  * Bottom bar: a round Shorts button on the left and, next to it, a floating pill with the other visible tabs
- * (Home, Subscription, History, Downloads by default) in the order chosen in Settings. Dark in dark mode, light
+ * (Home, Subscription, Notification, Downloads by default) in the order chosen in Settings. Dark in dark mode, light
  * in light mode. The chip marks the open tab; [position] comes straight from the pager (index + fraction), so it
  * slides along while you swipe a page, and dragging the chip itself changes tabs too.
  *

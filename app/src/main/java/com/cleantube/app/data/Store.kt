@@ -56,7 +56,7 @@ class Store(context: Context) {
     private fun readCsv(key: String): List<String> =
         sp.getString(key, "").orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }
 
-    private val tabOrderState = mutableStateOf(readCsv("tab_order"))
+    private val tabOrderState = mutableStateOf(readCsv("tab_order").map { if (it == "history") "notifications" else it }.distinct())
     /** Tab ids in the order the user wants them (empty = default order). The UI fills in missing tabs. */
     var tabOrder: List<String>
         get() = tabOrderState.value
@@ -65,7 +65,7 @@ class Store(context: Context) {
             sp.edit().putString("tab_order", value.joinToString(",")).apply()
         }
 
-    private val hiddenTabsState = mutableStateOf(if (sp.contains("tab_hidden")) readCsv("tab_hidden").toSet() else DefaultHiddenTabs)
+    private val hiddenTabsState = mutableStateOf(if (sp.contains("tab_hidden")) readCsv("tab_hidden").map { if (it == "history") "notifications" else it }.toSet() else DefaultHiddenTabs)
     /** Tab ids the user turned off. */
     var hiddenTabs: Set<String>
         get() = hiddenTabsState.value

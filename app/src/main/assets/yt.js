@@ -287,6 +287,34 @@
       }
     });
 
+    // YouTube's record of what THIS account already did to the video (LIKE / DISLIKE / INDIFFERENT)
+    var likeStatus = '';
+    var muts = (j.frameworkUpdates && j.frameworkUpdates.entityBatchUpdate && j.frameworkUpdates.entityBatchUpdate.mutations) || [];
+    muts.forEach(function (m) {
+      var p = m.payload && m.payload.likeStatusEntity;
+      if (p && typeof p.likeStatus === 'string') likeStatus = p.likeStatus;
+    });
+    if (!likeStatus) {
+      walk(primary.videoActions || {}, function (x) {
+        if (x.toggleButtonViewModel && typeof x.toggleButtonViewModel.isToggled === 'boolean') {
+          likeStatus = x.toggleButtonViewModel.isToggled ? 'LIKE' : '';
+          return true;
+        }
+        return false;
+      });
+    }
+    // params that YouTube's own like buttons send (used as a second try when the plain call is refused)
+    var rateParams = {};
+    walk(j, function (x) {
+      var e = x.likeEndpoint;
+      if (e && e.status) {
+        var k = e.status === 'LIKE' ? 'like' : e.status === 'DISLIKE' ? 'dislike' : e.status === 'INDIFFERENT' ? 'none' : '';
+        var p = e.likeParams || e.dislikeParams || e.removeLikeParams;
+        if (k && p && !rateParams[k]) rateParams[k] = p;
+      }
+      return false;
+    });
+
     var secRoot = tw && tw.secondaryResults;
     var rel = secRoot ? parseItems(j, secRoot) : { items: [], next: null };
     var related = rel.items.filter(function (i) { return i.t === 'v'; });
@@ -306,7 +334,9 @@
       related: related,
       relatedNext: rel.next,
       commentsToken: commentsToken,
-      commentCount: commentCount
+      commentCount: commentCount,
+      likeStatus: likeStatus,
+      rateParams: rateParams
     };
   }
 
@@ -478,8 +508,54 @@
     return { items: items, next: tok };
   }
 
+  /** YouTube's notification inbox (\"notification/get_notification_menu\"): uploads, live, comments, replies, mentions... */
+  function parseNotifications(j) {
+    var items = [], seen = {}, token = null;
+    walk(j, function (x) {
+      if (x.continuationItemRenderer) {
+        var c = x.continuationItemRenderer;
+        var t = findFirst(c, 'ctoken') || findFirst(c, 'token');
+        if (typeof t === 'string' && t) token = t;
+        return true;
+      }
+      var n = x.notificationRenderer;
+      if (!n) return false;
+      var msg = txt(n.shortMessage) || txt(n.title) || txt(n.message);
+      var ep = n.navigationEndpoint || {};
+      var meta = ep.commandMetadata && ep.commandMetadata.webCommandMetadata;
+      var url = (meta && meta.url) || '';
+      var vid = (ep.watchEndpoint && ep.watchEndpoint.videoId) || (ep.reelWatchEndpoint && ep.reelWatchEndpoint.videoId) || '';
+      var m;
+      if (!vid && url && (m = url.match(/[?&]v=([\w-]{11})/) || url.match(/\/shorts\/([\w-]{11})/))) vid = m[1];
+      var thumb = lastThumb(n.videoThumbnail);
+      if (!vid && thumb && (m = thumb.match(/\/vi\/([\w-]{11})\//))) vid = m[1];
+      var chId = (ep.browseEndpoint && typeof ep.browseEndpoint.browseId === 'string' && ep.browseEndpoint.browseId.indexOf('UC') === 0)
+        ? ep.browseEndpoint.browseId : '';
+      if (!chId && url && (m = url.match(/\/channel\/(UC[\w-]+)/))) chId = m[1];
+      var handle = (!vid && !chId && url && (m = url.match(/^\/(@[^\/?#]+)/))) ? m[1] : '';
+      var low = msg.toLowerCase();
+      var kind = 'other';
+      if (/mentioned|tagged/.test(low)) kind = 'mention';
+      else if (/repl(y|ied)/.test(low)) kind = 'reply';
+      else if (/comment/.test(low)) kind = 'comment';
+      else if (/premiere/.test(low)) kind = 'premiere';
+      else if (/\blive\b|streaming/.test(low)) kind = 'live';
+      else if (/upload|posted|new video|published/.test(low) || (vid && thumb)) kind = 'upload';
+      var id = n.notificationId || (vid + '|' + msg + '|' + txt(n.sentTimeText));
+      if (!msg && !vid && !chId) return true;
+      if (seen[id]) return true;
+      seen[id] = 1;
+      items.push({
+        t: 'n', id: id, msg: msg, time: txt(n.sentTimeText), avatar: lastThumb(n.thumbnail), thumb: thumb,
+        read: !!n.read, kind: kind, vid: vid, chId: chId, handle: handle
+      });
+      return true;
+    });
+    return { items: items, next: token };
+  }
+
   var P = {
-    txt: txt, parseItems: parseItems, parseWatch: parseWatch, parseComments: parseComments,
+    parseNotifications: parseNotifications, txt: txt, parseItems: parseItems, parseWatch: parseWatch, parseComments: parseComments,
     parseChannel: parseChannel, parsePlaylist: parsePlaylist, parseAccount: parseAccount, parseReelSequence: parseReelSequence, durSeconds: durSeconds
   };
 
@@ -525,7 +601,7 @@
 
   var LOCALE = { hl: 'en', gl: 'IN' };
 
-  async function call(endpoint, body) {
+  async function call(endpoint, body, retried) {
     var env = await boot();
     var context = {
       client: {
@@ -549,9 +625,10 @@
       method: 'POST', headers: headers, credentials: 'include',
       body: JSON.stringify(Object.assign({ context: context }, body))
     });
-    if (r.status === 400 || r.status === 403) {   // stale cached config: refresh once
+    if ((r.status === 400 || r.status === 403) && !retried) {   // stale cached config: refresh it and try once more
       try { localStorage.removeItem('ct_env'); } catch (e) { /* ignore */ }
       ENV = null;
+      return call(endpoint, body, true);
     }
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
@@ -622,13 +699,24 @@
     /** Like / dislike / clear the rating of a video (signed-in only). a.status: 'like' | 'dislike' | 'none'. */
     rate: async function (a) {
       var ep = a.status === 'like' ? 'like/like' : a.status === 'dislike' ? 'like/dislike' : 'like/removelike';
-      await call(ep, { target: { videoId: a.id } });
+      var body = { target: { videoId: a.id } };
+      if (a.params) body.params = a.params;
+      var r = await call(ep, body);
+      if (r && r.errors && r.errors.length) throw new Error('rating refused');
       return { ok: true };
     },
     /** Posts a new top-level comment (signed-in only). a.params = createCommentParams, a.text = the comment. */
     postComment: async function (a) {
-      await call('comment/create_comment', { commentText: a.text, createCommentParams: a.params });
+      var r = await call('comment/create_comment', { commentText: a.text, createCommentParams: a.params });
+      var st = r && r.actionResult && r.actionResult.status;
+      if (st && st !== 'STATUS_SUCCEEDED') throw new Error('comment refused (' + st + ')');
+      if (r && r.errors && r.errors.length) throw new Error('comment refused');
       return { ok: true };
+    },
+    /** YouTube's notification bell (signed-in only). a.token = continuation of the next page. */
+    notifications: async function (a) {
+      var body = a.token ? { ctoken: a.token } : { notificationsMenuRequestType: 'NOTIFICATIONS_MENU_REQUEST_TYPE_INBOX' };
+      return parseNotifications(await call('notification/get_notification_menu', body));
     }
   };
 
