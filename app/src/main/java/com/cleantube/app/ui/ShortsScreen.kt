@@ -611,6 +611,12 @@ private fun ShortPage(
     val ch = details?.channel
     // The feed doesn't always carry the title: fall back to the one from the watch page.
     val title = v.title.ifEmpty { details?.video?.title.orEmpty() }
+    // remember the Short in the app's watch history (also gets its title / channel once those are known)
+    LaunchedEffect(current, title, ch?.title) {
+        if (current) {
+            Graph.store.addHistory(v.copy(title = title, channelTitle = v.channelTitle.ifEmpty { ch?.title.orEmpty() }, short = true))
+        }
+    }
 
     Box(Modifier.fillMaxSize().background(Color.Black).onSizeChanged { box = it }) {
         CtVideoSurface(p, Modifier.fillMaxSize())

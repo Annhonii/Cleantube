@@ -648,6 +648,7 @@
     home: async function (a) { return parseItems(await browse('FEwhat_to_watch', a.token)); },
     feed: async function (a) { return parseItems(await browse('FEsubscriptions', a.token)); },
     history: async function (a) { return parseItems(await browse('FEhistory', a.token)); },
+    playlists: async function (a) { return parseItems(await browse('FEplaylist_aggregation', a.token)); },
     channels: async function (a) { return parseItems(await browse('FEchannels', a.token)); },
     search: async function (a) {
       var body = a.token ? { continuation: a.token } : { query: a.q, params: decodeURIComponent(FILTERS[a.filter] || FILTERS.video) };

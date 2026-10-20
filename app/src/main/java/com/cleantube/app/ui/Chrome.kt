@@ -141,9 +141,6 @@ val AllTabs = listOf(
     TabSpec("shorts", Route.Shorts, "Shorts", Icons.Rounded.LocalFireDepartment),
     TabSpec("home", Route.Home, "Home", Icons.Rounded.Home),
     TabSpec("feed", Route.Feed, "Subscription", Icons.Rounded.Subscriptions),
-    TabSpec("notifications", Route.Notifications, "Notification", Icons.Rounded.Notifications),
-    TabSpec("downloads", Route.Downloads, "Downloads", Icons.Rounded.Download),
-    TabSpec("trending", Route.Trending, "Trending", Icons.Rounded.TrendingUp),
     TabSpec("library", Route.Library, "Library", Icons.Rounded.VideoLibrary)
 )
 
@@ -275,7 +272,7 @@ fun TopBar(modifier: Modifier = Modifier, overVideo: Boolean = false) {
             Icon(Icons.Rounded.Search, contentDescription = "Search", tint = TextPrimary, modifier = Modifier.size(22.dp))
         }
         Spacer(Modifier.width(10.dp))
-        RoundIconButton(Icons.Rounded.Download, "Downloads", onClick = { nav.selectTab(Route.Downloads) }, dot = downloading)
+        RoundIconButton(Icons.Rounded.Download, "Downloads", onClick = { if (nav.current != Route.Downloads) nav.push(Route.Downloads) }, dot = downloading)
         Spacer(Modifier.width(10.dp))
         Box(
             Modifier

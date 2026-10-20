@@ -87,7 +87,7 @@ class MainActivity : ComponentActivity() {
         // Tapped a download notification: show the Downloads tab.
         if (i.getStringExtra(EXTRA_OPEN) == OPEN_DOWNLOADS) {
             i.removeExtra(EXTRA_OPEN)
-            nav.selectTab(Route.Downloads)
+            if (nav.current != Route.Downloads) nav.push(Route.Downloads)
             return
         }
         val uri: Uri? = when (i.action) {

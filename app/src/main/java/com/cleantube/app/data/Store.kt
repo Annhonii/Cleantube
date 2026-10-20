@@ -141,7 +141,12 @@ class Store(context: Context) {
     // -------------------------------------------------------------- history
 
     fun addHistory(v: VideoItem) {
-        history = (listOf(v) + history.filter { it.id != v.id }).take(300)
+        history = (listOf(v) + history.filter { it.id != v.id }).take(500)
+        save("history", history) { it.toJson() }
+    }
+
+    fun removeHistory(id: String) {
+        history = history.filter { it.id != id }
         save("history", history) { it.toJson() }
     }
 
@@ -278,4 +283,4 @@ class Store(context: Context) {
 }
 
 /** Tabs that start turned off (they can be turned on in Settings). */
-val DefaultHiddenTabs: Set<String> = setOf("trending", "library")
+val DefaultHiddenTabs: Set<String> = emptySet()

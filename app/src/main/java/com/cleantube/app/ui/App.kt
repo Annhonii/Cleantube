@@ -201,6 +201,8 @@ private fun OtherScreen(route: Route) {
         Route.Library -> LibraryScreen()
         Route.Notifications -> NotificationsScreen()
         Route.Settings -> SettingsScreen()
+        Route.History -> HistoryScreen()
+        Route.Playlists -> PlaylistsScreen()
         Route.Login -> LoginScreen()
         Route.Downloads -> DownloadsScreen()
         is Route.LocalPlay -> LocalPlayScreen(route)

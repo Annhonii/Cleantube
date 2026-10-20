@@ -98,6 +98,19 @@ object Api {
     suspend fun accountHistory(token: String?): Page<VideoItem> =
         videosPage(Yt.run("history", args("token" to token)))
 
+    /** The playlists the signed-in account owns / saved (YouTube's "Playlists" library page, up to ~6 pages). */
+    suspend fun accountPlaylists(): List<PlaylistItem> {
+        val out = ArrayList<PlaylistItem>()
+        var token: String? = null
+        var pages = 0
+        do {
+            val j = Yt.run("playlists", args("token" to token))
+            out += j.pick("p") { it.playlistItem() }
+            token = j.nextToken()
+        } while (token != null && ++pages < 6)
+        return out.distinctBy { it.id }
+    }
+
     private fun JSONObject.notification(): NotificationItem = NotificationItem(
         id = optString("id"),
         message = optString("msg"),

@@ -484,7 +484,7 @@ fun SettingsScreen() {
                                 Pill("$n", onClick = { store.downloadThreads = n }, active = store.downloadThreads == n)
                             }
                         }
-                        Pill("Open downloads", onClick = { nav.selectTab(Route.Downloads) }, modifier = Modifier.fillMaxWidth())
+                        Pill("Open downloads", onClick = { nav.push(Route.Downloads) }, modifier = Modifier.fillMaxWidth())
                     }
                 }
 

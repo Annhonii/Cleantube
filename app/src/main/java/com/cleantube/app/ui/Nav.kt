@@ -16,6 +16,8 @@ sealed interface Route {
     data object Notifications : Route
 
     data object Settings : Route
+    data object History : Route
+    data object Playlists : Route
     data object Login : Route
     data class LocalPlay(val uri: String, val title: String) : Route
     data class Search(val query: String = "") : Route
@@ -25,7 +27,7 @@ sealed interface Route {
     data class LocalList(val id: String) : Route
 }
 
-val TabRoutes: List<Route> = listOf(Route.Home, Route.Shorts, Route.Feed, Route.Trending, Route.Library, Route.Downloads, Route.Notifications)
+val TabRoutes: List<Route> = listOf(Route.Home, Route.Shorts, Route.Feed, Route.Library)
 
 enum class NavKind { PUSH, POP, TAB }
 

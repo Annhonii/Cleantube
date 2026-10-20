@@ -162,9 +162,10 @@ fun DownloadsScreen() {
     val active = list.filter { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
     val finished = list.filter { it.status != DlStatus.RUNNING && it.status != DlStatus.QUEUED }
     var pasted by remember { mutableStateOf<VideoItem?>(null) }
+    val nav = LocalNav.current
 
     Column(Modifier.fillMaxSize()) {
-        TabTopBar("Downloads")
+        ScreenTitle("Downloads", onBack = { nav.back() })
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 120.dp)) {
             item {
                 Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
