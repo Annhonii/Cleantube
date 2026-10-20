@@ -311,14 +311,14 @@ private fun CtSettingsPanel(p: CtPlayer, onClose: () -> Unit) {
             val autoLabel = if (p.quality == 0 && p.currentHeight > 0) "Auto · ${p.currentHeight}p" else "Auto"
             Text("Quality", color = Color(0xFFAAAAAA), fontSize = 12.sp)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CtChip(autoLabel, p.quality == 0) { p.setQuality(0) }
-                p.heights.reversed().forEach { h -> CtChip("${h}p", p.quality == h) { p.setQuality(h) } }
+                CtChip(autoLabel, p.quality == 0) { p.changeQuality(0) }
+                p.heights.reversed().forEach { h -> CtChip("${h}p", p.quality == h) { p.changeQuality(h) } }
             }
             Text("Speed", color = Color(0xFFAAAAAA), fontSize = 12.sp)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { s ->
                     val label = if (s == 1f) "Normal" else (if (s % 1f == 0f) "${s.toInt()}x" else "${s}x")
-                    CtChip(label, p.speed == s) { p.setSpeed(s) }
+                    CtChip(label, p.speed == s) { p.changeSpeed(s) }
                 }
             }
         }

@@ -218,7 +218,7 @@ class CtPlayer(
         load(force = true, resumeMs = position)
     }
 
-    fun setPlaying(on: Boolean) {
+    fun playWhen(on: Boolean) {
         wantPlay = on
         if (!released) exo.playWhenReady = on
     }
@@ -226,9 +226,9 @@ class CtPlayer(
     fun togglePlay() {
         if (ended) {
             exo.seekTo(0)
-            setPlaying(true)
+            playWhen(true)
         } else {
-            setPlaying(!wantPlay)
+            playWhen(!wantPlay)
         }
     }
 
@@ -245,12 +245,12 @@ class CtPlayer(
         position = 0L
     }
 
-    fun setSpeed(s: Float) {
+    fun changeSpeed(s: Float) {
         speed = s
         exo.setPlaybackSpeed(s)
     }
 
-    fun setQuality(height: Int) {
+    fun changeQuality(height: Int) {
         quality = height
         val i = info ?: return
         prepare(i, exo.currentPosition.coerceAtLeast(0L))

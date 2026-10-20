@@ -185,13 +185,13 @@ private fun ShortPage(
     // Prepared paused (first picture + a few seconds loaded), starts the moment it becomes the current Short.
     DisposableEffect(p) {
         p.setLooping(true)
-        p.setPlaying(false)
+        p.playWhen(false)
         p.load()
         onDispose { p.release() }
     }
     LaunchedEffect(current) {
-        if (current) p.setPlaying(true) else {
-            p.setPlaying(false)
+        if (current) p.playWhen(true) else {
+            p.playWhen(false)
             p.restart()
         }
     }

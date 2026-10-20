@@ -98,12 +98,12 @@ fun PlayerBox(videoId: String, embeddable: Boolean, modifier: Modifier = Modifie
     DisposableEffect(p) {
         PlayerControl.second = 0f
         PlayerControl.owner = p
-        PlayerControl.pause = { p.setPlaying(false) }
+        PlayerControl.pause = { p.playWhen(false) }
 
         // like any video app: stop when the app goes away (the popup window and background play are separate)
         val owner = ctx as? LifecycleOwner
         val obs = LifecycleEventObserver { _, e ->
-            if (e == Lifecycle.Event.ON_STOP && !PipHost.active) p.setPlaying(false)
+            if (e == Lifecycle.Event.ON_STOP && !PipHost.active) p.playWhen(false)
         }
         owner?.lifecycle?.addObserver(obs)
 
