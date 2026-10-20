@@ -86,6 +86,12 @@ object Api {
         return page
     }
 
+    /** Trending tab: YouTube has no trending feed any more, so this is a search for what is popular today (no Shorts). */
+    suspend fun trending(token: String?): Page<VideoItem> {
+        val p = searchVideos("trending videos today", token)
+        return Page(p.items.filter { !it.short }, p.next)
+    }
+
     suspend fun accountFeed(token: String?): Page<VideoItem> =
         videosPage(Yt.run("feed", args("token" to token)), dropShorts = true)
 

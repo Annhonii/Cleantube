@@ -28,3 +28,20 @@ fun HomeScreen() {
         }
     }
 }
+
+/** Trending: what is popular today. */
+@Composable
+fun TrendingScreen() {
+    val nav = LocalNav.current
+    val scope = rememberCoroutineScope()
+    Column(Modifier.fillMaxSize()) {
+        TabTopBar("Trending")
+        val paged = remember { Paged(scope) { token -> Api.trending(token) } }
+        PagedColumn(
+            paged = paged,
+            emptyText = "Nothing to show right now. Check your connection."
+        ) { v ->
+            VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
+        }
+    }
+}

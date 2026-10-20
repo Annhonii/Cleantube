@@ -43,6 +43,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cleantube.app.data.ApiException
+import com.cleantube.app.data.DefaultHiddenTabs
 import com.cleantube.app.data.Graph
 import com.cleantube.app.data.Api
 import com.cleantube.app.data.Session
@@ -197,7 +198,7 @@ private fun SectionTitle(text: String) {
     )
 }
 
-/** Order and visibility of the top bar tabs: arrows move a tab, the switch shows / hides it. */
+/** Order and visibility of the bottom bar tabs: arrows move a tab, the switch shows / hides it. */
 @Composable
 private fun TabsSettings(modifier: Modifier = Modifier) {
     val nav = LocalNav.current
@@ -257,12 +258,12 @@ private fun TabsSettings(modifier: Modifier = Modifier) {
             }
         }
         Text(
-            "A hidden tab disappears from the top bar. Downloads stay reachable from Settings and the download notification.",
+            "A hidden tab disappears from the bottom bar. Downloads stay reachable from Settings and the download notification.",
             color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
         )
         Pill(
             "Reset tabs",
-            onClick = { store.tabOrder = emptyList(); store.hiddenTabs = emptySet() },
+            onClick = { store.tabOrder = emptyList(); store.hiddenTabs = DefaultHiddenTabs },
             modifier = Modifier.fillMaxWidth()
         )
     }

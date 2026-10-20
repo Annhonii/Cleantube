@@ -65,7 +65,7 @@ class Store(context: Context) {
             sp.edit().putString("tab_order", value.joinToString(",")).apply()
         }
 
-    private val hiddenTabsState = mutableStateOf(readCsv("tab_hidden").toSet())
+    private val hiddenTabsState = mutableStateOf(if (sp.contains("tab_hidden")) readCsv("tab_hidden").toSet() else DefaultHiddenTabs)
     /** Tab ids the user turned off. */
     var hiddenTabs: Set<String>
         get() = hiddenTabsState.value
@@ -250,3 +250,6 @@ class Store(context: Context) {
         )
     }
 }
+
+/** Tabs that start turned off (they can be turned on in Settings). */
+val DefaultHiddenTabs: Set<String> = setOf("downloads", "history")

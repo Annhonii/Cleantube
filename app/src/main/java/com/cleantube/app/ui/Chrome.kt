@@ -25,7 +25,14 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlin.math.abs
 import kotlin.math.floor
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,6 +60,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Subscriptions
+import androidx.compose.material.icons.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -116,9 +124,10 @@ data class TabSpec(val id: String, val route: Route, val label: String, val icon
 
 /** Every tab the app has, in the default order. */
 val AllTabs = listOf(
-    TabSpec("home", Route.Home, "Home", Icons.Rounded.Home),
     TabSpec("shorts", Route.Shorts, "Shorts", Icons.Rounded.LocalFireDepartment),
-    TabSpec("feed", Route.Feed, "Feed", Icons.Rounded.Subscriptions),
+    TabSpec("home", Route.Home, "Home", Icons.Rounded.Home),
+    TabSpec("feed", Route.Feed, "Subscription", Icons.Rounded.Subscriptions),
+    TabSpec("trending", Route.Trending, "Trending", Icons.Rounded.TrendingUp),
     TabSpec("library", Route.Library, "Library", Icons.Rounded.VideoLibrary),
     TabSpec("downloads", Route.Downloads, "Downloads", Icons.Rounded.Download),
     TabSpec("history", Route.History, "History", Icons.Rounded.History)
@@ -261,17 +270,46 @@ fun TopBar(modifier: Modifier = Modifier) {
     }
 }
 
-private val NavSurface = Color(0xFF151A26)
-private val NavChip = Color(0xFFD9D9D9)
+private val NavSurface = Color(0xFF1E1E1E)
+private val NavChipWhite = Color.White
+private val NavInk = Color(0xFF111111)
 
-/** Floating dark pill at the bottom: Home, Search, Bell (downloads), Profile. The open one gets a light chip with its name. */
+/** Little ringed planet, drawn in [color] on a circle of [bg]. */
 @Composable
-fun BottomNavPill(modifier: Modifier = Modifier) {
+private fun PlanetIcon(color: Color, bg: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val w = size.minDimension
+        val c = Offset(size.width / 2f, size.height / 2f)
+        val body = w * 0.27f
+        val ringW = w * 0.5f
+        val ringH = w * 0.15f
+        val thick = w * 0.07f
+        val ringTopLeft = Offset(c.x - ringW, c.y - ringH)
+        val ringSize = Size(ringW * 2f, ringH * 2f)
+        rotate(-22f, c) {
+            // ring behind the planet, then the planet, then the front half of the ring on top
+            drawOval(color, ringTopLeft, ringSize, style = Stroke(thick))
+            drawCircle(bg, body + thick, c)
+            drawCircle(color, body, c)
+            drawArc(bg, 0f, 180f, false, ringTopLeft, ringSize, style = Stroke(thick * 2.6f))
+            drawArc(color, 0f, 180f, false, ringTopLeft, ringSize, style = Stroke(thick))
+        }
+    }
+}
+
+/**
+ * Floating dark pill at the bottom with the visible tabs in the order chosen in Settings. Shorts is the round
+ * planet button; the other tabs are text, and the open one sits on a white pill. [position] comes straight
+ * from the pager (index + fraction), so the white pill fades from one tab to the next while you swipe.
+ */
+@Composable
+fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
     val nav = LocalNav.current
+    val tabs = visibleTabs(Graph.store)
     val downloading = Downloads.items.any { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
-    val cur = nav.current
-    val shape = RoundedCornerShape(30.dp)
-    Row(
+    val pos = position()
+    val shape = RoundedCornerShape(32.dp)
+    Box(
         modifier
             .navigationBarsPadding()
             .padding(horizontal = 12.dp, vertical = 12.dp)
@@ -279,58 +317,50 @@ fun BottomNavPill(modifier: Modifier = Modifier) {
             .shadow(10.dp, shape, clip = false)
             .clip(shape)
             .background(NavSurface)
-            .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        NavItem(Icons.Rounded.Home, "Home", selected = cur == Route.Home, modifier = Modifier.weight(if (cur == Route.Home) 2.2f else 1f)) {
-            nav.selectTab(Route.Home)
-        }
-        NavItem(Icons.Rounded.Search, "Search", selected = false, modifier = Modifier.weight(1f)) {
-            nav.push(Route.Search())
-        }
-        NavItem(Icons.Rounded.Notifications, "Downloads", selected = cur == Route.Downloads, dot = downloading, modifier = Modifier.weight(if (cur == Route.Downloads) 2.6f else 1f)) {
-            nav.selectTab(Route.Downloads)
-        }
-        NavItem(Icons.Rounded.PersonOutline, "Profile", selected = false, modifier = Modifier.weight(1f)) {
-            nav.push(if (Session.loggedIn) Route.Settings else Route.Login)
-        }
-    }
-}
-
-@Composable
-private fun NavItem(
-    icon: ImageVector,
-    label: String,
-    selected: Boolean,
-    modifier: Modifier = Modifier,
-    dot: Boolean = false,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier
-            .height(56.dp)
-            .clip(CircleShape)
-            .background(if (selected) NavChip else Color.Transparent)
-            .bouncyClickable(pressedScale = 0.9f, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box {
-                Icon(icon, contentDescription = label, tint = if (selected) Color(0xFF1B1B1B) else Color(0xFFEDEDED), modifier = Modifier.size(26.dp))
-                if (dot && !selected) {
-                    Box(Modifier.align(Alignment.TopEnd).size(8.dp).clip(CircleShape).background(Accent))
+        Row(
+            Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            tabs.forEachIndexed { i, t ->
+                val bump = (1f - abs(pos - i)).coerceIn(0f, 1f)
+                if (t.route == Route.Shorts) {
+                    Box(
+                        Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(NavChipWhite)
+                            .bouncyClickable(pressedScale = 0.9f, onClick = { nav.selectTab(t.route) }),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        PlanetIcon(NavInk, NavChipWhite, Modifier.size(28.dp))
+                    }
+                } else {
+                    Box(
+                        Modifier
+                            .height(48.dp)
+                            .clip(CircleShape)
+                            .background(NavChipWhite.copy(alpha = bump))
+                            .bouncyClickable(pressedScale = 0.92f, onClick = { nav.selectTab(t.route) })
+                            .padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            t.label,
+                            color = lerp(Color.White, NavInk, bump),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        if (t.route == Route.Downloads && downloading && bump < 0.5f) {
+                            Box(Modifier.align(Alignment.TopEnd).size(7.dp).clip(CircleShape).background(Accent))
+                        }
+                    }
                 }
-            }
-            if (selected) {
-                Text(
-                    label,
-                    color = Color(0xFF1B1B1B),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
             }
         }
     }

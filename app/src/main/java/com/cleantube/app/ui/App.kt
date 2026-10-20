@@ -48,7 +48,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
 
     // The app starts on Home; if the user turned Home off in Settings, start on the first visible tab instead.
     val visible = visibleTabs(Graph.store)
-    val firstRoute = visible.first().route
+    val firstRoute = visible.firstOrNull { it.route == Route.Home }?.route ?: visible.first().route
     val visibleRoutes = visible.map { it.route }
     val navState = rememberUpdatedState(nav)
     val visibleState = rememberUpdatedState(visible)
@@ -127,7 +127,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                 enter = slideInVertically(spring(dampingRatio = 0.72f, stiffness = 420f)) { it } + fadeIn(tween(220)),
                 exit = slideOutVertically(tween(240, easing = Motion.EmphasizedAccelerate)) { it } + fadeOut(tween(160))
             ) {
-                BottomNavPill()
+                BottomNavPill(position = chipPosition)
             }
 
             // Fullscreen video from the YouTube player, drawn above everything.
@@ -195,6 +195,7 @@ private fun OtherScreen(route: Route) {
         Route.Home -> HomeScreen()
         Route.Shorts -> ShortsScreen()
         Route.Feed -> FeedScreen()
+        Route.Trending -> TrendingScreen()
         Route.Library -> LibraryScreen()
         Route.History -> HistoryScreen()
         Route.Settings -> SettingsScreen()
