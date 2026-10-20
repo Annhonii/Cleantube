@@ -148,6 +148,23 @@ class Store(context: Context) {
     fun clearHistory() {
         history = emptyList()
         save("history", history) { it.toJson() }
+        seenShorts.clear()
+        sp.edit().remove("seen_shorts").apply()
+    }
+
+    // ---------------------------------------------------------- seen Shorts
+
+    /** Ids of Shorts that were already on screen once (newest last). The Shorts feed never shows these again. */
+    private val seenShorts = LinkedHashSet<String>(readCsv("seen_shorts"))
+
+    fun isShortSeen(id: String): Boolean = synchronized(seenShorts) { id in seenShorts }
+
+    fun markShortSeen(id: String) {
+        synchronized(seenShorts) {
+            if (!seenShorts.add(id)) return
+            while (seenShorts.size > 4000) seenShorts.remove(seenShorts.first())
+            sp.edit().putString("seen_shorts", seenShorts.joinToString(",")).apply()
+        }
     }
 
     // ------------------------------------------------------------- searches

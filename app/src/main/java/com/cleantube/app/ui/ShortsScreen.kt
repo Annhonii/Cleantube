@@ -124,7 +124,9 @@ import coil3.compose.AsyncImage
 import com.cleantube.app.data.Api
 import com.cleantube.app.data.Comment
 import com.cleantube.app.data.Graph
+import com.cleantube.app.data.Page
 import com.cleantube.app.data.Paged
+import androidx.compose.material.icons.rounded.Download
 import com.cleantube.app.data.Playback
 import com.cleantube.app.data.Session
 import com.cleantube.app.data.VideoDetails
@@ -228,7 +230,11 @@ fun ShortsScreen() {
         key(topic) {
             val t = topic
             // kept between tab switches: the feed and the Short you were on stay as they were
-            val feed = TabCache.paged<VideoItem>("shorts:$t") { token -> Api.shorts(token, t) }
+            val feed = TabCache.paged<VideoItem>("shorts:$t") { token ->
+                // Shorts that were already shown once never come back (the Shorts already in this feed stay as they are)
+                val page = Api.shorts(token, t)
+                Page(page.items.filter { !Graph.store.isShortSeen(it.id) }, page.next)
+            }
             LaunchedEffect(feed) { if (feed.items.isEmpty() && !feed.loading) feed.refresh() }
             val items = remember(feed.items) { feed.items.distinctBy { it.id } }
             val itemsNow = rememberUpdatedState(items)
@@ -336,6 +342,7 @@ fun ShortsScreen() {
                 topic = topic,
                 onTopic = { topic = it; menuOpen = false },
                 onSave = { active?.let { saveFor = it.video } },
+                onDownload = { active?.let { downloadFor = it.video } },
                 onReport = { active?.let { openInYouTube(ctx, it.video.id) } },
                 onClose = { menuOpen = false }
             )
@@ -384,6 +391,7 @@ private fun ShortMenu(
     topic: String,
     onTopic: (String) -> Unit,
     onSave: () -> Unit,
+    onDownload: () -> Unit,
     onReport: () -> Unit,
     onClose: () -> Unit
 ) {
@@ -433,6 +441,7 @@ private fun ShortMenu(
 
             Spacer(Modifier.size(2.dp))
             MenuRow(Icons.Rounded.PlaylistAdd, "Save to playlist", "") { onSave(); onClose() }
+            MenuRow(Icons.Rounded.Download, "Download", "Video or audio only") { onDownload(); onClose() }
             MenuRow(Icons.Rounded.ClosedCaption, "Captions", "Not available yet") {
                 Toast.makeText(ctx, "Captions aren't available yet.", Toast.LENGTH_SHORT).show()
             }
@@ -539,6 +548,9 @@ private fun ShortPage(
         }
     }
     // channel, counts, description: only for the Short that is on screen
+    LaunchedEffect(current) {
+        if (current) Graph.store.markShortSeen(v.id)
+    }
     LaunchedEffect(current) {
         if (current && details == null) details = safeDetails(v.id)
     }
@@ -685,53 +697,27 @@ private fun ShortPage(
                     modifier = Modifier.pointerInput(Unit) { detectTapGestures { expanded = true } }
                 )
             }
-
-            // scrolling audio ticker
-            Row(
-                Modifier.padding(top = 10.dp).clip(CircleShape).background(Color(0x40000000))
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Rounded.GraphicEq, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                Text(
-                    "Original audio · ${v.channelTitle.ifEmpty { ch?.title.orEmpty() }} · ${v.title}",
-                    color = Color.White, fontSize = 12.sp, maxLines = 1, softWrap = false,
-                    modifier = Modifier.padding(start = 6.dp).widthIn(max = 190.dp).basicMarquee()
-                )
-            }
         }
 
-        // ---------------- right: action bar + sound disc
+        // ---------------- right: action bar (no background, sits low so it covers less of the video)
         Column(
-            Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(bottom = ShortsPillSpace).padding(end = 8.dp, bottom = 40.dp),
+            Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(bottom = ShortsPillSpace).padding(end = 8.dp, bottom = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Column(
-                Modifier.clip(RoundedCornerShape(30.dp)).background(Color(0x38000000)).padding(horizontal = 6.dp, vertical = 10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                SideAction(Icons.Rounded.ThumbUp, details?.likesText?.ifEmpty { null } ?: "Like", tint = if (rating == 1) HeartRed else Color.White) { rate(1) }
-                SideAction(Icons.Rounded.ThumbDown, "Dislike", tint = if (rating == -1) HeartRed else Color.White) { rate(-1) }
-                SideAction(Icons.Rounded.ChatBubbleOutline, details?.commentCountText?.ifEmpty { null } ?: "Comments") {
-                    scope.launch {
-                        if (details == null) details = safeDetails(v.id)
-                        onComments(v, details?.commentCountText.orEmpty())
-                    }
+            SideAction(Icons.Rounded.ThumbUp, details?.likesText?.ifEmpty { null } ?: "Like", tint = if (rating == 1) HeartRed else Color.White) { rate(1) }
+            SideAction(Icons.Rounded.ChatBubbleOutline, details?.commentCountText?.ifEmpty { null } ?: "Comments") {
+                scope.launch {
+                    if (details == null) details = safeDetails(v.id)
+                    onComments(v, details?.commentCountText.orEmpty())
                 }
-                SideAction(Icons.Rounded.Share, "Share") { shareVideo(ctx, v.id) }
-                SideAction(Icons.Rounded.MoreVert, "More", onClick = onMenu)
             }
-            AudioDisk(
-                imageUrl = ch?.thumb?.ifEmpty { null } ?: v.thumb,
-                spinning = p.isPlaying,
-                onClick = onDownload
-            )
+            SideAction(Icons.Rounded.Share, "Share") { shareVideo(ctx, v.id) }
+            SideAction(Icons.Rounded.MoreVert, "More", onClick = onMenu)
         }
 
         // ---------------- very bottom: slim progress / scrub bar
-        CtSeekBar(
+        if (!p.wantPlay || dragging) CtSeekBar(
             fraction = frac,
             buffered = (p.buffered.toFloat() / dur).coerceIn(0f, 1f),
             onDragStart = { dragging = true; dragFraction = frac },
@@ -756,7 +742,11 @@ private fun SideAction(icon: ImageVector, label: String, tint: Color = Color.Whi
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(28.dp))
-        Text(label, color = Color.White, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+        Text(
+            label, color = Color.White, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0x99000000), blurRadius = 6f)),
+            modifier = Modifier.padding(top = 2.dp)
+        )
     }
 }
 
@@ -774,32 +764,6 @@ private fun SubscribePill(subscribed: Boolean, onClick: () -> Unit) {
             Spacer(Modifier.width(4.dp))
         }
         Text(if (subscribed) "Subscribed" else "Subscribe", color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-    }
-}
-
-/** The round "sound" thumbnail: turns slowly while the Short plays. Tap = download options (incl. audio only). */
-@Composable
-private fun AudioDisk(imageUrl: String, spinning: Boolean, onClick: () -> Unit) {
-    val rot = remember { Animatable(0f) }
-    LaunchedEffect(spinning) {
-        if (spinning) {
-            while (true) rot.animateTo(rot.value + 360f, tween(7000, easing = LinearEasing))
-        }
-    }
-    Box(
-        Modifier
-            .size(46.dp)
-            .bouncyClickable(pressedScale = 0.9f, onClick = onClick)
-            .graphicsLayer { rotationZ = rot.value }
-            .clip(CircleShape)
-            .background(Color(0xFF1B1B1B))
-            .border(2.dp, Color(0xFF3A3A3A), CircleShape)
-            .padding(8.dp)
-            .clip(CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        AsyncImage(imageUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        Box(Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF1B1B1B)))
     }
 }
 
