@@ -127,6 +127,9 @@ import kotlin.math.roundToInt
 import kotlin.random.Random
 
 /** Read by the app's Back handling: while a sheet / menu of the Shorts tab is open, Back closes that first. */
+/** Room kept at the bottom of a Short for the floating tab pill (68dp pill + its margins). */
+val ShortsPillSpace = 76.dp
+
 object ShortsUi {
     var overlayOpen by mutableStateOf(false)
 }
@@ -628,6 +631,7 @@ private fun ShortPage(
             Modifier
                 .align(Alignment.BottomStart)
                 .navigationBarsPadding()
+                .padding(bottom = ShortsPillSpace)
                 .padding(start = 14.dp, end = 88.dp, bottom = 34.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -691,7 +695,7 @@ private fun ShortPage(
 
         // ---------------- right: action bar + sound disc
         Column(
-            Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 8.dp, bottom = 40.dp),
+            Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(bottom = ShortsPillSpace).padding(end = 8.dp, bottom = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -725,7 +729,7 @@ private fun ShortPage(
             onDragStart = { dragging = true; dragFraction = frac },
             onDrag = { dragFraction = it },
             onDragEnd = { f -> p.seekTo((f * dur).toLong()); dragging = false },
-            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().fillMaxWidth().padding(horizontal = 6.dp),
+            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = ShortsPillSpace).fillMaxWidth().padding(horizontal = 6.dp),
             showThumb = false
         )
 

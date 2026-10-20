@@ -29,6 +29,9 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlin.math.abs
 import kotlin.math.floor
 import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
@@ -140,7 +143,8 @@ val AllTabs = listOf(
 fun orderedTabs(store: Store): List<TabSpec> {
     val byId = AllTabs.associateBy { it.id }
     val saved = store.tabOrder.mapNotNull { byId[it] }.distinct()
-    return saved + AllTabs.filter { it !in saved }
+    // Shorts is always the first (leftmost) tab, whatever order was saved
+    return (saved + AllTabs.filter { it !in saved }).sortedBy { it.id != "shorts" }
 }
 
 /** The tabs shown in the top bar. Never empty: if everything was turned off, the first tab stays. */
@@ -277,28 +281,21 @@ fun TopBar(modifier: Modifier = Modifier) {
     }
 }
 
-/** Shorts-style icon: a tall rounded clip with a play triangle cut out of it, drawn in [color] on [bg]. */
+/** The YouTube Shorts glyph (Material "shorts" symbol, Apache 2.0) with the play triangle cut out, drawn in [color]. */
+private val ShortsGlyph by lazy {
+    PathParser().parsePathString(
+        "M10 14.65v-5.3L15 12l-5 2.65zm7.77-4.33c-.77-.32-1.2-.5-1.2-.5L18 9.06c1.84-.96 2.53-3.23 1.56-5.06" +
+        "s-3.24-2.53-5.07-1.56L6 8.02c-1.14.6-1.93 1.68-2.15 2.95-.22 1.27.2 2.55 1.14 3.46.55.54 1.2.89 1.9 1.05" +
+        "l1.2.5L6 15.94c-1.84.96-2.53 3.23-1.56 5.06.97 1.83 3.24 2.53 5.07 1.56l8.5-4.5c1.13-.6 1.92-1.68 2.14-2.95" +
+        ".23-1.27-.2-2.55-1.14-3.46-.55-.54-1.2-.89-1.9-1.05z"
+    ).toPath().apply { fillType = PathFillType.EvenOdd }
+}
+
 @Composable
-private fun ShortsIcon(color: Color, bg: Color, modifier: Modifier = Modifier) {
+private fun ShortsIcon(color: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val w = size.minDimension
-        val cx = size.width / 2f
-        val cy = size.height / 2f
-        val rw = w * 0.52f
-        val rh = w * 0.86f
-        drawRoundRect(
-            color,
-            topLeft = Offset(cx - rw / 2f, cy - rh / 2f),
-            size = Size(rw, rh),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(rw * 0.42f)
-        )
-        val tri = androidx.compose.ui.graphics.Path().apply {
-            moveTo(cx - w * 0.09f, cy - w * 0.15f)
-            lineTo(cx - w * 0.09f, cy + w * 0.15f)
-            lineTo(cx + w * 0.15f, cy)
-            close()
-        }
-        drawPath(tri, bg)
+        val k = size.minDimension / 24f
+        scale(k, k, pivot = Offset.Zero) { drawPath(ShortsGlyph, color) }
     }
 }
 
@@ -387,25 +384,7 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
                     )
                 }
         ) {
-            // Shorts button
             var x = 0f
-            tabs.forEachIndexed { i, t ->
-                if (t.route == Route.Shorts) {
-                    Box(
-                        Modifier
-                            .offset(x = with(density) { x.toDp() })
-                            .size(ShortsCell)
-                            .clip(CircleShape)
-                            .background(chip)
-                            .bouncyClickable(pressedScale = 0.9f, onClick = { nav.selectTab(t.route) }),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        ShortsIcon(onChip, chip, Modifier.size(26.dp))
-                    }
-                }
-                x += widths[i]
-            }
-
             // the chip: between two cells its start and width blend the way the pager does
             if (n > 0 && pos > -0.5f) {
                 val i0 = floor(pos).toInt().coerceIn(0, n - 1)
@@ -423,6 +402,25 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
                         .clip(CircleShape)
                         .background(chip)
                 )
+            }
+
+            // Shorts button
+            x = 0f
+            tabs.forEachIndexed { i, t ->
+                if (t.route == Route.Shorts) {
+                    val bump = (1f - abs(pos - i)).coerceIn(0f, 1f)
+                    Box(
+                        Modifier
+                            .offset(x = with(density) { x.toDp() })
+                            .size(ShortsCell)
+                            .clip(CircleShape)
+                            .bouncyClickable(pressedScale = 0.9f, onClick = { nav.selectTab(t.route) }),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        ShortsIcon(lerp(plain, onChip, bump), Modifier.size(26.dp))
+                    }
+                }
+                x += widths[i]
             }
 
             // text tabs

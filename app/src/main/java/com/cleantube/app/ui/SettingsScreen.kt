@@ -235,11 +235,13 @@ private fun TabsSettings(modifier: Modifier = Modifier) {
                     fontSize = 15.sp,
                     modifier = Modifier.weight(1f)
                 )
-                IconButton(onClick = { move(i, -1) }, enabled = i > 0) {
-                    Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = "Move ${t.label} up", tint = if (i > 0) TextPrimary else TextMuted.copy(alpha = 0.4f))
+                val canUp = t.id != "shorts" && i > 1  // Shorts always stays first
+                val canDown = t.id != "shorts" && i < all.lastIndex
+                IconButton(onClick = { move(i, -1) }, enabled = canUp) {
+                    Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = "Move ${t.label} up", tint = if (canUp) TextPrimary else TextMuted.copy(alpha = 0.4f))
                 }
-                IconButton(onClick = { move(i, 1) }, enabled = i < all.lastIndex) {
-                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Move ${t.label} down", tint = if (i < all.lastIndex) TextPrimary else TextMuted.copy(alpha = 0.4f))
+                IconButton(onClick = { move(i, 1) }, enabled = canDown) {
+                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Move ${t.label} down", tint = if (canDown) TextPrimary else TextMuted.copy(alpha = 0.4f))
                 }
                 Switch(
                     checked = on,
