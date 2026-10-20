@@ -171,14 +171,6 @@ private suspend fun safeDetails(id: String): VideoDetails? = try {
     null
 }
 
-private fun openCast(ctx: Context) {
-    try {
-        ctx.startActivity(Intent(Settings.ACTION_CAST_SETTINGS))
-    } catch (e: Exception) {
-        Toast.makeText(ctx, "Screen mirroring isn't available on this phone.", Toast.LENGTH_SHORT).show()
-    }
-}
-
 /**
  * The Shorts tab: a full-screen native vertical feed (edge to edge) with its own header, side action bar,
  * channel / caption overlay and scrub bar. Each Short plays in CleanTube's own player; the next ones are prepared
@@ -322,7 +314,7 @@ fun ShortsScreen() {
                             Modifier
                                 .align(Alignment.TopCenter)
                                 .statusBarsPadding()
-                                .padding(top = 64.dp)
+                                .padding(top = 80.dp)
                                 .graphicsLayer {
                                     translationY = shown * 0.6f
                                     alpha = (shown / thresholdPx).coerceIn(0f, 1f)
@@ -332,13 +324,6 @@ fun ShortsScreen() {
                 }
             }
         }
-
-        ShortsHeader(
-            onSearch = { nav.push(Route.Search()) },
-            onCast = { openCast(ctx) },
-            onMore = { menuOpen = true },
-            modifier = Modifier.align(Alignment.TopCenter)
-        )
 
         // long-press / three-dot menu
         AnimatedVisibility(
@@ -350,6 +335,7 @@ fun ShortsScreen() {
                 active = active,
                 topic = topic,
                 onTopic = { topic = it; menuOpen = false },
+                onSave = { active?.let { saveFor = it.video } },
                 onReport = { active?.let { openInYouTube(ctx, it.video.id) } },
                 onClose = { menuOpen = false }
             )
@@ -390,42 +376,6 @@ fun ShortsScreen() {
     saveFor?.let { SaveToPlaylistDialog(it) { saveFor = null } }
 }
 
-// ------------------------------------------------------------------------------------------------ header
-
-@Composable
-private fun ShortsHeader(onSearch: () -> Unit, onCast: () -> Unit, onMore: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier
-            .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color(0x99000000), Color.Transparent)))
-            .statusBarsPadding()
-            .padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            Modifier.size(26.dp).clip(RoundedCornerShape(8.dp)).background(Accent),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-        }
-        Text("Shorts", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
-        Spacer(Modifier.weight(1f))
-        HeaderIcon(Icons.Rounded.Search, "Search", onSearch)
-        HeaderIcon(Icons.Rounded.Cast, "Cast / screen mirroring", onCast)
-        HeaderIcon(Icons.Rounded.MoreVert, "More", onMore)
-    }
-}
-
-@Composable
-private fun HeaderIcon(icon: ImageVector, description: String, onClick: () -> Unit) {
-    Box(
-        Modifier.size(42.dp).bouncyClickable(pressedScale = 0.88f, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription = description, tint = Color.White, modifier = Modifier.size(24.dp))
-    }
-}
-
 // ------------------------------------------------------------------------------------------------ menu
 
 @Composable
@@ -433,6 +383,7 @@ private fun ShortMenu(
     active: ActiveShort?,
     topic: String,
     onTopic: (String) -> Unit,
+    onSave: () -> Unit,
     onReport: () -> Unit,
     onClose: () -> Unit
 ) {
@@ -481,6 +432,7 @@ private fun ShortMenu(
             }
 
             Spacer(Modifier.size(2.dp))
+            MenuRow(Icons.Rounded.PlaylistAdd, "Save to playlist", "") { onSave(); onClose() }
             MenuRow(Icons.Rounded.ClosedCaption, "Captions", "Not available yet") {
                 Toast.makeText(ctx, "Captions aren't available yet.", Toast.LENGTH_SHORT).show()
             }
@@ -769,7 +721,7 @@ private fun ShortPage(
                     }
                 }
                 SideAction(Icons.Rounded.Share, "Share") { shareVideo(ctx, v.id) }
-                SideAction(Icons.Rounded.PlaylistAdd, "Save", onClick = onSave)
+                SideAction(Icons.Rounded.MoreVert, "More", onClick = onMenu)
             }
             AudioDisk(
                 imageUrl = ch?.thumb?.ifEmpty { null } ?: v.thumb,

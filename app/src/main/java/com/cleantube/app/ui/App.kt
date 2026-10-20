@@ -112,12 +112,13 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
 
             // the pill stays put while the pages slide under it; it leaves upwards when a screen is pushed
             AnimatedVisibility(
-                visible = nav.isTabRoot && nav.current != Route.Shorts,
+                // also on the Shorts tab (floats over the video); hides under a Shorts sheet / menu
+                visible = nav.isTabRoot && !(nav.current == Route.Shorts && ShortsUi.overlayOpen),
                 modifier = Modifier.align(Alignment.TopCenter),
                 enter = slideInVertically(spring(dampingRatio = 0.75f, stiffness = 420f)) { -it } + fadeIn(tween(220)),
                 exit = slideOutVertically(tween(240, easing = Motion.EmphasizedAccelerate)) { -it } + fadeOut(tween(160))
             ) {
-                TopBar()
+                TopBar(overVideo = nav.current == Route.Shorts)
             }
 
             // the search bar floats up when a tab opens and drops away when a screen is pushed

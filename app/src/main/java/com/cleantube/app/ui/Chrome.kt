@@ -232,14 +232,17 @@ private fun RoundIconButton(icon: ImageVector, desc: String, onClick: () -> Unit
 
 /** Top of the tab screens: search bar (opens the search page), bell (downloads) and the account photo. */
 @Composable
-fun TopBar(modifier: Modifier = Modifier) {
+fun TopBar(modifier: Modifier = Modifier, overVideo: Boolean = false) {
     val nav = LocalNav.current
     val thumb = Session.thumb
     val downloading = Downloads.items.any { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
     Row(
         modifier
             .fillMaxWidth()
-            .background(Bg)
+            .background(
+                if (overVideo) Brush.verticalGradient(listOf(Color(0x99000000), Color.Transparent))
+                else Brush.verticalGradient(listOf(Bg, Bg))
+            )
             .statusBarsPadding()
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
