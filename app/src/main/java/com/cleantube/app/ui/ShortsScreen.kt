@@ -128,7 +128,7 @@ import kotlin.random.Random
 
 /** Read by the app's Back handling: while a sheet / menu of the Shorts tab is open, Back closes that first. */
 /** Room kept at the bottom of a Short for the floating tab pill (68dp pill + its margins). */
-val ShortsPillSpace = 76.dp
+val ShortsPillSpace = 84.dp
 
 object ShortsUi {
     var overlayOpen by mutableStateOf(false)

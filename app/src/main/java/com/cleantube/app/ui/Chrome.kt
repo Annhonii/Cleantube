@@ -29,6 +29,11 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlin.math.abs
 import kotlin.math.floor
 import androidx.compose.foundation.Canvas
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
+import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.vector.PathParser
@@ -292,14 +297,14 @@ private val ShortsGlyph by lazy {
 }
 
 @Composable
-private fun ShortsIcon(color: Color, modifier: Modifier = Modifier) {
+private fun ShortsIcon(color: () -> Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val k = size.minDimension / 24f
-        scale(k, k, pivot = Offset.Zero) { drawPath(ShortsGlyph, color) }
+        scale(k, k, pivot = Offset.Zero) { drawPath(ShortsGlyph, color()) }
     }
 }
 
-private val NavHeight = 52.dp
+private val NavHeight = 60.dp
 
 /** Width of every cell of the pill in px: the text tabs share the width by label length; Shorts has no cell (it is the round button). */
 private fun cellWidths(tabs: List<TabSpec>, totalPx: Float): FloatArray {
@@ -309,11 +314,58 @@ private fun cellWidths(tabs: List<TabSpec>, totalPx: Float): FloatArray {
     }
 }
 
+/** The labels of the pill, all in one colour. Drawn twice: plain on the pill, and inverted inside the chip. */
+@Composable
+private fun PillLabels(
+    tabs: List<TabSpec>,
+    widths: FloatArray,
+    color: Color,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    dotOn: Boolean,
+    onTab: ((Route) -> Unit)?
+) {
+    val density = LocalDensity.current
+    Box(Modifier.fillMaxSize()) {
+        var x = 0f
+        tabs.forEachIndexed { i, t ->
+            if (t.route != Route.Shorts) {
+                Box(
+                    Modifier
+                        .offset(x = with(density) { x.toDp() })
+                        .width(with(density) { widths[i].toDp() })
+                        .fillMaxHeight()
+                        .clip(CircleShape)
+                        .then(if (onTab != null) Modifier.bouncyClickable(pressedScale = 0.94f, onClick = { onTab(t.route) }) else Modifier),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        t.label,
+                        color = color,
+                        fontSize = fontSize,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.1.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip
+                    )
+                    if (dotOn && t.route == Route.Downloads) {
+                        Box(Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 10.dp).size(7.dp).clip(CircleShape).background(Accent))
+                    }
+                }
+            }
+            x += widths[i]
+        }
+    }
+}
+
 /**
  * Bottom bar: a round Shorts button on the left and, next to it, a floating pill with the other visible tabs
  * (Home, Subscription, History, Downloads by default) in the order chosen in Settings. Dark in dark mode, light
  * in light mode. The chip marks the open tab; [position] comes straight from the pager (index + fraction), so it
  * slides along while you swipe a page, and dragging the chip itself changes tabs too.
+ *
+ * Nothing here recomposes while the chip moves: [position] is only read in layout / draw, and the label colour
+ * flips by drawing a second, inverted copy of the labels clipped to the chip.
  */
 @Composable
 fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
@@ -322,55 +374,69 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
     val n = tabs.size
     val downloading = Downloads.items.any { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
     val dark = isSystemInDarkTheme()
-    val surface = if (dark) Color(0xFF1E1E1E) else Color(0xFFEFEFEF)
+    val surface = if (dark) Color(0xFF1C1C1E) else Color(0xFFF4F4F5)
     val chip = if (dark) Color.White else Color(0xFF111111)
     val onChip = if (dark) Color(0xFF111111) else Color.White
-    val plain = if (dark) Color.White else Color(0xFF111111)
-    val border = if (dark) Color.Transparent else Hairline
-    val pos = position()
+    val plain = if (dark) Color(0xFFEDEDED) else Color(0xFF3A3A3C)
+    val rim = if (dark) Brush.verticalGradient(listOf(Color(0x33FFFFFF), Color(0x0DFFFFFF)))
+              else Brush.verticalGradient(listOf(Color(0x1A000000), Color(0x0F000000)))
     val density = LocalDensity.current
     val haptic = LocalHapticFeedback.current
     val navState = rememberUpdatedState(nav)
     val tabsState = rememberUpdatedState(tabs)
     val textTabs = tabs.count { it.route != Route.Shorts }
-    val fontSize = if (textTabs > 4) 11.5.sp else 13.5.sp
+    val fontSize = if (textTabs > 4) 12.sp else 14.sp
     val shortsIndex = tabs.indexOfFirst { it.route == Route.Shorts }
+    val shadowColor = Color.Black.copy(alpha = if (dark) 0.55f else 0.22f)
 
     Row(
         modifier
             .navigationBarsPadding()
             .padding(horizontal = 12.dp, vertical = 12.dp)
             .fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // round Shorts button, outside the pill
         if (shortsIndex >= 0) {
-            val bump = (1f - abs(pos - shortsIndex)).coerceIn(0f, 1f)
+            val bump: () -> Float = { (1f - abs(position() - shortsIndex)).coerceIn(0f, 1f) }
             Box(
                 Modifier
                     .size(NavHeight)
-                    .shadow(10.dp, CircleShape, clip = false)
+                    .shadow(18.dp, CircleShape, clip = false, ambientColor = shadowColor, spotColor = shadowColor)
                     .clip(CircleShape)
-                    .background(lerp(surface, chip, bump))
-                    .border(1.dp, border, CircleShape)
-                    .bouncyClickable(pressedScale = 0.9f, onClick = { nav.selectTab(Route.Shorts) }),
+                    .drawBehind { drawRect(lerp(surface, chip, bump())) }
+                    .border(1.dp, rim, CircleShape)
+                    .bouncyClickable(pressedScale = 0.88f, onClick = { nav.selectTab(Route.Shorts) }),
                 contentAlignment = Alignment.Center
             ) {
-                ShortsIcon(lerp(plain, onChip, bump), Modifier.size(26.dp))
+                ShortsIcon({ lerp(plain, onChip, bump()) }, Modifier.size(28.dp))
             }
         }
 
-        val shape = RoundedCornerShape(30.dp)
+        val shape = RoundedCornerShape(32.dp)
         BoxWithConstraints(
             Modifier
                 .weight(1f)
-                .shadow(10.dp, shape, clip = false)
+                .shadow(18.dp, shape, clip = false, ambientColor = shadowColor, spotColor = shadowColor)
                 .clip(shape)
                 .background(surface)
-                .border(1.dp, border, shape)
+                .border(1.dp, rim, shape)
         ) {
-            val widths = cellWidths(tabs, with(density) { (maxWidth - 8.dp).toPx() })
+            val innerPx = with(density) { (maxWidth - 8.dp).toPx() }
+            val widths = cellWidths(tabs, innerPx)
+
+            // where the chip is (start, width in px), from the pager position; read only in layout
+            fun chipSpan(): Pair<Float, Float> {
+                val pos = position()
+                if (n == 0 || textTabs == 0 || pos < -0.5f) return 0f to 0f
+                val i0 = floor(pos).toInt().coerceIn(0, n - 1)
+                val i1 = (i0 + 1).coerceAtMost(n - 1)
+                val f = (pos - i0).coerceIn(0f, 1f)
+                val s0 = widths.take(i0).sum()
+                val s1 = widths.take(i1).sum()
+                return (s0 + (s1 - s0) * f) to (widths[i0] + (widths[i1] - widths[i0]) * f)
+            }
 
             Box(
                 Modifier
@@ -405,55 +471,31 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
                         )
                     }
             ) {
-                // the chip: between two cells its start and width blend the way the pager does
-                if (n > 0 && pos > -0.5f && textTabs > 0) {
-                    val i0 = floor(pos).toInt().coerceIn(0, n - 1)
-                    val i1 = (i0 + 1).coerceAtMost(n - 1)
-                    val f = (pos - i0).coerceIn(0f, 1f)
-                    val s0 = widths.take(i0).sum()
-                    val s1 = widths.take(i1).sum()
-                    val startPx = s0 + (s1 - s0) * f
-                    val widthPx = widths[i0] + (widths[i1] - widths[i0]) * f
-                    if (widthPx > 1f) {
-                        Box(
-                            Modifier
-                                .offset(x = with(density) { startPx.toDp() })
-                                .width(with(density) { widthPx.toDp() })
-                                .fillMaxHeight()
-                                .clip(CircleShape)
-                                .background(chip)
-                        )
-                    }
-                }
+                // labels on the pill
+                PillLabels(tabs, widths, plain, fontSize, downloading) { nav.selectTab(it) }
 
-                var x = 0f
-                tabs.forEachIndexed { i, t ->
-                    if (t.route != Route.Shorts) {
-                        val bump = (1f - abs(pos - i)).coerceIn(0f, 1f)
-                        Box(
-                            Modifier
-                                .offset(x = with(density) { x.toDp() })
-                                .width(with(density) { widths[i].toDp() })
-                                .fillMaxHeight()
-                                .clip(CircleShape)
-                                .bouncyClickable(pressedScale = 0.94f, onClick = { nav.selectTab(t.route) }),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                t.label,
-                                color = lerp(plain, onChip, bump),
-                                fontSize = fontSize,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Clip
-                            )
-                            if (t.route == Route.Downloads && downloading && bump < 0.5f) {
-                                Box(Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 8.dp).size(7.dp).clip(CircleShape).background(Accent))
-                            }
+                // the chip, carrying its own inverted copy of the labels (clipped to the chip, shifted back so they line up)
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .layout { measurable, c ->
+                            val (start, w) = chipSpan()
+                            val p = measurable.measure(Constraints.fixed(w.roundToInt().coerceAtLeast(0), c.maxHeight))
+                            layout(c.maxWidth, c.maxHeight) { p.place(start.roundToInt(), 0) }
                         }
+                        .shadow(6.dp, CircleShape, clip = false, ambientColor = shadowColor, spotColor = shadowColor)
+                        .clip(CircleShape)
+                        .background(chip)
+                ) {
+                    Box(
+                        Modifier.layout { measurable, c ->
+                            val (start, _) = chipSpan()
+                            val p = measurable.measure(Constraints.fixed(innerPx.roundToInt(), c.maxHeight))
+                            layout(c.maxWidth, c.maxHeight) { p.place(-start.roundToInt(), 0) }
+                        }
+                    ) {
+                        PillLabels(tabs, widths, onChip, fontSize, false, null)
                     }
-                    x += widths[i]
                 }
             }
         }
