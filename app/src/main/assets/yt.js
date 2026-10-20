@@ -79,9 +79,21 @@
     adBreakServiceRenderer: 1, searchPyvRenderer: 1, promotedSparklesTextSearchRenderer: 1
   };
 
-  function mkVideo(id, title, ch, chId, dur, views, age, live, short) {
+  /** First image url found under [o] (a channel avatar block). */
+  function avatarIn(o) {
+    var u = '';
+    walk(o, function (x) {
+      if (u) return true;
+      if (x && x.sources && x.sources.length && x.sources[0] && x.sources[0].url) { u = lastThumb(x); return true; }
+      if (x && x.thumbnails && x.thumbnails.length && x.thumbnails[0] && x.thumbnails[0].url) { u = lastThumb(x); return true; }
+      return false;
+    });
+    return u;
+  }
+
+  function mkVideo(id, title, ch, chId, dur, views, age, live, short, chThumb) {
     return { t: 'v', id: id, title: title || '', ch: ch || '', chId: chId || '', dur: dur == null ? -1 : dur,
-             views: views || '', age: age || '', live: !!live, short: !!short };
+             views: views || '', age: age || '', live: !!live, short: !!short, chThumb: chThumb || '' };
   }
 
   /** videoRenderer, compactVideoRenderer, gridVideoRenderer, reelItemRenderer */
@@ -107,7 +119,7 @@
     var views = txt(r.viewCountText) || txt(r.shortViewCountText);
     var short = !!r.reelWatchEndpoint || /\/shorts\//.test(JSON.stringify(r.navigationEndpoint || '').slice(0, 400));
     return mkVideo(r.videoId, txt(r.title) || txt(r.headline), ch, chId, durSeconds(lenText),
-                   views, txt(r.publishedTimeText), live, short);
+                   views, txt(r.publishedTimeText), live, short, avatarIn(r.channelThumbnailSupportedRenderers));
   }
 
   function metadataRows(lock) {
@@ -155,7 +167,7 @@
         else if (/ago|streamed|premiere|scheduled|waiting/i.test(s)) age = s;
       });
       if (/watching/i.test(views)) live = true;
-      return mkVideo(id, title, chName, chId, dur, views, age, live, false);
+      return mkVideo(id, title, chName, chId, dur, views, age, live, false, avatarIn(meta && meta.image));
     }
     if (type === 'LOCKUP_CONTENT_TYPE_PLAYLIST' || type === 'LOCKUP_CONTENT_TYPE_PODCAST' ||
         type === 'LOCKUP_CONTENT_TYPE_ALBUM') {

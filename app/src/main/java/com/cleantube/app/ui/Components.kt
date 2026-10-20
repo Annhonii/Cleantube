@@ -54,6 +54,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.sync.withPermit
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -328,6 +330,10 @@ fun VideoRow(
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
     var saveDialog by remember { mutableStateOf(false) }
+    // the channel logo: from the feed when it has it, otherwise looked up once per channel
+    val avatar by produceState(ChannelAvatars.known(v.channelId, v.channelThumb), v.channelId, v.channelThumb) {
+        if (value.isEmpty() && v.channelId.isNotEmpty()) value = ChannelAvatars.load(v.channelId)
+    }
 
     // Big rounded thumbnail (channel pill top-left, duration top-right) with the title
     // underneath, so the title never covers the picture.
@@ -355,6 +361,7 @@ fun VideoRow(
             if (v.channelTitle.isNotEmpty()) {
                 ChannelPill(
                     name = v.channelTitle,
+                    thumb = avatar,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(10.dp)
@@ -446,7 +453,7 @@ private fun VideoThumb(id: String, modifier: Modifier = Modifier) {
 
 /** Small frosted pill with the channel's initial and name, like the reference design. */
 @Composable
-private fun ChannelPill(name: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+private fun ChannelPill(name: String, thumb: String = "", modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     Row(
         modifier = modifier
             .clip(CircleShape)
@@ -465,6 +472,15 @@ private fun ChannelPill(name: String, modifier: Modifier = Modifier, onClick: ((
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium
             )
+            // the logo covers the initial once it has loaded
+            if (thumb.isNotEmpty()) {
+                AsyncImage(
+                    model = thumb,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().clip(CircleShape)
+                )
+            }
         }
         Spacer(Modifier.width(6.dp))
         // fixed dark text: the pill is always a light frosted chip on top of the thumbnail
@@ -606,4 +622,37 @@ fun SaveToPlaylistDialog(video: VideoItem, onDismiss: () -> Unit) {
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done", color = TextPrimary) } }
     )
+}
+
+/** Channel logos by channel id: remembered from feeds that carry them, fetched (two at a time) for the rest. */
+object ChannelAvatars {
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val gate = kotlinx.coroutines.sync.Semaphore(2)
+
+    /** [fromFeed] when the feed had the logo (and remember it), otherwise what was learned earlier, otherwise "". */
+    fun known(channelId: String, fromFeed: String): String {
+        if (fromFeed.isNotEmpty()) {
+            if (channelId.isNotEmpty()) cache[channelId] = fromFeed
+            return fromFeed
+        }
+        return cache[channelId].orEmpty()
+    }
+
+    suspend fun load(channelId: String): String {
+        cache[channelId]?.let { return it }
+        return gate.withPermit { fetch(channelId) }
+    }
+
+    private suspend fun fetch(channelId: String): String {
+        cache[channelId]?.let { return it }
+        val t = try {
+            com.cleantube.app.data.Api.channel(channelId).thumb
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            ""
+        }
+        if (t.isNotEmpty()) cache[channelId] = t
+        return t
+    }
 }

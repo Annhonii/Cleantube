@@ -28,7 +28,8 @@ object Api {
         live = optBoolean("live"),
         viewsText = optString("views"),
         ageText = optString("age"),
-        short = optBoolean("short")
+        short = optBoolean("short"),
+        channelThumb = optString("chThumb")
     )
 
     private fun JSONObject.channelItem(): ChannelItem = ChannelItem(

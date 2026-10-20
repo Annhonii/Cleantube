@@ -15,7 +15,9 @@ data class VideoItem(
     /** Display texts straight from YouTube ("1.6M views", "3 days ago"); empty when unknown. */
     val viewsText: String = "",
     val ageText: String = "",
-    val short: Boolean = false
+    val short: Boolean = false,
+    /** Channel logo when the feed carried it (empty otherwise; the UI then looks it up). */
+    val channelThumb: String = ""
 ) {
     val thumb: String get() = "https://i.ytimg.com/vi/$id/mqdefault.jpg"
 }
