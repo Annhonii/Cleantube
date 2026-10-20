@@ -278,7 +278,7 @@ fun TopBar(modifier: Modifier = Modifier, overVideo: Boolean = false) {
             Modifier
                 .size(TopButtonSize)
                 .clip(CircleShape)
-                .bouncyClickable(pressedScale = 0.9f, onClick = { nav.push(if (Session.loggedIn) Route.Settings else Route.Login) }),
+                .bouncyClickable(pressedScale = 0.9f, onClick = { if (nav.current != Route.Settings) nav.push(Route.Settings) }),
             contentAlignment = Alignment.Center
         ) {
             if (thumb.isNotEmpty()) AppImage(thumb, Modifier.fillMaxSize(), CircleShape)

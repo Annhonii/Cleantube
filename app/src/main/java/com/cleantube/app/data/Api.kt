@@ -77,14 +77,9 @@ object Api {
     // ---------------------------------------------------------------- account feeds
 
     suspend fun home(token: String?): Page<VideoItem> {
-        // Home shows long videos only: Shorts have their own tab.
-        val page = videosPage(Yt.run("home", args("token" to token)), dropShorts = true)
-        // Signed-out home can come back empty: fall back to a search so the tab is never blank.
-        if (token == null && page.items.isEmpty()) {
-            val s = searchVideos("trending now", null)
-            return Page(s.items.filter { !it.short }, s.next)
-        }
-        return page
+        // Home is YouTube's own recommendation feed (long videos only: Shorts have their own tab).
+        // No search-based substitute is shown if it comes back empty.
+        return videosPage(Yt.run("home", args("token" to token)), dropShorts = true)
     }
 
     /** Trending tab: YouTube has no trending feed any more, so this is a search for what is popular today (no Shorts). */
@@ -171,19 +166,31 @@ object Api {
      */
     suspend fun shorts(token: String?, topic: String = ""): Page<VideoItem> {
         if (topic.isEmpty() && (token == null || token.startsWith("R:"))) {
-            val official = runCatching {
+            // Only YouTube's own Shorts recommendations: never swapped for a "#shorts" search.
+            var failure: Exception? = null
+            val official = try {
                 val j = Yt.run("shorts", args("token" to token?.removePrefix("R:")))
                 videosPage(j).let { p -> Page(p.items, p.next?.let { "R:$it" }) }
-            }.getOrNull()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failure = e
+                null
+            }
             if (official != null && official.items.isNotEmpty()) return official
             // a continuation that expired: start a fresh official sequence instead of ending the feed
             if (token != null) {
-                runCatching {
+                try {
                     val j = Yt.run("shorts")
                     videosPage(j).let { p -> Page(p.items, p.next?.let { "R:$it" }) }
-                }.getOrNull()?.let { if (it.items.isNotEmpty()) return it }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                }?.let { if (it.items.isNotEmpty()) return it }
+                return Page(emptyList(), null)
             }
-            if (token != null) return Page(emptyList(), null)
+            throw failure ?: ApiException(ApiException.Kind.OTHER, "YouTube sent no Shorts recommendations right now. Try again in a moment.")
         }
         val q = if (topic.isEmpty()) "#shorts" else "#shorts $topic"
         val p = searchVideos(q, token?.takeUnless { it.startsWith("R:") })

@@ -266,7 +266,7 @@ fun ShortsScreen() {
             }
             // find the stream links of the next Shorts before the user gets there
             LaunchedEffect(items.size, pager.currentPage) {
-                for (i in 0..2) items.getOrNull(pager.currentPage + i)?.let { Playback.prefetch(it.id) }
+                for (i in 0..1) items.getOrNull(pager.currentPage + i)?.let { Playback.prefetch(it.id) }
             }
 
             if (items.isEmpty()) {

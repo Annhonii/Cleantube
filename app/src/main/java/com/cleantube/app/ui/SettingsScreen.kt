@@ -195,7 +195,7 @@ fun AccountCard(modifier: Modifier = Modifier) {
                 color = TextMuted,
                 fontSize = 13.sp
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Pill("Sign in", onClick = { nav.push(Route.Login) }, active = true)
                 Pill("Sign in with token", onClick = { tokenDialog = true })
             }

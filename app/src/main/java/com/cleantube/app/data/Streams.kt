@@ -64,6 +64,19 @@ object Streams {
         }
     )
 
+    private val blockRegex = Regex(
+        "\\bbot\\b|blocked|unusual traffic|captcha|too many requests|HTTP 429",
+        RegexOption.IGNORE_CASE
+    )
+
+    /** True when [msg] looks like YouTube refusing this network / IP (bot check, captcha, rate limit). */
+    fun isBlock(msg: String?): Boolean = !msg.isNullOrEmpty() && blockRegex.containsMatchIn(msg)
+
+    fun blockMessage(original: String?): String =
+        "YouTube has temporarily blocked this network (too many requests / bot check). " +
+            "Wait a few minutes, switch between Wi-Fi and mobile data, or sign in, then retry.\n" +
+            "YouTube said: ${original.orEmpty().take(200)}"
+
     suspend fun fetch(videoId: String): StreamInfo {
         val npProblem = try {
             return Np.fetch(videoId)
@@ -72,6 +85,8 @@ object Streams {
         } catch (e: Throwable) {
             e.message ?: e.javaClass.simpleName
         }
+        // The IP is being refused: asking again through the legacy path only makes the block last longer.
+        if (isBlock(npProblem)) throw ApiException(ApiException.Kind.OTHER, blockMessage(npProblem))
         return try {
             fetchLegacy(videoId)
         } catch (e: ApiException) {
@@ -91,6 +106,8 @@ object Streams {
                 if (status != "OK") {
                     val reason = j.optJSONObject("playabilityStatus")?.optString("reason").orEmpty()
                     if (reason.isNotEmpty()) lastProblem = reason
+                    // Same IP for every client: once YouTube refuses the network, stop asking.
+                    if (isBlock(reason)) break
                     continue
                 }
                 val opts = options(j, c.ua)
@@ -99,9 +116,13 @@ object Streams {
                 }
             } catch (e: Exception) {
                 lastProblem = e.message ?: lastProblem
+                if (isBlock(lastProblem)) break
             }
         }
-        throw ApiException(ApiException.Kind.OTHER, lastProblem)
+        throw ApiException(
+            ApiException.Kind.OTHER,
+            if (isBlock(lastProblem)) blockMessage(lastProblem) else lastProblem
+        )
     }
 
     private fun request(c: Client, videoId: String): JSONObject {

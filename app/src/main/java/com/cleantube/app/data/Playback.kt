@@ -5,7 +5,10 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -24,6 +27,16 @@ object Playback {
     private const val TTL_MS = 90L * 60 * 1000
     private const val MAX_ENTRIES = 60
 
+    // After YouTube refuses this network, background prefetching pauses so it doesn't keep hammering the IP.
+    @Volatile private var blockedUntil = 0L
+    private const val BLOCK_PAUSE_MS = 3L * 60 * 1000
+    // Prefetches run one at a time, with a short gap between them.
+    private val prefetchGate = Semaphore(1)
+
+    private fun noteBlock(e: Throwable) {
+        if (Streams.isBlock(e.message)) blockedUntil = System.currentTimeMillis() + BLOCK_PAUSE_MS
+    }
+
     fun cached(id: String): StreamInfo? {
         val e = cache[id] ?: return null
         return if (System.currentTimeMillis() - e.at < TTL_MS) e.info else null
@@ -41,7 +54,9 @@ object Playback {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // fall through to the NewPipe engine
+                // A blocked IP will not be fixed by the NewPipe engine: report it right away.
+                if (Streams.isBlock(e.message)) throw ApiException(ApiException.Kind.OTHER, Streams.blockMessage(e.message))
+                // otherwise fall through to the NewPipe engine
             }
         }
         return Streams.fetch(id)
@@ -54,7 +69,14 @@ object Playback {
             inflight[key] ?: scope.async { fetch(id, safe) }.also { inflight[key] = it }
         }
         try {
-            val info = job.await()
+            val info = try {
+                job.await()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                noteBlock(e)
+                throw e
+            }
             if (cache.size >= MAX_ENTRIES) {
                 cache.entries.minByOrNull { it.value.at }?.let { cache.remove(it.key) }
             }
@@ -67,7 +89,14 @@ object Playback {
 
     fun prefetch(id: String) {
         if (cached(id) != null) return
-        scope.launch { runCatching { resolve(id) } }
+        if (System.currentTimeMillis() < blockedUntil) return
+        scope.launch {
+            prefetchGate.withPermit {
+                if (cached(id) != null || System.currentTimeMillis() < blockedUntil) return@withPermit
+                runCatching { resolve(id) }
+                delay(500)
+            }
+        }
     }
 
     /** Loads the extractor and YouTube's player script once, so the first real video doesn't pay for it. */
