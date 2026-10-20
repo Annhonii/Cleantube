@@ -19,82 +19,83 @@ import androidx.compose.ui.text.font.FontWeight
 import com.cleantube.app.R
 import com.cleantube.app.data.Graph
 
-// Fixed palette, no Monet / wallpaper colours.
-// Light: white, off-white, red.   Dark: pure black, grey, red.
+// New look: deep graphite + one electric mint accent (dark first), soft cool-white in light mode.
+// Bento cards, big radii, glass nav. No Monet / wallpaper colours.
 
-private val Red = Color(0xFFD71921)
-private val RedDark = Color(0xFFE5252D)
+private val Mint = Color(0xFF3DF5A0)
+private val MintLight = Color(0xFF14C97A)
+private val OnMint = Color(0xFF04150C)
+private val Live = Color(0xFFFF4B4B)
 
 private val LightScheme = lightColorScheme(
-    primary = Red,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFFDE4E4),
-    onPrimaryContainer = Color(0xFF7A0A0E),
-    secondary = Red,
-    onSecondary = Color.White,
-    background = Color.White,
-    onBackground = Color(0xFF0F0F10),
-    surface = Color.White,
-    onSurface = Color(0xFF0F0F10),
-    surfaceVariant = Color(0xFFF3F4F6),
-    onSurfaceVariant = Color(0xFF6B7280),
+    primary = MintLight,
+    onPrimary = OnMint,
+    primaryContainer = Color(0xFFD9FBE9),
+    onPrimaryContainer = Color(0xFF05361F),
+    secondary = MintLight,
+    onSecondary = OnMint,
+    background = Color(0xFFF2F4F7),
+    onBackground = Color(0xFF0B0D10),
+    surface = Color(0xFFF2F4F7),
+    onSurface = Color(0xFF0B0D10),
+    surfaceVariant = Color(0xFFFFFFFF),
+    onSurfaceVariant = Color(0xFF6A7380),
     surfaceContainerLowest = Color.White,
-    surfaceContainerLow = Color(0xFFF9FAFB),
-    surfaceContainer = Color(0xFFF3F4F6),
-    surfaceContainerHigh = Color(0xFFF3F4F6),
-    surfaceContainerHighest = Color(0xFFE5E7EB),
-    outline = Color(0xFF9CA3AF),
-    outlineVariant = Color(0xFFE8EAED),
-    error = Red,
-    inverseSurface = Color(0xFF0F0F10),
+    surfaceContainerLow = Color(0xFFF8F9FB),
+    surfaceContainer = Color.White,
+    surfaceContainerHigh = Color.White,
+    surfaceContainerHighest = Color(0xFFE6E9EE),
+    outline = Color(0xFF9AA3AF),
+    outlineVariant = Color(0xFFE3E6EB),
+    error = Live,
+    inverseSurface = Color(0xFF0B0D10),
     inverseOnSurface = Color.White
 )
 
 private val DarkScheme = darkColorScheme(
-    primary = RedDark,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFF3A1214),
-    onPrimaryContainer = Color(0xFFFFB4B0),
-    secondary = RedDark,
-    onSecondary = Color.White,
-    background = Color.Black,
-    onBackground = Color(0xFFF4F4F5),
-    surface = Color.Black,
-    onSurface = Color(0xFFF4F4F5),
-    surfaceVariant = Color(0xFF1A1A1D),
-    onSurfaceVariant = Color(0xFFA1A1AA),
-    surfaceContainerLowest = Color.Black,
-    surfaceContainerLow = Color(0xFF0E0E10),
-    surfaceContainer = Color(0xFF151518),
-    surfaceContainerHigh = Color(0xFF1C1C20),
-    surfaceContainerHighest = Color(0xFF27272C),
-    outline = Color(0xFF71717A),
-    outlineVariant = Color(0xFF2A2A2F),
-    error = Color(0xFFFF4B4B),
-    inverseSurface = Color(0xFFF4F4F5),
-    inverseOnSurface = Color.Black
+    primary = Mint,
+    onPrimary = OnMint,
+    primaryContainer = Color(0xFF12352A),
+    onPrimaryContainer = Color(0xFFA7FFD3),
+    secondary = Mint,
+    onSecondary = OnMint,
+    background = Color(0xFF0A0B0E),
+    onBackground = Color(0xFFF3F5F7),
+    surface = Color(0xFF0A0B0E),
+    onSurface = Color(0xFFF3F5F7),
+    surfaceVariant = Color(0xFF15181D),
+    onSurfaceVariant = Color(0xFF98A0AB),
+    surfaceContainerLowest = Color(0xFF0A0B0E),
+    surfaceContainerLow = Color(0xFF101216),
+    surfaceContainer = Color(0xFF15181D),
+    surfaceContainerHigh = Color(0xFF1B1F25),
+    surfaceContainerHighest = Color(0xFF262B33),
+    outline = Color(0xFF6B7280),
+    outlineVariant = Color(0xFF242830),
+    error = Live,
+    inverseSurface = Color(0xFFF3F5F7),
+    inverseOnSurface = Color(0xFF0A0B0E)
 )
 
 /** Current colours as observable state, so reading them anywhere stays in sync. */
 private object Palette {
-    var bg by mutableStateOf(Color.White)
+    var bg by mutableStateOf(Color(0xFFF2F4F7))
     var card by mutableStateOf(Color(0xFFF3F4F6))
     var hairline by mutableStateOf(Color(0xFFE8EAED))
     var text by mutableStateOf(Color(0xFF0F0F10))
     var muted by mutableStateOf(Color(0xFF6B7280))
-    var accent by mutableStateOf(Red)
-    var onAccent by mutableStateOf(Color.White)
+    var accent by mutableStateOf(MintLight)
+    var onAccent by mutableStateOf(OnMint)
     var accentSoft by mutableStateOf(Color(0xFFFDE4E4))
     var onAccentSoft by mutableStateOf(Color(0xFF7A0A0E))
-    var danger by mutableStateOf(Red)
-    var nav by mutableStateOf(Red)
+    var danger by mutableStateOf(Live)
+    var nav by mutableStateOf(Color(0xFF15181D))
     var onNav by mutableStateOf(Color.White)
 
     fun apply(dark: Boolean) {
         val s = if (dark) DarkScheme else LightScheme
-        // bottom pill: red in light mode, dark grey in dark mode
-        nav = if (dark) Color(0xFF27272C) else Red
-        onNav = if (dark) Color(0xFFF4F4F5) else Color.White
+        nav = if (dark) Color(0xFF15181D) else Color.White
+        onNav = if (dark) Color(0xFFF3F5F7) else Color(0xFF0B0D10)
         bg = s.background
         card = s.surfaceContainerHigh
         hairline = s.outlineVariant
@@ -178,11 +179,11 @@ fun CleanTubeTheme(content: @Composable () -> Unit) {
         colorScheme = if (dark) DarkScheme else LightScheme,
         typography = typographyWith(AppFont),
         shapes = Shapes(
-            extraSmall = RoundedCornerShape(10.dp),
-            small = RoundedCornerShape(14.dp),
-            medium = RoundedCornerShape(18.dp),
-            large = RoundedCornerShape(24.dp),
-            extraLarge = RoundedCornerShape(28.dp)
+            extraSmall = RoundedCornerShape(12.dp),
+            small = RoundedCornerShape(16.dp),
+            medium = RoundedCornerShape(22.dp),
+            large = RoundedCornerShape(28.dp),
+            extraLarge = RoundedCornerShape(32.dp)
         ),
         content = content
     )

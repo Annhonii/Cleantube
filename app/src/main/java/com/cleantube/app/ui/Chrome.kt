@@ -208,7 +208,7 @@ fun TabTopBar(
 
 /** Surface of the search bar and round buttons: light grey in light mode (so it shows on white), dark grey in dark mode. */
 private val PillSurface: Color
-    @Composable get() = if (isSystemInDarkTheme()) Color(0xFF1C1C20) else Color(0xFFF1F2F4)
+    @Composable get() = if (isSystemInDarkTheme()) Color(0xFF15181D) else Color.White
 
 private val TopButtonSize = 52.dp
 
@@ -262,10 +262,10 @@ fun TopBar(modifier: Modifier = Modifier, overVideo: Boolean = false) {
                 Modifier
                     .size(width = 40.dp, height = 30.dp)
                     .clip(RoundedCornerShape(9.dp))
-                    .background(Color(0xFF111111)),
+                    .background(Accent),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = OnAccent, modifier = Modifier.size(20.dp))
             }
             Spacer(Modifier.width(14.dp))
             Text("Search", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
@@ -380,10 +380,10 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
     val n = tabs.size
     val downloading = Downloads.items.any { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
     val dark = isSystemInDarkTheme()
-    val surface = if (dark) Color(0xFF1C1C1E) else Color(0xFFF4F4F5)
-    val chip = if (dark) Color.White else Color(0xFF111111)
-    val onChip = if (dark) Color(0xFF111111) else Color.White
-    val plain = if (dark) Color(0xFFEDEDED) else Color(0xFF3A3A3C)
+    val surface = if (dark) Color(0xF2141720) else Color(0xF2FFFFFF)
+    val chip = Accent
+    val onChip = OnAccent
+    val plain = if (dark) Color(0xFFC9CED6) else Color(0xFF4B5360)
     val rim = if (dark) Brush.verticalGradient(listOf(Color(0x33FFFFFF), Color(0x0DFFFFFF)))
               else Brush.verticalGradient(listOf(Color(0x1A000000), Color(0x0F000000)))
     val density = LocalDensity.current

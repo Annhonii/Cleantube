@@ -114,9 +114,9 @@ fun Pill(
     icon: ImageVector? = null,
     active: Boolean = false
 ) {
-    val bg by animateColorAsState(if (active) TextPrimary else Card, tween(240), label = "pillBg")
-    val fg by animateColorAsState(if (active) Bg else TextPrimary, tween(240), label = "pillFg")
-    val edge by animateColorAsState(if (active) TextPrimary else Hairline, tween(240), label = "pillEdge")
+    val bg by animateColorAsState(if (active) Accent else Card, tween(240), label = "pillBg")
+    val fg by animateColorAsState(if (active) OnAccent else TextPrimary, tween(240), label = "pillFg")
+    val edge by animateColorAsState(if (active) Accent else Hairline, tween(240), label = "pillEdge")
     Row(
         modifier = modifier
             .bouncyClickable(pressedScale = 0.92f, onClick = onClick)
@@ -335,52 +335,66 @@ fun VideoRow(
         if (value.isEmpty() && v.channelId.isNotEmpty()) value = ChannelAvatars.load(v.channelId)
     }
 
-    // Big rounded thumbnail (channel pill top-left, duration top-right) with the title
-    // underneath, so the title never covers the picture.
+    // Bento card: big rounded thumbnail with duration badge, then a row with the channel logo,
+    // title and meta. The whole video sits on a soft card so the feed feels like tiles.
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 7.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(Card)
+            .border(1.dp, Hairline, RoundedCornerShape(28.dp))
             .bouncyClickable(pressedScale = 0.975f, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 9.dp)
+            .padding(6.dp)
     ) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(22.dp))
+                .clip(RoundedCornerShape(24.dp))
                 .background(Hairline)
         ) {
             VideoThumb(v.id, Modifier.fillMaxSize())
-            // soft scrim so the pill and badge stay readable on bright thumbnails
+            // soft bottom scrim so the badge stays readable on bright thumbnails
             Box(
                 Modifier
+                    .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .height(64.dp)
-                    .background(Brush.verticalGradient(listOf(Color(0x80000000), Color.Transparent)))
+                    .height(56.dp)
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0x80000000))))
             )
-            if (v.channelTitle.isNotEmpty()) {
-                ChannelPill(
-                    name = v.channelTitle,
-                    thumb = avatar,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(10.dp)
-                        .widthIn(max = 220.dp),
-                    onClick = if (v.channelId.isNotEmpty()) {
-                        { nav.push(Route.Channel(v.channelId)) }
-                    } else null
-                )
-            }
             if (v.live) {
-                Badge("LIVE", Color(0xFFD71921), Modifier.align(Alignment.TopEnd).padding(12.dp))
+                Badge("LIVE", Color(0xFFFF4B4B), Modifier.align(Alignment.BottomEnd).padding(10.dp))
             } else if (v.durationSec > 0) {
-                Badge(formatDuration(v.durationSec), Color(0x99000000), Modifier.align(Alignment.TopEnd).padding(12.dp))
+                Badge(formatDuration(v.durationSec), Color(0xB3000000), Modifier.align(Alignment.BottomEnd).padding(10.dp))
             }
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 6.dp, top = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 2.dp, top = 12.dp, bottom = 6.dp),
             verticalAlignment = Alignment.Top
         ) {
+            Box(
+                Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(Hairline)
+                    .then(if (v.channelId.isNotEmpty()) Modifier.clickable { nav.push(Route.Channel(v.channelId)) } else Modifier),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    v.channelTitle.trim().firstOrNull()?.uppercase() ?: "•",
+                    color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium
+                )
+                if (avatar.isNotEmpty()) {
+                    AsyncImage(
+                        model = avatar,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().clip(CircleShape)
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     v.title,
@@ -388,13 +402,13 @@ fun VideoRow(
                     fontSize = 15.sp,
                     lineHeight = 21.sp,
                     letterSpacing = (-0.1).sp,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                val meta = videoMeta(v)
+                val meta = listOf(v.channelTitle, videoMeta(v)).filter { it.isNotEmpty() }.joinToString(" • ")
                 if (meta.isNotEmpty()) {
-                    Spacer(Modifier.size(3.dp))
+                    Spacer(Modifier.size(4.dp))
                     Text(meta, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
@@ -517,8 +531,9 @@ fun ChannelRow(c: ChannelItem, onClick: () -> Unit, trailing: (@Composable () ->
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 5.dp)
             .bouncyClickable(pressedScale = 0.97f, onClick = onClick)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(Card)
+            .border(1.dp, Hairline, RoundedCornerShape(24.dp))
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -549,8 +564,9 @@ fun PlaylistRow(p: PlaylistItem, onClick: () -> Unit) {
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 5.dp)
             .bouncyClickable(pressedScale = 0.97f, onClick = onClick)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(Card)
+            .border(1.dp, Hairline, RoundedCornerShape(24.dp))
             .padding(10.dp),
         verticalAlignment = Alignment.Top
     ) {

@@ -138,7 +138,7 @@ fun VideoRowSkeleton() {
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(22.dp))
+                .clip(RoundedCornerShape(24.dp))
                 .background(Hairline)
                 .shimmer()
         )
