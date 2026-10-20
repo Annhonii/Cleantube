@@ -227,7 +227,6 @@ fun LibraryScreen() {
 
     Column(Modifier.fillMaxSize()) {
         TabTopBar("Library")
-        val subs = store.subscriptions.sortedBy { it.title.lowercase() }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = listPadding) {
             item {
                 Column(
@@ -243,20 +242,6 @@ fun LibraryScreen() {
                         Icons.AutoMirrored.Rounded.PlaylistPlay, "Playlists",
                         if (Session.loggedIn) "Your playlists and liked videos" else "Playlists on this phone"
                     ) { nav.push(Route.Playlists) }
-                }
-            }
-            item { LibSection("SUBSCRIPTIONS") }
-            if (subs.isEmpty()) {
-                item {
-                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        EmptyState("No subscriptions yet. Open a channel and tap Subscribe, or import your NewPipe subscriptions.")
-                        Pill("Import / backup", onClick = { nav.push(Route.Settings) }, active = true)
-                    }
-                }
-            } else {
-                items(subs.size) { i ->
-                    val c = subs[i]
-                    ChannelRow(c, onClick = { nav.push(Route.Channel(c.id, c)) })
                 }
             }
         }
