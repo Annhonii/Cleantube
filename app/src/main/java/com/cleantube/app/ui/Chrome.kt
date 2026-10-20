@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.spring
@@ -194,23 +195,25 @@ fun TabTopBar(
     }
 }
 
-/** Surface of the tab pill and the search bar: white in light mode, dark grey in dark mode. */
-private val PillSurface: Color get() = if (Bg.luminance() > 0.5f) Color.White else Color(0xFF1C1C1C)
+/** Surface of the search bar and round buttons: light grey in light mode (so it shows on white), dark grey in dark mode. */
+private val PillSurface: Color get() = if (Bg.luminance() > 0.5f) Color(0xFFEFEFEF) else Color(0xFF1C1C1C)
+
+private val TopButtonSize = 52.dp
 
 /** Round white button with an icon, used for the bell and settings in the header. */
 @Composable
 private fun RoundIconButton(icon: ImageVector, desc: String, onClick: () -> Unit, dot: Boolean = false) {
     Box(
         Modifier
-            .size(46.dp)
+            .size(TopButtonSize)
             .shadow(4.dp, CircleShape, clip = false)
             .clip(CircleShape)
             .background(PillSurface)
             .bouncyClickable(pressedScale = 0.88f, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = desc, tint = TextMuted, modifier = Modifier.size(22.dp))
-        if (dot) Box(Modifier.align(Alignment.TopEnd).padding(11.dp).size(8.dp).clip(CircleShape).background(Accent))
+        Icon(icon, contentDescription = desc, tint = TextPrimary, modifier = Modifier.size(26.dp))
+        if (dot) Box(Modifier.align(Alignment.TopEnd).padding(13.dp).size(8.dp).clip(CircleShape).background(Accent))
     }
 }
 
@@ -235,6 +238,7 @@ fun TopBar(modifier: Modifier = Modifier) {
                 .height(52.dp)
                 .clip(shape)
                 .background(PillSurface)
+                .border(1.dp, Hairline, shape)
                 .bouncyClickable(pressedScale = 0.98f, onClick = { nav.push(Route.Search()) })
                 .padding(start = 10.dp, end = 16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -257,49 +261,47 @@ fun TopBar(modifier: Modifier = Modifier) {
         Spacer(Modifier.width(10.dp))
         Box(
             Modifier
-                .size(46.dp)
+                .size(TopButtonSize)
                 .clip(CircleShape)
                 .bouncyClickable(pressedScale = 0.9f, onClick = { nav.push(if (Session.loggedIn) Route.Settings else Route.Login) }),
             contentAlignment = Alignment.Center
         ) {
             if (thumb.isNotEmpty()) AppImage(thumb, Modifier.fillMaxSize(), CircleShape)
             else Box(Modifier.fillMaxSize().background(PillSurface), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.PersonOutline, contentDescription = "Account", tint = TextMuted, modifier = Modifier.size(26.dp))
+                Icon(Icons.Rounded.PersonOutline, contentDescription = "Account", tint = TextPrimary, modifier = Modifier.size(28.dp))
             }
         }
     }
 }
 
-private val NavSurface = Color(0xFF1E1E1E)
-private val NavChipWhite = Color.White
-private val NavInk = Color(0xFF111111)
-
-/** Little ringed planet, drawn in [color] on a circle of [bg]. */
+/** Shorts-style icon: a tall rounded clip with a play triangle cut out of it, drawn in [color] on [bg]. */
 @Composable
-private fun PlanetIcon(color: Color, bg: Color, modifier: Modifier = Modifier) {
+private fun ShortsIcon(color: Color, bg: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val w = size.minDimension
-        val c = Offset(size.width / 2f, size.height / 2f)
-        val body = w * 0.27f
-        val ringW = w * 0.5f
-        val ringH = w * 0.15f
-        val thick = w * 0.07f
-        val ringTopLeft = Offset(c.x - ringW, c.y - ringH)
-        val ringSize = Size(ringW * 2f, ringH * 2f)
-        rotate(-22f, c) {
-            // ring behind the planet, then the planet, then the front half of the ring on top
-            drawOval(color, ringTopLeft, ringSize, style = Stroke(thick))
-            drawCircle(bg, body + thick, c)
-            drawCircle(color, body, c)
-            drawArc(bg, 0f, 180f, false, ringTopLeft, ringSize, style = Stroke(thick * 2.6f))
-            drawArc(color, 0f, 180f, false, ringTopLeft, ringSize, style = Stroke(thick))
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val rw = w * 0.52f
+        val rh = w * 0.86f
+        drawRoundRect(
+            color,
+            topLeft = Offset(cx - rw / 2f, cy - rh / 2f),
+            size = Size(rw, rh),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(rw * 0.42f)
+        )
+        val tri = androidx.compose.ui.graphics.Path().apply {
+            moveTo(cx - w * 0.09f, cy - w * 0.15f)
+            lineTo(cx - w * 0.09f, cy + w * 0.15f)
+            lineTo(cx + w * 0.15f, cy)
+            close()
         }
+        drawPath(tri, bg)
     }
 }
 
 /**
- * Floating dark pill at the bottom with the visible tabs in the order chosen in Settings. Shorts is the round
- * planet button; the other tabs are text, and the open one sits on a white pill. [position] comes straight
+ * Floating pill at the bottom (dark in dark mode, light in light mode) with the visible tabs in the order chosen in Settings. Shorts is the round
+ * button with the Shorts icon; the other tabs are text, and the open one sits on a white pill. [position] comes straight
  * from the pager (index + fraction), so the white pill fades from one tab to the next while you swipe.
  */
 @Composable
@@ -309,6 +311,12 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
     val downloading = Downloads.items.any { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
     val pos = position()
     val shape = RoundedCornerShape(32.dp)
+    // dark pill + white chip in dark mode, light pill + black chip in light mode
+    val light = Bg.luminance() > 0.5f
+    val surface = if (light) Color(0xFFEFEFEF) else Color(0xFF1E1E1E)
+    val chip = if (light) Color(0xFF111111) else Color.White
+    val onChip = if (light) Color.White else Color(0xFF111111)
+    val plain = if (light) Color(0xFF111111) else Color.White
     Box(
         modifier
             .navigationBarsPadding()
@@ -316,7 +324,8 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .shadow(10.dp, shape, clip = false)
             .clip(shape)
-            .background(NavSurface)
+            .background(surface)
+            .border(1.dp, if (light) Hairline else Color.Transparent, shape)
     ) {
         Row(
             Modifier
@@ -332,25 +341,25 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
                         Modifier
                             .size(48.dp)
                             .clip(CircleShape)
-                            .background(NavChipWhite)
+                            .background(chip)
                             .bouncyClickable(pressedScale = 0.9f, onClick = { nav.selectTab(t.route) }),
                         contentAlignment = Alignment.Center
                     ) {
-                        PlanetIcon(NavInk, NavChipWhite, Modifier.size(28.dp))
+                        ShortsIcon(onChip, chip, Modifier.size(28.dp))
                     }
                 } else {
                     Box(
                         Modifier
                             .height(48.dp)
                             .clip(CircleShape)
-                            .background(NavChipWhite.copy(alpha = bump))
+                            .background(chip.copy(alpha = bump))
                             .bouncyClickable(pressedScale = 0.92f, onClick = { nav.selectTab(t.route) })
                             .padding(horizontal = 14.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             t.label,
-                            color = lerp(Color.White, NavInk, bump),
+                            color = lerp(plain, onChip, bump),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,

@@ -16,6 +16,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.DisposableEffect
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -43,12 +45,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // transparent bars; the icons turn dark / light with the system light / dark setting
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT)
-        )
-
         fullscreen.onChanged = { on -> applyFullscreen(on) }
 
         // "Popup" button: shrink the video into a floating picture-in-picture window.
@@ -63,6 +59,16 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
+            // transparent bars; the icons turn dark / light with the system light / dark setting. The activity isn't
+            // recreated on a theme switch (uiMode is in configChanges), so this is redone every time it changes.
+            val dark = isSystemInDarkTheme()
+            DisposableEffect(dark) {
+                enableEdgeToEdge(
+                    statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark },
+                    navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark }
+                )
+                onDispose { }
+            }
             CleanTubeTheme {
                 CleanTubeRoot(nav, fullscreen)
             }
