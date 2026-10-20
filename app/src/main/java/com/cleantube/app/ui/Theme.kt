@@ -2,6 +2,9 @@ package com.cleantube.app.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -30,20 +33,20 @@ private val LightScheme = lightColorScheme(
     secondary = Red,
     onSecondary = Color.White,
     background = Color.White,
-    onBackground = Color(0xFF111111),
+    onBackground = Color(0xFF0F0F10),
     surface = Color.White,
-    onSurface = Color(0xFF111111),
-    surfaceVariant = Color(0xFFF4F1EC),
-    onSurfaceVariant = Color(0xFF5E5A55),
+    onSurface = Color(0xFF0F0F10),
+    surfaceVariant = Color(0xFFF3F4F6),
+    onSurfaceVariant = Color(0xFF6B7280),
     surfaceContainerLowest = Color.White,
-    surfaceContainerLow = Color(0xFFF9F7F3),
-    surfaceContainer = Color(0xFFF4F1EC),
-    surfaceContainerHigh = Color(0xFFF4F1EC),
-    surfaceContainerHighest = Color(0xFFEBE7E0),
-    outline = Color(0xFF8A857F),
-    outlineVariant = Color(0xFFE2DED7),
+    surfaceContainerLow = Color(0xFFF9FAFB),
+    surfaceContainer = Color(0xFFF3F4F6),
+    surfaceContainerHigh = Color(0xFFF3F4F6),
+    surfaceContainerHighest = Color(0xFFE5E7EB),
+    outline = Color(0xFF9CA3AF),
+    outlineVariant = Color(0xFFE8EAED),
     error = Red,
-    inverseSurface = Color(0xFF111111),
+    inverseSurface = Color(0xFF0F0F10),
     inverseOnSurface = Color.White
 )
 
@@ -55,30 +58,30 @@ private val DarkScheme = darkColorScheme(
     secondary = RedDark,
     onSecondary = Color.White,
     background = Color.Black,
-    onBackground = Color(0xFFF2F2F2),
+    onBackground = Color(0xFFF4F4F5),
     surface = Color.Black,
-    onSurface = Color(0xFFF2F2F2),
-    surfaceVariant = Color(0xFF1C1C1C),
-    onSurfaceVariant = Color(0xFFA0A0A0),
+    onSurface = Color(0xFFF4F4F5),
+    surfaceVariant = Color(0xFF1A1A1D),
+    onSurfaceVariant = Color(0xFFA1A1AA),
     surfaceContainerLowest = Color.Black,
-    surfaceContainerLow = Color(0xFF0D0D0D),
-    surfaceContainer = Color(0xFF141414),
-    surfaceContainerHigh = Color(0xFF1C1C1C),
-    surfaceContainerHighest = Color(0xFF262626),
-    outline = Color(0xFF6B6B6B),
-    outlineVariant = Color(0xFF2E2E2E),
+    surfaceContainerLow = Color(0xFF0E0E10),
+    surfaceContainer = Color(0xFF151518),
+    surfaceContainerHigh = Color(0xFF1C1C20),
+    surfaceContainerHighest = Color(0xFF27272C),
+    outline = Color(0xFF71717A),
+    outlineVariant = Color(0xFF2A2A2F),
     error = Color(0xFFFF4B4B),
-    inverseSurface = Color(0xFFF2F2F2),
+    inverseSurface = Color(0xFFF4F4F5),
     inverseOnSurface = Color.Black
 )
 
 /** Current colours as observable state, so reading them anywhere stays in sync. */
 private object Palette {
     var bg by mutableStateOf(Color.White)
-    var card by mutableStateOf(Color(0xFFF4F1EC))
-    var hairline by mutableStateOf(Color(0xFFE2DED7))
-    var text by mutableStateOf(Color(0xFF111111))
-    var muted by mutableStateOf(Color(0xFF5E5A55))
+    var card by mutableStateOf(Color(0xFFF3F4F6))
+    var hairline by mutableStateOf(Color(0xFFE8EAED))
+    var text by mutableStateOf(Color(0xFF0F0F10))
+    var muted by mutableStateOf(Color(0xFF6B7280))
     var accent by mutableStateOf(Red)
     var onAccent by mutableStateOf(Color.White)
     var accentSoft by mutableStateOf(Color(0xFFFDE4E4))
@@ -90,8 +93,8 @@ private object Palette {
     fun apply(dark: Boolean) {
         val s = if (dark) DarkScheme else LightScheme
         // bottom pill: red in light mode, dark grey in dark mode
-        nav = if (dark) Color(0xFF262626) else Red
-        onNav = if (dark) Color(0xFFF2F2F2) else Color.White
+        nav = if (dark) Color(0xFF27272C) else Red
+        onNav = if (dark) Color(0xFFF4F4F5) else Color.White
         bg = s.background
         card = s.surfaceContainerHigh
         hairline = s.outlineVariant
@@ -174,6 +177,13 @@ fun CleanTubeTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = if (dark) DarkScheme else LightScheme,
         typography = typographyWith(AppFont),
+        shapes = Shapes(
+            extraSmall = RoundedCornerShape(10.dp),
+            small = RoundedCornerShape(14.dp),
+            medium = RoundedCornerShape(18.dp),
+            large = RoundedCornerShape(24.dp),
+            extraLarge = RoundedCornerShape(28.dp)
+        ),
         content = content
     )
 }

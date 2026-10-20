@@ -208,7 +208,7 @@ fun TabTopBar(
 
 /** Surface of the search bar and round buttons: light grey in light mode (so it shows on white), dark grey in dark mode. */
 private val PillSurface: Color
-    @Composable get() = if (isSystemInDarkTheme()) Color(0xFF1C1C1C) else Color(0xFFEFEFEF)
+    @Composable get() = if (isSystemInDarkTheme()) Color(0xFF1C1C20) else Color(0xFFF1F2F4)
 
 private val TopButtonSize = 52.dp
 
@@ -218,7 +218,7 @@ private fun RoundIconButton(icon: ImageVector, desc: String, onClick: () -> Unit
     Box(
         Modifier
             .size(TopButtonSize)
-            .shadow(4.dp, CircleShape, clip = false)
+            .shadow(6.dp, CircleShape, clip = false, ambientColor = Color(0x1A000000), spotColor = Color(0x26000000))
             .clip(CircleShape)
             .background(PillSurface)
             .bouncyClickable(pressedScale = 0.88f, onClick = onClick),

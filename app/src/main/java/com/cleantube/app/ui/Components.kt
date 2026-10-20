@@ -183,7 +183,7 @@ fun PillTextField(
 @Composable
 fun Loading(modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = TextPrimary, strokeWidth = 2.dp, modifier = Modifier.size(26.dp))
+        CircularProgressIndicator(color = Accent, strokeWidth = 2.5.dp, modifier = Modifier.size(26.dp))
     }
 }
 
@@ -386,7 +386,8 @@ fun VideoRow(
                     v.title,
                     color = TextPrimary,
                     fontSize = 15.sp,
-                    lineHeight = 20.sp,
+                    lineHeight = 21.sp,
+                    letterSpacing = (-0.1).sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis

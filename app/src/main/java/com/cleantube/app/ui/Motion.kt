@@ -73,7 +73,7 @@ fun Modifier.bouncyClickable(
     val pressed by source.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed && enabled) pressedScale else 1f,
-        animationSpec = spring(dampingRatio = 0.5f, stiffness = 520f),
+        animationSpec = spring(dampingRatio = 0.68f, stiffness = 600f),
         label = "press"
     )
     this
@@ -94,14 +94,14 @@ fun Modifier.entrance(seen: MutableSet<Any>, key: Any, delayMs: Int = 0): Modifi
     LaunchedEffect(key) {
         if (first) {
             if (delayMs > 0) delay(delayMs.toLong())
-            p.animateTo(1f, spring(dampingRatio = 0.82f, stiffness = 240f))
+            p.animateTo(1f, spring(dampingRatio = 0.9f, stiffness = 280f))
         }
     }
     this.graphicsLayer {
         val v = p.value
         alpha = v.coerceIn(0f, 1f)
-        translationY = (1f - v) * 26.dp.toPx()
-        val s = 0.96f + 0.04f * v
+        translationY = (1f - v) * 18.dp.toPx()
+        val s = 0.975f + 0.025f * v
         scaleX = s
         scaleY = s
     }
@@ -113,7 +113,7 @@ fun Modifier.shimmer(): Modifier = composed {
     val x by t.animateFloat(
         initialValue = -0.6f,
         targetValue = 1.6f,
-        animationSpec = infiniteRepeatable(tween(1300, easing = LinearEasing)),
+        animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing)),
         label = "shimmerX"
     )
     this.drawWithContent {
@@ -122,7 +122,7 @@ fun Modifier.shimmer(): Modifier = composed {
         val c = x * w
         drawRect(
             Brush.horizontalGradient(
-                colors = listOf(Color.Transparent, Bg.copy(alpha = 0.55f), Color.Transparent),
+                colors = listOf(Color.Transparent, Bg.copy(alpha = 0.45f), Color.Transparent),
                 startX = c - w * 0.35f,
                 endX = c + w * 0.35f
             )
