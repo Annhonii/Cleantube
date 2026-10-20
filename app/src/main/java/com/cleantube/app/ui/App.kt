@@ -117,7 +117,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                 enter = slideInVertically(spring(dampingRatio = 0.75f, stiffness = 420f)) { -it } + fadeIn(tween(220)),
                 exit = slideOutVertically(tween(240, easing = Motion.EmphasizedAccelerate)) { -it } + fadeOut(tween(160))
             ) {
-                TabPill(position = chipPosition)
+                TopBar()
             }
 
             // the search bar floats up when a tab opens and drops away when a screen is pushed
@@ -127,7 +127,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                 enter = slideInVertically(spring(dampingRatio = 0.72f, stiffness = 420f)) { it } + fadeIn(tween(220)),
                 exit = slideOutVertically(tween(240, easing = Motion.EmphasizedAccelerate)) { it } + fadeOut(tween(160))
             ) {
-                FloatingSearchBar(onClick = { nav.push(Route.Search()) })
+                BottomNavPill()
             }
 
             // Fullscreen video from the YouTube player, drawn above everything.

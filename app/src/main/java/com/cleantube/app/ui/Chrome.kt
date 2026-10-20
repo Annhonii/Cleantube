@@ -152,8 +152,8 @@ val LocalTabPos = staticCompositionLocalOf<Animatable<Float, AnimationVector1D>>
 /** How much wider than a normal cell the selected tab is (room for its name next to the icon). */
 private const val SELECTED_WEIGHT = 2.6f
 
-/** Height the pill row takes at the top of a tab screen (58dp pill + 8dp above and below). */
-val TabPillSpace = 138.dp
+/** Height of the top bar (52dp search bar + 10dp above and below). */
+val TabPillSpace = 72.dp
 
 /**
  * Top of a tab screen: an empty strip the size of the pill (the pill itself is drawn once, above the pager,
@@ -185,157 +185,6 @@ fun TabTopBar(
     }
 }
 
-/**
- * The black pill with the visible tabs and the account photo. [position] is where the selected chip is, as a
- * tab index with a fraction (1.4 = 40% of the way from tab 1 to tab 2): it comes straight from the pager,
- * so the chip slides, stretches and shrinks together with the finger while you swipe the page,
- * and glides with the pager's spring after a tap. -1 = no tab of the bar is open.
- * Dragging the pill itself also changes tabs (one tab per ~44dp).
- */
-@Composable
-fun TabPill(position: () -> Float, modifier: Modifier = Modifier) {
-    val nav = LocalNav.current
-    val store = Graph.store
-    val tabs = visibleTabs(store)
-    val n = tabs.size
-    val downloading = Downloads.items.any { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
-
-    val pos = position()
-    // 1 right on the cell that pos points at, falling to 0 one cell away
-    fun bump(i: Int): Float = (1f - abs(pos - i)).coerceIn(0f, 1f)
-    val weights = List(n) { i -> 1f + (SELECTED_WEIGHT - 1f) * bump(i) }
-    val total = weights.sum()
-
-    val stepPx = with(LocalDensity.current) { 44.dp.toPx() }
-    val haptic = LocalHapticFeedback.current
-    val navState = rememberUpdatedState(nav)
-
-    Column(modifier.fillMaxWidth().statusBarsPadding()) {
-        AppHeader()
-        BoxWithConstraints(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-                .height(58.dp)
-                .shadow(6.dp, CircleShape, clip = false)
-                .clip(CircleShape)
-                .background(PillSurface)
-                .pointerInput(Unit) {
-                    var acc = 0f
-                    var cursor: Route = navState.value.current
-                    detectHorizontalDragGestures(
-                        onDragStart = { acc = 0f; cursor = navState.value.current },
-                        onDragCancel = { acc = 0f },
-                        onDragEnd = { acc = 0f },
-                        onHorizontalDrag = { change, amount ->
-                            change.consume()
-                            acc += amount
-                            // finger to the right = the chip moves right = next tab
-                            while (abs(acc) >= stepPx) {
-                                val dir = if (acc > 0) 1 else -1
-                                acc -= dir * stepPx
-                                val next = adjacentTab(Graph.store, cursor, dir)
-                                if (next == null) {
-                                    acc = 0f
-                                    break
-                                }
-                                cursor = next
-                                navState.value.selectTab(next)
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            }
-                        }
-                    )
-                }
-                .padding(5.dp)
-        ) {
-            val inner = maxWidth
-
-            // the sliding chip: between two cells its start and width blend the same way as the cells do
-            if (n > 0 && pos > -0.5f) {
-                val i0 = floor(pos).toInt().coerceIn(0, n - 1)
-                val i1 = (i0 + 1).coerceAtMost(n - 1)
-                val f = (pos - i0).coerceIn(0f, 1f)
-                val start0 = weights.take(i0).sum()
-                val start1 = weights.take(i1).sum()
-                val chipStart = inner * (((start0 + (start1 - start0) * f)) / total)
-                val chipWidth = inner * ((weights[i0] + (weights[i1] - weights[i0]) * f) / total)
-                Box(
-                    Modifier
-                        .offset(x = chipStart)
-                        .width(chipWidth)
-                        .fillMaxHeight()
-                        .clip(CircleShape)
-                        .background(AccentSoft)
-                )
-            }
-
-            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                tabs.forEachIndexed { i, t ->
-                    PillCell(
-                        t,
-                        bump = bump(i),
-                        dot = t.route == Route.Downloads && downloading,
-                        onClick = { nav.selectTab(t.route) },
-                        modifier = Modifier.weight(weights[i])
-                    )
-                }
-            }
-        }
-    }
-}
-
-/** One tab of the pill. [bump] is 1 when it is the selected one (name shown, dark icon on the light chip) and 0 otherwise. */
-@Composable
-private fun PillCell(t: TabSpec, bump: Float, dot: Boolean, onClick: () -> Unit, modifier: Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxHeight()
-            .bouncyClickable(pressedScale = 0.86f, onClick = onClick)
-            .clip(CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box {
-                Icon(
-                    t.icon,
-                    contentDescription = t.label,
-                    tint = lerp(TextPrimary, OnAccentSoft, bump),
-                    modifier = Modifier
-                        .size(22.dp)
-                        // the selected tab's icon swells a little as the chip arrives
-                        .graphicsLayer {
-                            val s = 1f + 0.16f * bump
-                            scaleX = s
-                            scaleY = s
-                        }
-                )
-                // dot on the Downloads tab while something is downloading
-                if (dot && bump < 0.5f) {
-                    Box(
-                        Modifier
-                            .align(Alignment.TopEnd)
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(Accent)
-                    )
-                }
-            }
-            if (bump > 0.05f) {
-                Text(
-                    t.label,
-                    color = OnAccentSoft,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Clip,
-                    modifier = Modifier.alpha(bump * bump).padding(start = 6.dp)
-                )
-            }
-        }
-    }
-}
-
 /** Surface of the tab pill and the search bar: white in light mode, dark grey in dark mode. */
 private val PillSurface: Color get() = if (Bg.luminance() > 0.5f) Color.White else Color(0xFF1C1C1C)
 
@@ -356,81 +205,133 @@ private fun RoundIconButton(icon: ImageVector, desc: String, onClick: () -> Unit
     }
 }
 
-/** Top row: account photo + name on the left, bell (downloads) and settings on the right. */
+/** Top of the tab screens: search bar (opens the search page), bell (downloads) and the account photo. */
 @Composable
-fun AppHeader(modifier: Modifier = Modifier) {
+fun TopBar(modifier: Modifier = Modifier) {
     val nav = LocalNav.current
     val thumb = Session.thumb
-    val name = Session.name.ifEmpty { "owner" }
     val downloading = Downloads.items.any { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
     Row(
-        modifier.fillMaxWidth().height(64.dp).padding(horizontal = 16.dp),
+        modifier
+            .fillMaxWidth()
+            .background(Bg)
+            .statusBarsPadding()
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val shape = RoundedCornerShape(26.dp)
+        Row(
+            Modifier
+                .weight(1f)
+                .height(52.dp)
+                .clip(shape)
+                .background(PillSurface)
+                .bouncyClickable(pressedScale = 0.98f, onClick = { nav.push(Route.Search()) })
+                .padding(start = 10.dp, end = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier
+                    .size(width = 40.dp, height = 30.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(Color(0xFF111111)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(14.dp))
+            Text("Search", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            Icon(Icons.Rounded.Search, contentDescription = "Search", tint = TextPrimary, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.width(10.dp))
+        RoundIconButton(Icons.Rounded.Notifications, "Downloads", onClick = { nav.selectTab(Route.Downloads) }, dot = downloading)
+        Spacer(Modifier.width(10.dp))
         Box(
             Modifier
-                .size(52.dp)
+                .size(46.dp)
                 .clip(CircleShape)
                 .bouncyClickable(pressedScale = 0.9f, onClick = { nav.push(if (Session.loggedIn) Route.Settings else Route.Login) }),
             contentAlignment = Alignment.Center
         ) {
             if (thumb.isNotEmpty()) AppImage(thumb, Modifier.fillMaxSize(), CircleShape)
-            else Box(Modifier.fillMaxSize().background(Card), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.PersonOutline, contentDescription = "Account", tint = TextMuted, modifier = Modifier.size(28.dp))
+            else Box(Modifier.fillMaxSize().background(PillSurface), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.PersonOutline, contentDescription = "Account", tint = TextMuted, modifier = Modifier.size(26.dp))
             }
         }
-        Spacer(Modifier.width(14.dp))
-        Text(
-            name,
-            color = TextPrimary,
-            fontSize = 34.sp,
-            fontWeight = FontWeight.Light,
-            letterSpacing = 1.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-        RoundIconButton(Icons.Rounded.Notifications, "Downloads", onClick = { nav.selectTab(Route.Downloads) }, dot = downloading)
-        Spacer(Modifier.width(10.dp))
-        RoundIconButton(Icons.Rounded.Settings, "Settings", onClick = { nav.push(Route.Settings) })
     }
 }
 
-/** Floating search bar at the bottom of the tab screens. Tapping it opens the search page. */
+private val NavSurface = Color(0xFF151A26)
+private val NavChip = Color(0xFFD9D9D9)
+
+/** Floating dark pill at the bottom: Home, Search, Bell (downloads), Profile. The open one gets a light chip with its name. */
 @Composable
-fun FloatingSearchBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(28.dp)
+fun BottomNavPill(modifier: Modifier = Modifier) {
+    val nav = LocalNav.current
+    val downloading = Downloads.items.any { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
+    val cur = nav.current
+    val shape = RoundedCornerShape(30.dp)
     Row(
-        modifier = modifier
+        modifier
             .navigationBarsPadding()
             .padding(horizontal = 12.dp, vertical = 12.dp)
             .fillMaxWidth()
-            .bouncyClickable(pressedScale = 0.97f, onClick = onClick)
             .shadow(10.dp, shape, clip = false)
             .clip(shape)
-            .background(PillSurface.copy(alpha = 0.94f))
-            .height(58.dp)
-            .padding(horizontal = 14.dp),
+            .background(NavSurface)
+            .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // black rounded "play" badge, like the logo in the reference design
-        Box(
-            Modifier
-                .size(width = 40.dp, height = 30.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(Color(0xFF111111)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+        NavItem(Icons.Rounded.Home, "Home", selected = cur == Route.Home, modifier = Modifier.weight(if (cur == Route.Home) 2.2f else 1f)) {
+            nav.selectTab(Route.Home)
         }
-        Spacer(Modifier.width(14.dp))
-        Text(
-            "Search",
-            color = TextPrimary,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.weight(1f)
-        )
-        Icon(Icons.Rounded.Search, contentDescription = "Search", tint = TextPrimary)
+        NavItem(Icons.Rounded.Search, "Search", selected = false, modifier = Modifier.weight(1f)) {
+            nav.push(Route.Search())
+        }
+        NavItem(Icons.Rounded.Notifications, "Downloads", selected = cur == Route.Downloads, dot = downloading, modifier = Modifier.weight(if (cur == Route.Downloads) 2.6f else 1f)) {
+            nav.selectTab(Route.Downloads)
+        }
+        NavItem(Icons.Rounded.PersonOutline, "Profile", selected = false, modifier = Modifier.weight(1f)) {
+            nav.push(if (Session.loggedIn) Route.Settings else Route.Login)
+        }
+    }
+}
+
+@Composable
+private fun NavItem(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    dot: Boolean = false,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier
+            .height(56.dp)
+            .clip(CircleShape)
+            .background(if (selected) NavChip else Color.Transparent)
+            .bouncyClickable(pressedScale = 0.9f, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box {
+                Icon(icon, contentDescription = label, tint = if (selected) Color(0xFF1B1B1B) else Color(0xFFEDEDED), modifier = Modifier.size(26.dp))
+                if (dot && !selected) {
+                    Box(Modifier.align(Alignment.TopEnd).size(8.dp).clip(CircleShape).background(Accent))
+                }
+            }
+            if (selected) {
+                Text(
+                    label,
+                    color = Color(0xFF1B1B1B),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+        }
     }
 }
