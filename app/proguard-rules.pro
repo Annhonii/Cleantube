@@ -1,8 +1,7 @@
-# YouTube IFrame player talks to its WebView through @JavascriptInterface methods.
+# yt.js bridge (hidden WebView) talks to Kotlin through @JavascriptInterface methods.
 -keepclassmembers class * {
     @android.webkit.JavascriptInterface <methods>;
 }
--keep class com.pierfrancescosoffritti.androidyoutubeplayer.** { *; }
 
 # Optional okhttp / okio platform classes
 -dontwarn okhttp3.**

@@ -3,7 +3,7 @@
 A native Android YouTube client (Kotlin + Jetpack Compose) with a NewPipe-style layout and a Material You (Monet) look: wallpaper colours on Android 12+, light / dark with the system, system font.
 
 - **Browse, search, channels, playlists, comments:** YouTube's own internal (InnerTube) API, the same one the website uses. No API key, no Google Cloud Console.
-- **Playback:** official YouTube player (IFrame, via [android-youtube-player](https://github.com/PierfrancescoSoffritti/android-youtube-player))
+- **Playback:** CleanTube's own native player (Media3 / ExoPlayer) fed with the NewPipe stream links. No YouTube web player or page is shown anywhere: custom minimal controls, a loading animation, quality + speed menu, double-tap to skip 10 s, fullscreen, popup (PiP).
 - **Sign in with Google (optional):** Home becomes YouTube's real recommendations for you, Feed is your real subscriptions feed, History can show your YouTube history.
 
 ## How it works
@@ -17,15 +17,15 @@ Login happens in a normal Google sign-in page inside the app; only the cookies s
 - It is **unofficial**. YouTube can change its responses any day and a screen may stop loading until `yt.js` is updated.
 - Google's terms don't allow unofficial clients. Use an account you can afford to risk.
 - Google may refuse sign-in inside an app WebView. If it does, the app still works signed out.
-- Videos opened in CleanTube are not added to your YouTube watch history (the embedded player isn't signed in); the History tab keeps a local list and can also show your YouTube one.
-- No ad blocking or background play (the official player doesn't allow them). Some videos block embedding; the app then offers "Open in YouTube".
+- Videos opened in CleanTube are not added to your YouTube watch history; the History tab keeps a local list and can also show your YouTube one.
+- Playback needs the NewPipe engine to find stream links. If YouTube changes something and a video stops loading, bump the `NewPipeExtractor` version in `app/build.gradle.kts`; the player then shows Retry / "Open in YouTube".
 
 ## Tabs
 
 | Tab | What it does |
 |---|---|
 | Home | YouTube's home feed (personalized when signed in) |
-| Shorts | Full-screen vertical Shorts feed (swipe up for the next one, tap to pause) with topic chips, Download / Save / Share on every Short |
+| Shorts | Native full-screen vertical feed (swipe up for the next one, tap to pause). The next Shorts are prepared in advance so swiping is instant. Topic chips, mute, Download / Save / Share on every Short |
 | Feed | Your subscriptions feed (signed in) or newest videos from locally saved subscriptions |
 | Library | Subscriptions and local playlists |
 | Downloads | Live download progress (percent, size, speed, time left), finished files, retry / cancel / delete, "Paste YouTube link" |

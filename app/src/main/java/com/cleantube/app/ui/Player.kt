@@ -1,43 +1,41 @@
 package com.cleantube.app.ui
 
+import android.os.Build
 import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.FullscreenListener
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFramePlayerOptions
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
+import kotlinx.coroutines.delay
 
 /**
- * Bridge between the player (which hands us a fullscreen view) and the activity
- * (which rotates the screen and hides the system bars).
+ * Bridge to the activity, which rotates the screen and hides the system bars while a video is fullscreen.
+ * (The fullscreen picture itself is drawn by [CtFullscreen]; [view] / [enter] / [leave] are kept for the old callers.)
  */
 class FullscreenHost {
     var view by mutableStateOf<View?>(null)
@@ -59,6 +57,11 @@ class FullscreenHost {
         onChanged?.invoke(false)
     }
 
+    /** Used by the native player: just rotate / hide bars. */
+    fun setActive(on: Boolean) {
+        onChanged?.invoke(on)
+    }
+
     /** Back button while fullscreen. */
     fun requestExit() {
         val e = exit
@@ -66,7 +69,7 @@ class FullscreenHost {
     }
 }
 
-/** Lets other screens read / control the embedded player (used by "Background" to carry on from the same second). */
+/** Lets other screens read / control the player (used by "Background" to carry on from the same second). */
 object PlayerControl {
     @Volatile var second: Float = 0f
     var owner: Any? = null
@@ -82,101 +85,106 @@ object PipHost {
 val LocalFullscreen = staticCompositionLocalOf<FullscreenHost> { error("FullscreenHost not provided") }
 
 /**
- * The official YouTube IFrame player (via android-youtube-player).
- * Playback, ads and controls are entirely YouTube's.
+ * CleanTube's own player. It plays the video file straight from the stream links (see [CtPlayer]) and draws
+ * everything itself: no YouTube page, no YouTube controls, just the picture, a loading animation and minimal controls.
  */
 @Composable
-fun PlayerBox(videoId: String, embeddable: Boolean, modifier: Modifier = Modifier) {
+fun PlayerBox(videoId: String, embeddable: Boolean, modifier: Modifier = Modifier, title: String = "") {
     val ctx = LocalContext.current
     val host = LocalFullscreen.current
-    val currentId by rememberUpdatedState(videoId)
+    val p = remember(videoId) { CtPlayer(ctx, videoId) }
+    var fullscreen by remember(videoId) { mutableStateOf(false) }
 
-    var player by remember { mutableStateOf<YouTubePlayer?>(null) }
-    var failedId by remember { mutableStateOf<String?>(null) }
+    DisposableEffect(p) {
+        PlayerControl.second = 0f
+        PlayerControl.owner = p
+        PlayerControl.pause = { p.setPlaying(false) }
 
-    val playerView = remember {
-        YouTubePlayerView(ctx).apply { enableAutomaticInitialization = false }
-    }
-
-    DisposableEffect(playerView) {
+        // like any video app: stop when the app goes away (the popup window and background play are separate)
         val owner = ctx as? LifecycleOwner
-        owner?.lifecycle?.addObserver(playerView)
+        val obs = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_STOP && !PipHost.active) p.setPlaying(false)
+        }
+        owner?.lifecycle?.addObserver(obs)
 
-        playerView.addFullscreenListener(object : FullscreenListener {
-            override fun onEnterFullscreen(fullscreenView: View, exitFullscreen: () -> Unit) {
-                host.enter(fullscreenView, exitFullscreen)
-            }
-
-            override fun onExitFullscreen() {
-                host.leave()
-            }
-        })
-
-        val options = IFramePlayerOptions.Builder(ctx)
-            .controls(1)
-            .fullscreen(1)
-            .build()
-
-        playerView.initialize(object : AbstractYouTubePlayerListener() {
-            override fun onReady(youTubePlayer: YouTubePlayer) {
-                player = youTubePlayer
-                PlayerControl.owner = playerView
-                PlayerControl.pause = { youTubePlayer.pause() }
-            }
-
-            override fun onCurrentSecond(youTubePlayer: YouTubePlayer, second: Float) {
-                PlayerControl.second = second
-            }
-
-            override fun onError(youTubePlayer: YouTubePlayer, error: PlayerConstants.PlayerError) {
-                failedId = currentId
-            }
-        }, options)
-
+        p.load()
         onDispose {
-            if (PlayerControl.owner === playerView) {
+            if (PlayerControl.owner === p) {
                 PlayerControl.owner = null
                 PlayerControl.pause = null
             }
-            owner?.lifecycle?.removeObserver(playerView)
-            player = null
-            playerView.release()
+            owner?.lifecycle?.removeObserver(obs)
+            if (fullscreen) host.setActive(false)
+            p.release()
         }
     }
 
-    LaunchedEffect(player, videoId) {
-        PlayerControl.second = 0f
-        player?.loadVideo(videoId, 0f)
+    // position for the seek bar and for "Background" play
+    LaunchedEffect(p) {
+        while (true) {
+            p.tick()
+            PlayerControl.second = p.position / 1000f
+            delay(if (p.isPlaying) 250L else 500L)
+        }
     }
 
-    val failed = !embeddable || failedId == videoId
+    // keep the screen on while playing
+    val view = LocalView.current
+    SideEffect { view.keepScreenOn = p.isPlaying }
+    DisposableEffect(view) { onDispose { view.keepScreenOn = false } }
 
-    Box((if (PipHost.active) modifier.fillMaxSize() else modifier.aspectRatio(16f / 9f)).background(Color.Black)) {
-        AndroidView(factory = { playerView }, modifier = Modifier.fillMaxSize())
-        if (failed) {
-            Column(
-                Modifier.fillMaxSize().background(Color.Black).padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    "This video can't be played inside the app.",
-                    color = TextMuted,
-                    fontSize = 13.sp,
-                    textAlign = TextAlign.Center
-                )
-                Row(
-                    Modifier.padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (embeddable) {
-                        Pill("Retry", onClick = {
-                            failedId = null
-                            player?.loadVideo(videoId, 0f)
-                        })
-                    }
-                    Pill("Open in YouTube", onClick = { openInYouTube(ctx, videoId) }, active = true)
-                }
+    val inPopup = PipHost.active
+    Box((if (inPopup) modifier.fillMaxSize() else modifier.aspectRatio(16f / 9f)).background(Color.Black)) {
+        CtVideoSurface(p, Modifier.fillMaxSize(), active = !fullscreen)
+        CtPoster(videoId, p)
+        val err = p.error
+        when {
+            err != null -> CtErrorView(err, onRetry = { p.retry() }, onOpen = { openInYouTube(ctx, videoId) })
+            !inPopup -> CtOverlay(
+                p, fullscreen = false, title = title,
+                onFullscreen = { fullscreen = true; host.setActive(true) }
+            )
+            p.buffering -> CtSpinner(Modifier.align(Alignment.Center), disc = false)
+        }
+    }
+
+    if (fullscreen) {
+        CtFullscreen(videoId, p, title) {
+            fullscreen = false
+            host.setActive(false)
+        }
+    }
+}
+
+/** Full-window player drawn in a dialog above the app. Back or the close button leaves it. */
+@Composable
+private fun CtFullscreen(videoId: String, p: CtPlayer, title: String, onExit: () -> Unit) {
+    Dialog(
+        onDismissRequest = onExit,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
+        val view = LocalView.current
+        SideEffect {
+            val window = (view.parent as? DialogWindowProvider)?.window ?: return@SideEffect
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            window.setDimAmount(0f)
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            if (Build.VERSION.SDK_INT >= 28) {
+                window.attributes.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+            val c = WindowCompat.getInsetsController(window, view)
+            c.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            c.hide(WindowInsetsCompat.Type.systemBars())
+        }
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            CtVideoSurface(p, Modifier.fillMaxSize(), active = true)
+            CtPoster(videoId, p)
+            val err = p.error
+            if (err != null) {
+                CtErrorView(err, onRetry = { p.retry() }, onOpen = null)
+            } else {
+                CtOverlay(p, fullscreen = true, title = title, onFullscreen = onExit)
             }
         }
     }

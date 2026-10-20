@@ -178,10 +178,11 @@ object Np {
             )
         }
 
-        if (out.isEmpty()) throw ApiException(ApiException.Kind.OTHER, "NewPipe found no downloadable streams for this video.")
+        val hls = runCatching { info.hlsUrl.orEmpty() }.getOrDefault("")
+        if (out.isEmpty() && hls.isEmpty()) throw ApiException(ApiException.Kind.OTHER, "NewPipe found no downloadable streams for this video.")
         val sorted = out.sortedWith(
             compareBy<StreamOption>({ it.audioOnly }, { !it.merge }, { -(Regex("(\\d+)p").find(it.label)?.groupValues?.get(1)?.toIntOrNull() ?: 0) })
         )
-        StreamInfo(info.name.orEmpty(), sorted)
+        StreamInfo(info.name.orEmpty(), sorted, hls)
     }
 }

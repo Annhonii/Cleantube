@@ -24,7 +24,8 @@ data class StreamOption(
     val merge: Boolean = false
 )
 
-data class StreamInfo(val title: String, val options: List<StreamOption>)
+/** [hlsUrl] is set for live streams (no plain files exist for them); empty otherwise. */
+data class StreamInfo(val title: String, val options: List<StreamOption>, val hlsUrl: String = "")
 
 /**
  * Gets direct media links. First choice is the NewPipe engine ([Np]); if it fails (YouTube changed something it

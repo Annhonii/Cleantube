@@ -145,8 +145,6 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
 
         // Back: pop a screen; on a non-Home tab go to Home first; on Home let the system close the app.
         BackHandler(enabled = !nav.isTabRoot || nav.current != firstRoute) {
-            // inside the Shorts page, YouTube's own history goes first
-            if (nav.current == Route.Shorts && ShortsWeb.goBack()) return@BackHandler
             if (!nav.back()) nav.selectTab(firstRoute)
         }
         // Registered last so it wins while a video is fullscreen.
@@ -166,8 +164,6 @@ private fun TabsPager(state: PagerState, tabs: List<TabSpec>, live: MutableState
     HorizontalPager(
         state = state,
         modifier = Modifier.fillMaxSize(),
-        // the Shorts page is a web page that scrolls by itself: switch away from it with the pill
-        userScrollEnabled = tabs.getOrNull(state.settledPage)?.route != Route.Shorts,
         key = { tabs.getOrNull(it)?.id ?: it },
         flingBehavior = PagerDefaults.flingBehavior(
             state = state,

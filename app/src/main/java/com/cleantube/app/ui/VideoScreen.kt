@@ -222,6 +222,7 @@ fun VideoScreen(route: Route.Video) {
         PlayerBox(
             videoId = route.id,
             embeddable = details?.embeddable ?: true,
+            title = video?.title.orEmpty(),
             modifier = if (inPopup) Modifier else Modifier
                 .padding(horizontal = 8.dp, vertical = 6.dp)
                 .clip(RoundedCornerShape(24.dp))

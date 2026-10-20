@@ -86,8 +86,11 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-compose:3.0.4")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.0.4")
 
-    // Official YouTube IFrame player wrapper
-    implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:13.0.0")
+    // Native player (ExoPlayer): plays the NewPipe stream links directly, no YouTube web player involved.
+    val media3 = "1.5.1"
+    implementation("androidx.media3:media3-exoplayer:$media3")
+    implementation("androidx.media3:media3-exoplayer-hls:$media3")
+    implementation("androidx.media3:media3-datasource-okhttp:$media3")
 
     // NewPipe engine: the same extractor the NewPipe app uses to get playable / downloadable stream links.
     // If YouTube breaks downloads again, bump this to the newest release tag:
