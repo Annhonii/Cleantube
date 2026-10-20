@@ -74,15 +74,6 @@ class Store(context: Context) {
             sp.edit().putString("tab_hidden", value.joinToString(",")).apply()
         }
 
-    private val fontState = mutableStateOf(sp.getString("app_font", "poppins").orEmpty().ifEmpty { "poppins" })
-    /** App font: "poppins" (default) or "system". */
-    var appFont: String
-        get() = fontState.value
-        set(value) {
-            fontState.value = value
-            sp.edit().putString("app_font", value).apply()
-        }
-
     // ---------------------------------------------------------------- data
 
     var subscriptions by mutableStateOf(readArray("subs").mapObjects { it.toChannel() })

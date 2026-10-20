@@ -300,18 +300,6 @@ fun SettingsScreen() {
         SectionTitle("ACCOUNT")
         AccountCard(Modifier.padding(horizontal = 12.dp))
 
-        SectionTitle("FONT")
-        Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Pill("Poppins", onClick = { store.appFont = "poppins" }, active = store.appFont != "system")
-                Pill("System font", onClick = { store.appFont = "system" }, active = store.appFont == "system")
-            }
-            Text(
-                "Poppins is the default. System font uses your phone's own font.",
-                color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
-            )
-        }
-
         SectionTitle("TABS (TOP BAR)")
         TabsSettings(Modifier.padding(horizontal = 12.dp))
 
