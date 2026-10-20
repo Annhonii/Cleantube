@@ -79,6 +79,9 @@ object Streams {
         }
     }
 
+    /** Fast path: a single request to YouTube's player endpoint (no page, no script unscrambling). */
+    suspend fun fetchFast(videoId: String): StreamInfo = fetchLegacy(videoId)
+
     private suspend fun fetchLegacy(videoId: String): StreamInfo = withContext(Dispatchers.IO) {
         var lastProblem = "YouTube didn't give a download link for this video."
         for (c in clients) {

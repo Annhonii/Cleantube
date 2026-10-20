@@ -29,10 +29,29 @@ object Playback {
         return if (System.currentTimeMillis() - e.at < TTL_MS) e.info else null
     }
 
-    suspend fun resolve(id: String, force: Boolean = false): StreamInfo {
+    /**
+     * [safe] = skip the fast path and use the NewPipe engine (used after a link failed to play).
+     * The fast path is one HTTP request (~0.3 s); NewPipe loads the watch page and unscrambles links (1-3 s).
+     */
+    private suspend fun fetch(id: String, safe: Boolean): StreamInfo {
+        if (!safe) {
+            try {
+                val i = Streams.fetchFast(id)
+                if (ladder(i).isNotEmpty()) return i
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // fall through to the NewPipe engine
+            }
+        }
+        return Streams.fetch(id)
+    }
+
+    suspend fun resolve(id: String, force: Boolean = false, safe: Boolean = false): StreamInfo {
         if (!force) cached(id)?.let { return it }
+        val key = "$id|$safe"
         val job = synchronized(inflight) {
-            inflight[id] ?: scope.async { Streams.fetch(id) }.also { inflight[id] = it }
+            inflight[key] ?: scope.async { fetch(id, safe) }.also { inflight[key] = it }
         }
         try {
             val info = job.await()
@@ -42,7 +61,7 @@ object Playback {
             cache[id] = Entry(info, System.currentTimeMillis())
             return info
         } finally {
-            if (job.isCompleted) synchronized(inflight) { if (inflight[id] === job) inflight.remove(id) }
+            if (job.isCompleted) synchronized(inflight) { if (inflight[key] === job) inflight.remove(key) }
         }
     }
 

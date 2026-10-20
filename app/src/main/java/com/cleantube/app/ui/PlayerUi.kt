@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -63,6 +64,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -278,46 +280,46 @@ private fun GlassButton(
 }
 
 @Composable
-private fun CtChip(text: String, selected: Boolean, onClick: () -> Unit) {
+internal fun CtChip(text: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         Modifier
             .bouncyClickable(pressedScale = 0.93f, onClick = onClick)
             .clip(CircleShape)
             .background(if (selected) Color.White else Color(0x26FFFFFF))
-            .padding(horizontal = 14.dp, vertical = 7.dp)
+            .padding(horizontal = 11.dp, vertical = 5.dp)
     ) {
-        Text(text, color = if (selected) Color.Black else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Text(text, color = if (selected) Color.Black else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }
 
+/**
+ * Small popup that grows out of the settings pill (top right): quality and speed as two rows of chips.
+ * No dimming, no full-screen sheet: the video stays visible while you pick.
+ */
 @Composable
-private fun CtSettingsPanel(p: CtPlayer, onClose: () -> Unit) {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color(0x73000000))
-            .pointerInput(Unit) { detectTapGestures { onClose() } }
-    ) {
+private fun CtSettingsPopup(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { onClose() } }) {
         Column(
             Modifier
-                .align(Alignment.BottomCenter)
-                .padding(10.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xEB161616))
+                .align(Alignment.TopEnd)
+                .padding(top = 50.dp, end = 10.dp)
+                .widthIn(max = 260.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xF0181818))
                 .pointerInput(Unit) { detectTapGestures { } }
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            val autoLabel = if (p.quality == 0 && p.currentHeight > 0) "Auto · ${p.currentHeight}p" else "Auto"
-            Text("Quality", color = Color(0xFFAAAAAA), fontSize = 12.sp)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val autoLabel = if (p.quality == 0 && p.currentHeight > 0) "Auto ${p.currentHeight}p" else "Auto"
+            Text("Quality", color = Color(0xFF9A9A9A), fontSize = 11.sp)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 CtChip(autoLabel, p.quality == 0) { p.changeQuality(0) }
                 p.heights.reversed().forEach { h -> CtChip("${h}p", p.quality == h) { p.changeQuality(h) } }
             }
-            Text("Speed", color = Color(0xFFAAAAAA), fontSize = 12.sp)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { s ->
-                    val label = if (s == 1f) "Normal" else (if (s % 1f == 0f) "${s.toInt()}x" else "${s}x")
+            Text("Speed", color = Color(0xFF9A9A9A), fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(0.5f, 1f, 1.25f, 1.5f, 2f).forEach { s ->
+                    val label = if (s == 1f) "1x" else if (s % 1f == 0f) "${s.toInt()}x" else "${s}x"
                     CtChip(label, p.speed == s) { p.changeSpeed(s) }
                 }
             }
@@ -412,7 +414,19 @@ fun CtOverlay(
                 } else {
                     Spacer(Modifier.weight(1f))
                 }
-                GlassButton(Icons.Rounded.Settings, "Quality and speed", { panel = true })
+                Row(
+                    Modifier
+                        .bouncyClickable(pressedScale = 0.92f, onClick = { panel = !panel })
+                        .clip(CircleShape)
+                        .background(Color(0x59000000))
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Rounded.Settings, contentDescription = "Quality and speed", tint = Color.White, modifier = Modifier.size(18.dp))
+                    if (p.currentHeight > 0) {
+                        Text("${p.currentHeight}p", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 5.dp))
+                    }
+                }
             }
         }
 
@@ -488,6 +502,12 @@ fun CtOverlay(
             CtProgressLine(frac, bufFrac, Modifier.align(Alignment.BottomCenter))
         }
 
-        if (panel) CtSettingsPanel(p) { panel = false }
+        AnimatedVisibility(
+            panel,
+            enter = fadeIn(tween(140)) + scaleIn(initialScale = 0.85f, transformOrigin = TransformOrigin(1f, 0f)),
+            exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.9f, transformOrigin = TransformOrigin(1f, 0f))
+        ) {
+            CtSettingsPopup(p, onClose = { panel = false })
+        }
     }
 }

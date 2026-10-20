@@ -92,7 +92,7 @@ val LocalFullscreen = staticCompositionLocalOf<FullscreenHost> { error("Fullscre
 fun PlayerBox(videoId: String, embeddable: Boolean, modifier: Modifier = Modifier, title: String = "") {
     val ctx = LocalContext.current
     val host = LocalFullscreen.current
-    val p = remember(videoId) { CtPlayer(ctx, videoId) }
+    val p = remember(videoId) { CtPlayer(ctx, videoId, maxHeight = 480) }
     var fullscreen by remember(videoId) { mutableStateOf(false) }
 
     DisposableEffect(p) {

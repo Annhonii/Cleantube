@@ -3,6 +3,7 @@
 package com.cleantube.app.ui
 
 import android.content.Context
+import android.net.Uri
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -17,6 +18,8 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -57,8 +60,28 @@ private fun httpFactory(ua: String): OkHttpDataSource.Factory {
     return f
 }
 
+private val rangeParam = Regex("([?&])range=[^&]*&?")
+
+/**
+ * googlevideo.com slows a plain "give me the whole file" request down to about playback speed. Asking with its own
+ * `range=start-end` URL parameter (the same trick yt-dlp and NewPipe use) is served at full speed. The player
+ * still thinks it reads a normal file; seeking just becomes a new range request.
+ */
+private fun ranged(upstream: DataSource.Factory): DataSource.Factory =
+    ResolvingDataSource.Factory(upstream, ResolvingDataSource.Resolver { spec ->
+        val url = spec.uri.toString()
+        if (!url.contains("googlevideo.com") || !url.contains("/videoplayback")) return@Resolver spec
+        val clen = spec.uri.getQueryParameter("clen")?.toLongOrNull() ?: return@Resolver spec
+        if (clen <= 0L || spec.position >= clen) return@Resolver spec
+        val unset = C.LENGTH_UNSET.toLong()
+        val end = if (spec.length != unset) minOf(clen - 1, spec.position + spec.length - 1) else clen - 1
+        val clean = url.replace(rangeParam, "$1").trimEnd('&', '?')
+        val joined = clean + (if (clean.contains("?")) "&" else "?") + "range=${spec.position}-$end"
+        spec.buildUpon().setUri(Uri.parse(joined)).setPosition(0L).setLength(unset).build()
+    })
+
 private fun progressive(url: String, ua: String): MediaSource =
-    ProgressiveMediaSource.Factory(httpFactory(ua)).createMediaSource(MediaItem.fromUri(url))
+    ProgressiveMediaSource.Factory(ranged(httpFactory(ua))).createMediaSource(MediaItem.fromUri(url))
 
 /** Picture and sound come as two files for most qualities: ExoPlayer plays them together. */
 private fun buildSource(o: StreamOption): MediaSource {
@@ -86,10 +109,10 @@ class CtPlayer(
             DefaultLoadControl.Builder()
                 // start after half a second of data; after a stall resume after 1.5 s
                 .setBufferDurationsMs(
-                    if (shorts) 3_000 else 15_000,
-                    if (shorts) 15_000 else 60_000,
-                    if (shorts) 250 else 500,
-                    if (shorts) 1_000 else 1_500
+                    if (shorts) 3_000 else 10_000,
+                    if (shorts) 15_000 else 45_000,
+                    if (shorts) 200 else 350,
+                    if (shorts) 800 else 1_200
                 )
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
@@ -116,12 +139,13 @@ class CtPlayer(
     /** Heights offered in the quality menu, ascending. */
     var heights by mutableStateOf<List<Int>>(emptyList()); private set
     /** 0 = Auto, otherwise the chosen height. */
-    var quality by mutableIntStateOf(0); private set
+    var quality by mutableIntStateOf(preferredQuality); private set
     var currentHeight by mutableIntStateOf(0); private set
 
     private var info: StreamInfo? = null
     private var job: Job? = null
     private var retries = 0
+    private var safe = false
     private var released = false
 
     private val listener = object : Player.Listener {
@@ -150,6 +174,7 @@ class CtPlayer(
             // most often an expired / refused link: get fresh ones and carry on from the same second
             if (retries < 2) {
                 retries++
+                safe = true // the fast link failed: use the NewPipe engine's links from now on
                 load(force = true, resumeMs = exo.currentPosition.coerceAtLeast(0L))
             } else {
                 fail("Couldn't play this video (${error.errorCodeName}).")
@@ -168,7 +193,7 @@ class CtPlayer(
         buffering = true
         job = scope.launch {
             try {
-                val i = Playback.resolve(videoId, force)
+                val i = Playback.resolve(videoId, force, safe)
                 info = i
                 heights = Playback.ladder(i).map { Playback.heightOf(it) }.filter { it > 0 }.distinct().sorted()
                 prepare(i, resumeMs)
@@ -215,6 +240,7 @@ class CtPlayer(
 
     fun retry() {
         retries = 0
+        safe = true
         load(force = true, resumeMs = position)
     }
 
@@ -252,6 +278,7 @@ class CtPlayer(
 
     fun changeQuality(height: Int) {
         quality = height
+        preferredQuality = height
         val i = info ?: return
         prepare(i, exo.currentPosition.coerceAtLeast(0L))
     }
@@ -278,5 +305,10 @@ class CtPlayer(
         scope.cancel()
         exo.removeListener(listener)
         exo.release()
+    }
+
+    companion object {
+        /** The quality picked in the menu stays for the next videos (until the app is closed). */
+        var preferredQuality = 0
     }
 }

@@ -506,7 +506,7 @@ fun VideoScreen(route: Route.Video) {
  * "Add a comment" pill sits at the bottom.
  */
 @Composable
-private fun CommentsPanel(videoId: String, comments: Paged<Comment>, count: String, onClose: () -> Unit) {
+fun CommentsPanel(videoId: String, comments: Paged<Comment>, count: String, onClose: () -> Unit) {
     val state = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current

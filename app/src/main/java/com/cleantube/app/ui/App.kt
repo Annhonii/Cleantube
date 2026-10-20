@@ -112,7 +112,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
 
             // the pill stays put while the pages slide under it; it leaves upwards when a screen is pushed
             AnimatedVisibility(
-                visible = nav.isTabRoot,
+                visible = nav.isTabRoot && nav.current != Route.Shorts,
                 modifier = Modifier.align(Alignment.TopCenter),
                 enter = slideInVertically(spring(dampingRatio = 0.75f, stiffness = 420f)) { -it } + fadeIn(tween(220)),
                 exit = slideOutVertically(tween(240, easing = Motion.EmphasizedAccelerate)) { -it } + fadeOut(tween(160))
@@ -122,7 +122,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
 
             // the search bar floats up when a tab opens and drops away when a screen is pushed
             AnimatedVisibility(
-                visible = nav.isTabRoot,
+                visible = nav.isTabRoot && nav.current != Route.Shorts,
                 modifier = Modifier.align(Alignment.BottomCenter),
                 enter = slideInVertically(spring(dampingRatio = 0.72f, stiffness = 420f)) { it } + fadeIn(tween(220)),
                 exit = slideOutVertically(tween(240, easing = Motion.EmphasizedAccelerate)) { it } + fadeOut(tween(160))
@@ -144,7 +144,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
         }
 
         // Back: pop a screen; on a non-Home tab go to Home first; on Home let the system close the app.
-        BackHandler(enabled = !nav.isTabRoot || nav.current != firstRoute) {
+        BackHandler(enabled = (!nav.isTabRoot || nav.current != firstRoute) && !ShortsUi.overlayOpen) {
             if (!nav.back()) nav.selectTab(firstRoute)
         }
         // Registered last so it wins while a video is fullscreen.
