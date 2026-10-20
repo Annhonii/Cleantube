@@ -163,7 +163,7 @@ fun CtErrorView(message: String, onRetry: () -> Unit, onOpen: (() -> Unit)?, mod
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(message, color = Color(0xFFDDDDDD), fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        Text(message, color = Color(0xFFDDDDDD), fontSize = 13.sp, lineHeight = 18.sp, maxLines = 9, overflow = TextOverflow.Ellipsis)
         Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Pill("Retry", onClick = onRetry)
             if (onOpen != null) Pill("Open in YouTube", onClick = onOpen, active = true)

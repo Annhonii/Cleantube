@@ -65,7 +65,7 @@ object Streams {
     )
 
     private val blockRegex = Regex(
-        "\\bbot\\b|blocked|unusual traffic|captcha|too many requests|HTTP 429",
+        "not a bot|unusual traffic|captcha|too many requests|HTTP 429|temporarily blocked|IP.{0,30}blocked|blocked.{0,30}IP",
         RegexOption.IGNORE_CASE
     )
 
@@ -73,9 +73,9 @@ object Streams {
     fun isBlock(msg: String?): Boolean = !msg.isNullOrEmpty() && blockRegex.containsMatchIn(msg)
 
     fun blockMessage(original: String?): String =
-        "YouTube has temporarily blocked this network (too many requests / bot check). " +
-            "Wait a few minutes, switch between Wi-Fi and mobile data, or sign in, then retry.\n" +
-            "YouTube said: ${original.orEmpty().take(200)}"
+        "YouTube said: ${original.orEmpty().take(300)}\n\n" +
+            "Your network looks temporarily blocked (bot check / too many requests). " +
+            "Wait a few minutes or switch between Wi-Fi and mobile data, then retry."
 
     suspend fun fetch(videoId: String): StreamInfo {
         val npProblem = try {
