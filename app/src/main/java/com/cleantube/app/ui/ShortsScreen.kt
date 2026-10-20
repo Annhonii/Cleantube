@@ -212,6 +212,11 @@ fun ShortsScreen() {
 
     // the video is black: keep the status / navigation bar icons white while this tab is open
     val view = LocalView.current
+    // don't let the phone go to sleep while Shorts are on screen
+    DisposableEffect(view, resumed) {
+        view.keepScreenOn = resumed
+        onDispose { view.keepScreenOn = false }
+    }
     DisposableEffect(Unit) {
         val window = ctx.findActivity()?.window
         val c = window?.let { WindowCompat.getInsetsController(it, view) }
