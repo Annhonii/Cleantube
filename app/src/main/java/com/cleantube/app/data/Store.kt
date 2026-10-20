@@ -252,4 +252,4 @@ class Store(context: Context) {
 }
 
 /** Tabs that start turned off (they can be turned on in Settings). */
-val DefaultHiddenTabs: Set<String> = setOf("downloads", "history")
+val DefaultHiddenTabs: Set<String> = setOf("trending", "library")
