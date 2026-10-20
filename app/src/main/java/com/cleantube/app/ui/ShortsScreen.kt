@@ -138,8 +138,8 @@ import kotlin.math.roundToInt
 import kotlin.random.Random
 
 /** Read by the app's Back handling: while a sheet / menu of the Shorts tab is open, Back closes that first. */
-/** Room kept at the bottom of a Short for the floating tab pill (68dp pill + its margins). */
-val ShortsPillSpace = 84.dp
+/** Room kept at the bottom of a Short for the floating tab pill. The pill is hidden on the Shorts tab, so none. */
+val ShortsPillSpace = 0.dp
 
 object ShortsUi {
     var overlayOpen by mutableStateOf(false)
@@ -591,9 +591,9 @@ private fun ShortPage(
         }
     }
 
-    val dur = p.duration.coerceAtLeast(1L)
-    val frac = if (dragging) dragFraction else (p.position.toFloat() / dur).coerceIn(0f, 1f)
     val ch = details?.channel
+    // The feed doesn't always carry the title: fall back to the one from the watch page.
+    val title = v.title.ifEmpty { details?.video?.title.orEmpty() }
 
     Box(Modifier.fillMaxSize().background(Color.Black).onSizeChanged { box = it }) {
         CtVideoSurface(p, Modifier.fillMaxSize())
@@ -652,7 +652,7 @@ private fun ShortPage(
                 .align(Alignment.BottomStart)
                 .navigationBarsPadding()
                 .padding(bottom = ShortsPillSpace)
-                .padding(start = 14.dp, end = 88.dp, bottom = 34.dp)
+                .padding(start = 14.dp, end = 88.dp, bottom = 22.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -677,7 +677,7 @@ private fun ShortPage(
                 }
             }
 
-            val cap = captionText(v.title)
+            val cap = remember(title) { captionText(title) }
             Text(
                 cap, color = Color.White, fontSize = 13.sp, lineHeight = 18.sp,
                 maxLines = if (expanded) 12 else 2,
@@ -687,7 +687,7 @@ private fun ShortPage(
             )
             if (expanded) {
                 val d = details?.description.orEmpty().trim()
-                if (d.isNotEmpty() && d != v.title) {
+                if (d.isNotEmpty() && d != title) {
                     Text(captionText(d.take(500)), color = Color(0xE6FFFFFF), fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 6.dp))
                 }
             }
@@ -701,7 +701,7 @@ private fun ShortPage(
 
         // ---------------- right: action bar (no background, sits low so it covers less of the video)
         Column(
-            Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(bottom = ShortsPillSpace).padding(end = 8.dp, bottom = 12.dp),
+            Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(bottom = ShortsPillSpace).padding(end = 8.dp, bottom = 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -717,15 +717,21 @@ private fun ShortPage(
         }
 
         // ---------------- very bottom: slim progress / scrub bar
-        if (!p.wantPlay || dragging) CtSeekBar(
-            fraction = frac,
-            buffered = (p.buffered.toFloat() / dur).coerceIn(0f, 1f),
-            onDragStart = { dragging = true; dragFraction = frac },
-            onDrag = { dragFraction = it },
-            onDragEnd = { f -> p.seekTo((f * dur).toLong()); dragging = false },
-            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = ShortsPillSpace).fillMaxWidth().padding(horizontal = 6.dp),
-            showThumb = false
-        )
+        // Only while paused / scrubbing. The position is read inside this block, so the rest of the page
+        // doesn't recompose 4 times a second while the Short plays.
+        if (current && (!p.wantPlay || dragging)) {
+            val dur = p.duration.coerceAtLeast(1L)
+            val frac = if (dragging) dragFraction else (p.position.toFloat() / dur).coerceIn(0f, 1f)
+            CtSeekBar(
+                fraction = frac,
+                buffered = (p.buffered.toFloat() / dur).coerceIn(0f, 1f),
+                onDragStart = { dragging = true; dragFraction = frac },
+                onDrag = { dragFraction = it },
+                onDragEnd = { f -> p.seekTo((f * dur).toLong()); dragging = false },
+                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 4.dp).fillMaxWidth().padding(horizontal = 6.dp),
+                showThumb = false
+            )
+        }
 
         HeartsLayer(bursts) { id -> bursts.removeAll { it.id == id } }
 
