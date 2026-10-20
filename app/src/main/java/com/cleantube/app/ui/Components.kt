@@ -43,6 +43,10 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -231,41 +235,75 @@ fun LoadMoreEffect(state: LazyListState, paged: Paged<*>) {
     }
 }
 
+/** Pull down on the list to refresh it. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PullRefresh(
+    refreshing: Boolean,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val pullState = rememberPullToRefreshState()
+    PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = onRefresh,
+        modifier = modifier,
+        state = pullState,
+        indicator = {
+            PullToRefreshDefaults.Indicator(
+                state = pullState,
+                isRefreshing = refreshing,
+                modifier = Modifier.align(Alignment.TopCenter),
+                containerColor = Card,
+                color = Accent
+            )
+        }
+    ) { content() }
+}
+
 @Composable
 fun <T> PagedColumn(
     paged: Paged<T>,
     modifier: Modifier = Modifier,
-    state: LazyListState = rememberLazyListState(),
+    state: LazyListState = paged.listState,
     emptyText: String = "Nothing here yet",
     contentPadding: PaddingValues = PaddingValues(bottom = 120.dp),
     header: (LazyListScope.() -> Unit)? = null,
     row: @Composable (T) -> Unit
 ) {
-    LaunchedEffect(paged) { paged.loadMore() }
+    // only the very first time: a list that is already loaded (cached) is not fetched again
+    LaunchedEffect(paged) { if (paged.items.isEmpty() && !paged.loading) paged.loadMore() }
     LoadMoreEffect(state, paged)
     // rows that were already shown don't animate again when scrolled back into view
-    val seen = remember(paged) { HashSet<Any>() }
+    val seen = paged.seen
 
-    LazyColumn(modifier = modifier.fillMaxSize(), state = state, contentPadding = contentPadding) {
-        header?.invoke(this)
-        items(paged.items.size) { i ->
-            Box(Modifier.entrance(seen, i, if (i < 6) 60 + i * 55 else 0)) { row(paged.items[i]) }
-        }
-        item {
-            val err = paged.error
-            if (err != null) {
-                ErrorBox(err, onRetry = { paged.loadMore() })
-            } else if (paged.loading) {
-                if (paged.items.isEmpty()) {
-                    // first page still loading: shimmering placeholders instead of a lonely spinner
-                    Column {
-                        repeat(3) { VideoRowSkeleton() }
+    PullRefresh(
+        refreshing = paged.refreshing,
+        onRefresh = { paged.pullRefresh() },
+        modifier = modifier.fillMaxSize()
+    ) {
+        LazyColumn(modifier = Modifier.fillMaxSize(), state = state, contentPadding = contentPadding) {
+            header?.invoke(this)
+            items(paged.items.size) { i ->
+                Box(Modifier.entrance(seen, i, if (i < 6) 60 + i * 55 else 0)) { row(paged.items[i]) }
+            }
+            item {
+                val err = paged.error
+                if (err != null) {
+                    ErrorBox(err, onRetry = { paged.loadMore() })
+                } else if (paged.loading) {
+                    if (paged.items.isEmpty()) {
+                        // first page still loading: shimmering placeholders instead of a lonely spinner
+                        Column {
+                            repeat(3) { VideoRowSkeleton() }
+                        }
+                    } else {
+                        Loading()
                     }
-                } else {
-                    Loading()
+                } else if (paged.items.isEmpty() && paged.finished) {
+                    EmptyState(emptyText)
                 }
-            } else if (paged.items.isEmpty() && paged.finished) {
-                EmptyState(emptyText)
             }
         }
     }

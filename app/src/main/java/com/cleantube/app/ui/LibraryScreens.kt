@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import com.cleantube.app.data.TabCache
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,7 +78,7 @@ fun FeedScreen() {
 private fun AccountFeedScreen() {
     val nav = LocalNav.current
     val scope = rememberCoroutineScope()
-    val paged = remember { Paged(scope) { token -> Api.accountFeed(token) } }
+    val paged = TabCache.paged("feed:${Session.handle}") { token -> Api.accountFeed(token) }
 
     // channel logos on top (YouTube account's subscriptions; falls back to the locally saved ones)
     var accountChannels by remember { mutableStateOf(AccountChannelsCache.list) }
@@ -161,11 +162,13 @@ private fun LocalFeedScreen() {
             err != null -> ErrorBox(err, onRetry = { load() })
             list == null || (loading && list.isEmpty()) -> Loading()
             list.isEmpty() -> EmptyState("No recent videos.")
-            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = listPadding) {
-                item { SubscriptionStrip(subs, list) }
-                items(list.size) { i ->
-                    val v = list[i]
-                    VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
+            else -> PullRefresh(refreshing = loading, onRefresh = { load() }, modifier = Modifier.fillMaxSize()) {
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = listPadding) {
+                    item { SubscriptionStrip(subs, list) }
+                    items(list.size) { i ->
+                        val v = list[i]
+                        VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
+                    }
                 }
             }
         }
@@ -271,7 +274,7 @@ fun HistoryScreen() {
     var confirm by remember { mutableStateOf(false) }
     var account by remember { mutableStateOf(false) }
     val list = store.history
-    val remote = remember(Session.loggedIn) { Paged(scope) { token -> Api.accountHistory(token) } }
+    val remote = TabCache.paged("history:${Session.handle}") { token -> Api.accountHistory(token) }
 
     Column(Modifier.fillMaxSize()) {
         TabTopBar("History", actions = {

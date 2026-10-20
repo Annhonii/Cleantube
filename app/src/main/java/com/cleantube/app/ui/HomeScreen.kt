@@ -7,7 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import com.cleantube.app.data.Api
-import com.cleantube.app.data.Paged
+import com.cleantube.app.data.TabCache
 import com.cleantube.app.data.Session
 
 /** YouTube's own home feed: personalized when signed in, the general one otherwise. */
@@ -19,7 +19,7 @@ fun HomeScreen() {
 
     Column(Modifier.fillMaxSize()) {
         TabTopBar("cleantube", brand = true)
-        val paged = remember(loggedIn) { Paged(scope) { token -> Api.home(token) } }
+        val paged = TabCache.paged("home:$loggedIn:${Session.handle}") { token -> Api.home(token) }
         PagedColumn(
             paged = paged,
             emptyText = "Nothing to show right now. Pull to retry from the Feed tab, or check your connection."
@@ -36,7 +36,7 @@ fun TrendingScreen() {
     val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxSize()) {
         TabTopBar("Trending")
-        val paged = remember { Paged(scope) { token -> Api.trending(token) } }
+        val paged = TabCache.paged("trending") { token -> Api.trending(token) }
         PagedColumn(
             paged = paged,
             emptyText = "Nothing to show right now. Check your connection."

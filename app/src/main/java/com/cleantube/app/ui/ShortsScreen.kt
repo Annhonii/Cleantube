@@ -72,6 +72,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.geometry.Offset as PullOffset
+import androidx.compose.ui.input.nestedScroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedScroll.NestedScrollSource
+import androidx.compose.ui.input.nestedScroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Velocity
+import com.cleantube.app.data.TabCache
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -225,11 +234,14 @@ fun ShortsScreen() {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         // a new feed whenever the topic changes
         key(topic) {
-            val feed = remember { Paged<VideoItem>(scope) { token -> Api.shorts(token, topic) } }
-            LaunchedEffect(feed) { feed.refresh() }
+            val t = topic
+            // kept between tab switches: the feed and the Short you were on stay as they were
+            val feed = TabCache.paged<VideoItem>("shorts:$t") { token -> Api.shorts(token, t) }
+            LaunchedEffect(feed) { if (feed.items.isEmpty() && !feed.loading) feed.refresh() }
             val items = remember(feed.items) { feed.items.distinctBy { it.id } }
             val itemsNow = rememberUpdatedState(items)
-            val pager = rememberPagerState { itemsNow.value.size }
+            val pager = rememberPagerState(initialPage = TabCache.shortsPage[t] ?: 0) { itemsNow.value.size }
+            SideEffect { TabCache.shortsPage[t] = pager.currentPage }
 
             // endless feed: ask for more when the end is near (also covers pages that had no real Shorts)
             LaunchedEffect(items.size, pager.currentPage, feed.loading) {
@@ -255,23 +267,67 @@ fun ShortsScreen() {
                     }
                 }
             } else {
-                VerticalPager(
-                    state = pager,
-                    modifier = Modifier.fillMaxSize(),
-                    beyondViewportPageCount = 1,
-                    key = { itemsNow.value.getOrNull(it)?.id ?: it }
-                ) { page ->
-                    val v = itemsNow.value.getOrNull(page)
-                    if (v != null) {
-                        ShortPage(
-                            v = v,
-                            current = pager.currentPage == page && resumed && !menuOpen && commentsFor == null,
-                            onActive = { active = it },
-                            onMenu = { menuOpen = true },
-                            onComments = { video, count -> commentsCount = count; commentsFor = video },
-                            onSave = { saveFor = v },
-                            onDownload = { downloadFor = v }
-                        )
+                // pull down on the first Short to refresh the feed
+                val thresholdPx = with(LocalDensity.current) { 72.dp.toPx() }
+                var pull by remember { mutableFloatStateOf(0f) }
+                val connection = remember(pager, feed) {
+                    object : NestedScrollConnection {
+                        override fun onPreScroll(available: PullOffset, source: NestedScrollSource): PullOffset {
+                            if (pull > 0f && available.y < 0f && source == NestedScrollSource.UserInput) {
+                                val take = maxOf(available.y, -pull)
+                                pull += take
+                                return PullOffset(0f, take)
+                            }
+                            return PullOffset.Zero
+                        }
+
+                        override fun onPostScroll(consumed: PullOffset, available: PullOffset, source: NestedScrollSource): PullOffset {
+                            if (source == NestedScrollSource.UserInput && available.y > 0f && pager.currentPage == 0 && !feed.refreshing) {
+                                pull = (pull + available.y * 0.5f).coerceAtMost(thresholdPx * 1.6f)
+                                return PullOffset(0f, available.y)
+                            }
+                            return PullOffset.Zero
+                        }
+
+                        override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                            if (pull >= thresholdPx) feed.pullRefresh()
+                            pull = 0f
+                            return Velocity.Zero
+                        }
+                    }
+                }
+                Box(Modifier.fillMaxSize().nestedScroll(connection)) {
+                    VerticalPager(
+                        state = pager,
+                        modifier = Modifier.fillMaxSize(),
+                        beyondViewportPageCount = 1,
+                        key = { itemsNow.value.getOrNull(it)?.id ?: it }
+                    ) { page ->
+                        val v = itemsNow.value.getOrNull(page)
+                        if (v != null) {
+                            ShortPage(
+                                v = v,
+                                current = pager.currentPage == page && resumed && !menuOpen && commentsFor == null,
+                                onActive = { active = it },
+                                onMenu = { menuOpen = true },
+                                onComments = { video, count -> commentsCount = count; commentsFor = video },
+                                onSave = { saveFor = v },
+                                onDownload = { downloadFor = v }
+                            )
+                        }
+                    }
+                    val shown by animateFloatAsState(if (feed.refreshing) thresholdPx else pull, label = "shortsPull")
+                    if (shown > 1f || feed.refreshing) {
+                        Box(
+                            Modifier
+                                .align(Alignment.TopCenter)
+                                .statusBarsPadding()
+                                .padding(top = 64.dp)
+                                .graphicsLayer {
+                                    translationY = shown * 0.6f
+                                    alpha = (shown / thresholdPx).coerceIn(0f, 1f)
+                                }
+                        ) { CtSpinner(size = 40.dp) }
                     }
                 }
             }

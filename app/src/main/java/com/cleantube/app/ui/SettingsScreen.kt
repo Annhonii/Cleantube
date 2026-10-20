@@ -323,6 +323,7 @@ fun SettingsScreen() {
                 if (regionText.length == 2) {
                     store.region = regionText
                     Yt.setLocale("en", regionText)
+                    com.cleantube.app.data.TabCache.clear()
                 }
             },
             placeholder = "IN",

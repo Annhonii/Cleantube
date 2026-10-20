@@ -7,6 +7,9 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import androidx.compose.foundation.lazy.LazyListState
 import kotlinx.coroutines.launch
 
 /** App-wide singletons (kept tiny on purpose: this app has no DI framework). */
@@ -35,6 +38,13 @@ class Paged<T>(
         private set
     var finished by mutableStateOf(false)
         private set
+    /** True while a pull-to-refresh is running (the old list stays visible until the new one arrives). */
+    var refreshing by mutableStateOf(false)
+        private set
+
+    /** Kept here so scroll position and "already animated" rows survive leaving and re-entering the screen. */
+    val listState = LazyListState()
+    val seen = HashSet<Any>()
 
     private var next: String? = null
     private var generation = 0
@@ -65,7 +75,37 @@ class Paged<T>(
         }
     }
 
+    /** Pull-to-refresh: fetch the first page and swap it in; on failure the old list stays. */
+    fun pullRefresh() {
+        if (refreshing) return
+        generation++
+        job?.cancel()
+        loading = false
+        refreshing = true
+        val gen = generation
+        job = scope.launch {
+            try {
+                val page = fetch(null)
+                if (gen == generation) {
+                    items = page.items
+                    next = page.next
+                    finished = page.next == null
+                    error = null
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (gen == generation && items.isEmpty()) {
+                    error = (e as? ApiException) ?: ApiException(ApiException.Kind.OTHER, e.message ?: "Something went wrong.")
+                }
+            } finally {
+                if (gen == generation) refreshing = false
+            }
+        }
+    }
+
     fun refresh() {
+        refreshing = false
         generation++
         job?.cancel()
         items = emptyList()
@@ -74,5 +114,24 @@ class Paged<T>(
         loading = false
         error = null
         loadMore()
+    }
+}
+
+/**
+ * Lists of the tab screens live here (not inside the screens), so switching tabs or coming back from a video
+ * shows what was already loaded instead of fetching it again. Pull down to refresh.
+ */
+object TabCache {
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val map = HashMap<String, Any>()
+    val shortsPage = HashMap<String, Int>()
+
+    @Suppress("UNCHECKED_CAST")
+    fun <T> paged(key: String, fetch: suspend (String?) -> Page<T>): Paged<T> =
+        map.getOrPut(key) { Paged(appScope, fetch) } as Paged<T>
+
+    fun clear() {
+        map.clear()
+        shortsPage.clear()
     }
 }
