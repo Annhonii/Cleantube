@@ -3,7 +3,7 @@
 A native Android YouTube client (Kotlin + Jetpack Compose) with a NewPipe-style layout and a Material You (Monet) look: wallpaper colours on Android 12+, light / dark with the system, system font.
 
 - **Browse, search, channels, playlists, comments:** YouTube's own internal (InnerTube) API, the same one the website uses. No API key, no Google Cloud Console.
-- **Playback:** CleanTube's own native player (Media3 / ExoPlayer) fed with the NewPipe stream links. No YouTube web player or page is shown anywhere: custom minimal controls, a loading animation, quality + speed menu, double-tap to skip 10 s, fullscreen, popup (PiP). The mini player is a small floating card (16:9 picture, rounded corners, white border, title underneath); leaving the app while a video plays opens the popup by itself (toggle in Settings > Player) with quality, play/pause and speed buttons.
+- **Playback:** CleanTube's own native player (Media3 / ExoPlayer) fed with the NewPipe stream links. No YouTube web player or page is shown anywhere: custom minimal controls, a loading animation, quality + speed menu, double-tap to skip 10 s, fullscreen, popup (PiP). The mini player is a small floating picture (16:9, rounded corners, resizable with the corner handle) with quality, play/pause and speed buttons; leaving the app while a video plays opens the popup by itself (toggle in Settings > Player) with quality, play/pause and speed buttons.
 - **Sign in with Google (optional):** Home becomes YouTube's real recommendations for you, Feed is your real subscriptions feed, Notification shows your real YouTube notification bell.
 
 ## How it works

@@ -60,6 +60,16 @@ class Store(context: Context) {
             sp.edit().putBoolean("auto_popup", value).apply()
         }
 
+    private val miniWidthState = mutableStateOf(sp.getFloat("mini_width_dp", 200f).coerceIn(140f, 320f))
+    /** Width of the floating mini player in dp (the user resizes it with the corner handle). */
+    var miniWidthDp: Float
+        get() = miniWidthState.value
+        set(value) {
+            val v = value.coerceIn(140f, 320f)
+            miniWidthState.value = v
+            sp.edit().putFloat("mini_width_dp", v).apply()
+        }
+
     // ---------------------------------------------------------------- tabs
 
     private fun readCsv(key: String): List<String> =

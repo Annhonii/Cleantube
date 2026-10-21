@@ -56,6 +56,13 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.gestures.DraggableState
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.material.icons.rounded.OpenInFull
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.fillMaxWidth
 import com.cleantube.app.data.Graph
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -139,6 +146,34 @@ private val PopupSpeeds = listOf(0.5f, 1f, 1.25f, 1.5f, 2f)
 private fun speedText(s: Float): String =
     if (s % 1f == 0f) "${s.toInt()}x" else "${s}x"
 
+private fun qualityText(p: CtPlayer): String = if (p.quality == 0) "Auto" else "${p.quality}p"
+
+/** 0.5x > 1x > 1.25x > 1.5x > 2x > back to 0.5x (the same buttons exist in the popup window). */
+private fun cycleSpeed(p: CtPlayer) {
+    val l = PopupSpeeds
+    p.changeSpeed(l[(l.indexOf(p.speed) + 1).mod(l.size)])
+}
+
+/** Auto > highest > ... > lowest > Auto. */
+private fun cycleQuality(p: CtPlayer) {
+    val o = listOf(0) + p.heights.sortedDescending()
+    p.changeQuality(o[(o.indexOf(p.quality) + 1).mod(o.size)])
+}
+
+@Composable
+private fun MiniPill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .clip(RoundedCornerShape(50))
+            .background(Color(0x80000000))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+    }
+}
+
 @Composable
 fun VideoSheet(tabRoot: Boolean, hidden: Boolean) {
     val id = VideoHost.videoId ?: return
@@ -195,18 +230,12 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
         val ctl = object : PipController {
             override val playing get() = player.wantPlay
             override val speedLabel get() = speedText(player.speed)
-            override val qualityLabel get() = if (player.quality == 0) "Auto" else "${player.quality}p"
+            override val qualityLabel get() = qualityText(player)
             override val title get() = VideoHost.title
             override val channel get() = VideoHost.channel
             override fun togglePlay() = player.togglePlay()
-            override fun cycleSpeed() {
-                val l = PopupSpeeds
-                player.changeSpeed(l[(l.indexOf(player.speed) + 1).mod(l.size)])
-            }
-            override fun cycleQuality() {
-                val opts = listOf(0) + player.heights.sortedDescending()
-                player.changeQuality(opts[(opts.indexOf(player.quality) + 1).mod(opts.size)])
-            }
+            override fun cycleSpeed() = cycleSpeed(player)
+            override fun cycleQuality() = cycleQuality(player)
         }
         PipHost.controller = ctl
         onDispose {
@@ -229,11 +258,11 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
             VideoHost.fresh = false
             pA.snapTo(0f)
         }
-        pA.animateTo(1f, spring(dampingRatio = 0.86f, stiffness = 380f))
+        pA.animateTo(1f, spring(dampingRatio = 1f, stiffness = 340f))
     }
     val collapseStart = remember { VideoHost.collapseTick }
     LaunchedEffect(VideoHost.collapseTick) {
-        if (VideoHost.collapseTick != collapseStart) pA.animateTo(0f, spring(dampingRatio = 0.9f, stiffness = 420f))
+        if (VideoHost.collapseTick != collapseStart) pA.animateTo(0f, spring(dampingRatio = 1f, stiffness = 380f))
     }
     LaunchedEffect(Unit) { snapshotFlow { pA.value > 0.5f }.collect { VideoHost.expanded = it } }
     // once the card has stopped moving, tell the system where the picture is: the popup grows out of that spot
@@ -246,33 +275,26 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
         }
     }
 
-    // ---- popup window (picture in picture): just the picture
-    if (PipHost.active) {
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
-            CtVideoSurface(player, Modifier.fillMaxSize(), active = true)
-            CtPoster(id, player)
-            if (player.buffering) CtSpinner(Modifier.align(Alignment.Center), disc = false)
-        }
-        return
-    }
     if (hidden) return
 
     val route = remember(id) { Route.Video(id, VideoHost.seed) }
+    var miniWdp by remember { mutableFloatStateOf(Graph.store.miniWidthDp) }
+    var dragging by remember { mutableStateOf(false) }
+    // popup window: the very same picture (same surface, no flash) just fills the whole little window
+    val inPip = PipHost.active
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val w = constraints.maxWidth.toFloat()
         val h = constraints.maxHeight.toFloat()
         val statusPx = WindowInsets.statusBars.getTop(density).toFloat()
         val navPx = WindowInsets.navigationBars.getBottom(density).toFloat()
-        // mini player = small floating card: picture (16:9) with the title underneath, like the website's mini player
+        // mini player = just the picture (16:9), floating bottom-right; its size is changed with the corner handle
         val margin = with(density) { 12.dp.toPx() }
-        val pad = with(density) { 6.dp.toPx() }
-        val cardW = with(density) { 216.dp.toPx() }.coerceAtMost(w * 0.64f)
-        val miniW = cardW - 2 * pad
-        val miniH = miniW * 9f / 16f
-        val cardH = pad + miniH + with(density) { 50.dp.toPx() }
+        val cardW = with(density) { miniWdp.dp.toPx() }
+            .coerceIn(with(density) { 140.dp.toPx() }, minOf(with(density) { 320.dp.toPx() }, w - 2 * margin))
+        val cardH = cardW * 9f / 16f
         val miniX = w - margin - cardW
-        val cornerPx = with(density) { 24.dp.toPx() }
+        val cornerPx = with(density) { 18.dp.toPx() }
         val dockSpace by animateFloatAsState(
             with(density) { (if (tabRoot) 88.dp else 12.dp).toPx() }, tween(260), label = "miniDock"
         )
@@ -285,13 +307,15 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
         val vW = w - 2 * sideX
         val vH = vW * 9f / 16f
         val area = vTop + vH + with(density) { 6.dp.toPx() }
+        val miniScale = cardW / vW
+        val dens = density.density
 
-        val bodyOn by remember { derivedStateOf { pA.value > 0.02f } }
-        val expandedLook by remember { derivedStateOf { pA.value > 0.97f } }
-        val miniOn by remember { derivedStateOf { pA.value < 0.5f } }
+        val bodyOn by remember(inPip) { derivedStateOf { !inPip && pA.value > 0.02f } }
+        val expandedLook by remember(inPip) { derivedStateOf { !inPip && pA.value > 0.97f } }
+        val miniOn by remember(inPip) { derivedStateOf { !inPip && pA.value < 0.5f } }
 
         fun expand() {
-            scope.launch { pA.animateTo(1f, spring(dampingRatio = 0.86f, stiffness = 380f)) }
+            scope.launch { pA.animateTo(1f, spring(dampingRatio = 1f, stiffness = 340f)) }
         }
 
         fun dismiss() {
@@ -303,27 +327,34 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
 
         // drag the picture / the card: collapse, expand or swipe away
         var canDismiss by remember { mutableStateOf(false) }
-        val dragState = rememberDraggableState { dy ->
+        fun onDrag(dy: Float) {
             val low = if (canDismiss) -2f else 0f
             val next = (pA.value - dy / travel).coerceIn(low, 1f)
             scope.launch { pA.snapTo(next) }
         }
-        val dragMod = Modifier.draggable(
-            state = dragState,
+        // the big picture is drawn scaled down while it shrinks, so its finger movements are scaled too: undo that
+        val dragPicture = rememberDraggableState { dy ->
+            onDrag(dy * lerpF(miniScale, 1f, pA.value.coerceIn(0f, 1f)))
+        }
+        val dragCard = rememberDraggableState { dy -> onDrag(dy) }
+        fun dragMod(state: DraggableState) = Modifier.draggable(
+            state = state,
             orientation = Orientation.Vertical,
             onDragStarted = {
                 pA.stop()
                 canDismiss = pA.value < 0.2f
+                dragging = true
             },
             onDragStopped = { v ->
+                dragging = false
                 val cur = pA.value
                 scope.launch {
                     when {
                         canDismiss && (v > 1100f || -cur * travel > cardH * 0.5f) -> dismiss()
-                        v < -700f -> pA.animateTo(1f, spring(dampingRatio = 0.86f, stiffness = 380f))
-                        v > 700f -> pA.animateTo(0f, spring(dampingRatio = 0.9f, stiffness = 420f))
-                        cur > 0.5f -> pA.animateTo(1f, spring(dampingRatio = 0.86f, stiffness = 380f))
-                        else -> pA.animateTo(0f, spring(dampingRatio = 0.9f, stiffness = 420f))
+                        v < -700f -> pA.animateTo(1f, spring(dampingRatio = 1f, stiffness = 340f))
+                        v > 700f -> pA.animateTo(0f, spring(dampingRatio = 1f, stiffness = 380f))
+                        cur > 0.5f -> pA.animateTo(1f, spring(dampingRatio = 1f, stiffness = 340f))
+                        else -> pA.animateTo(0f, spring(dampingRatio = 1f, stiffness = 380f))
                     }
                 }
             }
@@ -332,7 +363,7 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
         Box(
             Modifier
                 .layout { measurable, constraints ->
-                    val pv = pA.value
+                    val pv = if (inPip) 1f else pA.value
                     val pc = pv.coerceIn(0f, 1f)
                     val x = lerpF(miniX, 0f, pc)
                     val sw = lerpF(cardW, w, pc).roundToInt()
@@ -342,31 +373,14 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                     layout(constraints.maxWidth, constraints.maxHeight) { pl.place(x.roundToInt(), top.roundToInt()) }
                 }
                 .graphicsLayer {
-                    val pv = pA.value
+                    val pv = if (inPip) 1f else pA.value
                     val pc = pv.coerceIn(0f, 1f)
                     shape = RoundedCornerShape(lerpF(cornerPx, 0f, pc))
                     clip = true
-                    shadowElevation = (1f - pc) * 14.dp.toPx()
+                    shadowElevation = (1f - pc) * 12.dp.toPx()
                     alpha = if (pv < 0f) (1f + pv * 1.5f).coerceIn(0f, 1f) else 1f
                 }
-                .drawBehind { drawRect(lerp(Card, Bg, pA.value.coerceIn(0f, 1f))) }
-                .drawWithContent {
-                    drawContent()
-                    // white border around the mini card; fades away while the page opens
-                    val pc = pA.value.coerceIn(0f, 1f)
-                    val a = (1f - pc * 3f).coerceIn(0f, 1f)
-                    if (a > 0f) {
-                        val bw = 2.5.dp.toPx()
-                        val r = (lerpF(cornerPx, 0f, pc) - bw / 2).coerceAtLeast(0f)
-                        drawRoundRect(
-                            Color.White.copy(alpha = a),
-                            topLeft = Offset(bw / 2, bw / 2),
-                            size = Size(size.width - bw, size.height - bw),
-                            cornerRadius = CornerRadius(r, r),
-                            style = Stroke(bw)
-                        )
-                    }
-                }
+                .drawBehind { drawRect(if (inPip) Color.Black else lerp(Card, Bg, pA.value.coerceIn(0f, 1f))) }
         ) {
             // ---- the rest of the page (title, buttons, comments, up next); fades in while opening
             Box(
@@ -381,50 +395,61 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                     }
                     .graphicsLayer { alpha = ((pA.value - 0.3f) / 0.7f).coerceIn(0f, 1f) }
             ) {
-                VideoScreen(route)
+                if (!inPip) VideoScreen(route)
             }
 
-            // ---- the picture: grows from the little thumbnail of the card to the full-width player
+            // ---- the picture. It is always laid out at the full-page size and only scaled / moved on the GPU while
+            //      it shrinks and grows, so the video surface is never resized frame by frame (that was the jitter).
             Box(
                 Modifier
                     .layout { measurable, constraints ->
-                        val pc = pA.value.coerceIn(0f, 1f)
-                        val pw = lerpF(miniW, vW, pc).roundToInt()
-                        val ph = lerpF(miniH, vH, pc).roundToInt()
-                        val x = lerpF(pad, sideX, pc)
-                        val y = lerpF(pad, vTop, pc)
+                        val pw = (if (inPip) w else vW).roundToInt()
+                        val ph = (if (inPip) h else vH).roundToInt()
                         val pl = measurable.measure(Constraints.fixed(pw, ph))
-                        layout(constraints.maxWidth, constraints.maxHeight) { pl.place(x.roundToInt(), y.roundToInt()) }
+                        layout(constraints.maxWidth, constraints.maxHeight) { pl.place(0, 0) }
                     }
                     .graphicsLayer {
-                        val pc = pA.value.coerceIn(0f, 1f)
-                        shape = RoundedCornerShape(lerpF(18.dp.toPx(), 26.dp.toPx(), pc))
-                        clip = true
+                        transformOrigin = TransformOrigin(0f, 0f)
+                        if (inPip) {
+                            clip = false
+                        } else {
+                            val pc = pA.value.coerceIn(0f, 1f)
+                            val sc = lerpF(miniScale, 1f, pc)
+                            scaleX = sc
+                            scaleY = sc
+                            translationX = lerpF(0f, sideX, pc)
+                            translationY = lerpF(0f, vTop, pc)
+                            shape = RoundedCornerShape(lerpF(cornerPx, 26.dp.toPx(), pc) / sc)
+                            clip = true
+                        }
                     }
                     .onGloballyPositioned { c ->
                         val b = c.boundsInWindow()
                         PipHost.sourceRect = android.graphics.Rect(b.left.roundToInt(), b.top.roundToInt(), b.right.roundToInt(), b.bottom.roundToInt())
                     }
-                    .then(dragMod)
+                    .then(dragMod(dragPicture))
                     .background(Color.Black)
             ) {
                 CtVideoSurface(player, Modifier.fillMaxSize(), active = !fullscreen)
                 CtPoster(id, player)
                 val err = player.error
                 when {
+                    inPip -> if (player.buffering) CtSpinner(Modifier.align(Alignment.Center), disc = false)
                     err != null -> if (expandedLook) CtErrorView(err, onRetry = { player.retry() }, onOpen = { openInYouTube(ctx, id) })
                     expandedLook -> CtOverlay(
                         player, fullscreen = false, title = VideoHost.title,
                         onFullscreen = { fullscreen = true; host.setActive(true) }
                     )
-                    player.buffering && !miniOn -> CtSpinner(Modifier.align(Alignment.Center), size = 26.dp, disc = false)
                 }
                 if (miniOn && err == null) {
                     val dur = player.duration.coerceAtLeast(1L)
                     CtProgressLine(
                         (player.position.toFloat() / dur).coerceIn(0f, 1f),
                         (player.buffered.toFloat() / dur).coerceIn(0f, 1f),
-                        Modifier.align(Alignment.BottomCenter)
+                        Modifier.align(Alignment.BottomCenter).graphicsLayer {
+                            transformOrigin = TransformOrigin(0f, 1f)
+                            scaleY = 1f / miniScale.coerceAtLeast(0.3f)
+                        }
                     )
                 }
                 if (expandedLook && err == null) {
@@ -443,65 +468,73 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                 }
             }
 
-            // ---- the mini player card: title under the picture, play / pause on the picture, close in its corner;
-            //      tap = open, drag up = open, swipe down = stop
-            if (miniOn) {
+            // ---- mini player controls (no title): quality, play / pause, speed, close, resize handle.
+            //      tap = open the page, drag up = open, swipe down = stop.
+            //      Stays while a drag that started here is still going, so the gesture is never cut in the middle.
+            if (!inPip && (miniOn || dragging)) {
                 Box(
                     Modifier
                         .fillMaxSize()
                         .graphicsLayer { alpha = (1f - pA.value * 2f).coerceIn(0f, 1f) }
-                        .then(dragMod)
-                        .clickable { expand() }
+                        .then(dragMod(dragCard))
+                        .clickable(enabled = miniOn) { expand() }
                 ) {
-                    Column(
-                        Modifier.padding(
-                            start = with(density) { pad.toDp() } + 6.dp,
-                            end = with(density) { pad.toDp() } + 6.dp,
-                            top = with(density) { (pad + miniH).toDp() } + 8.dp
-                        )
-                    ) {
-                        Text(
-                            VideoHost.title.ifEmpty { "Loading…" }, color = TextPrimary, fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis
-                        )
-                        if (VideoHost.channel.isNotEmpty()) {
-                            Text(VideoHost.channel, color = TextMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Box(Modifier.size(with(density) { cardW.toDp() }, with(density) { cardH.toDp() })) {
+                        // play / pause
+                        Box(
+                            Modifier
+                                .align(Alignment.Center)
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(0x66000000))
+                                .clickable { player.togglePlay() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                if (player.wantPlay) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                contentDescription = "Play / pause", tint = Color.White, modifier = Modifier.size(24.dp)
+                            )
                         }
-                    }
-                    Box(
-                        Modifier
-                            .offset {
-                                IntOffset(
-                                    (pad + miniW / 2 - 20.dp.toPx()).roundToInt(),
-                                    (pad + miniH / 2 - 20.dp.toPx()).roundToInt()
-                                )
-                            }
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color(0x66000000))
-                            .clickable { player.togglePlay() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            if (player.wantPlay) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            contentDescription = "Play / pause", tint = Color.White, modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    Box(
-                        Modifier
-                            .offset {
-                                IntOffset(
-                                    (pad + miniW - 28.dp.toPx() - 6.dp.toPx()).roundToInt(),
-                                    (pad + 6.dp.toPx()).roundToInt()
-                                )
-                            }
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(Color(0x66000000))
-                            .clickable { dismiss() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Rounded.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(18.dp))
+                        // quality and speed: the same two buttons the popup window has
+                        MiniPill(qualityText(player), { cycleQuality(player) }, Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 8.dp))
+                        MiniPill(speedText(player.speed), { cycleSpeed(player) }, Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 8.dp))
+                        // close
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(6.dp)
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Color(0x66000000))
+                                .clickable { dismiss() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                        // resize handle (top-left corner): drag it to make the mini player bigger / smaller
+                        Box(
+                            Modifier
+                                .align(Alignment.TopStart)
+                                .padding(6.dp)
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Color(0x66000000))
+                                .pointerInput(Unit) {
+                                    detectDragGestures(
+                                        onDragEnd = { Graph.store.miniWidthDp = miniWdp },
+                                        onDragCancel = { Graph.store.miniWidthDp = miniWdp }
+                                    ) { change, drag ->
+                                        change.consume()
+                                        miniWdp = (miniWdp - (drag.x + drag.y * 16f / 9f) / 2f / dens).coerceIn(140f, 320f)
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Rounded.OpenInFull, contentDescription = "Resize", tint = Color.White,
+                                modifier = Modifier.size(15.dp).rotate(90f)
+                            )
+                        }
                     }
                 }
             }
