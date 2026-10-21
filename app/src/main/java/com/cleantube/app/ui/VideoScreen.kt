@@ -330,14 +330,14 @@ fun VideoScreen(route: Route.Video) {
                             Row(
                                 Modifier
                                     .fillMaxHeight()
-                                    .background(if (rating == 1) AccentSoft else Color.Transparent)
+                                    .background(if (rating == 1) Accent else Color.Transparent)
                                     .bouncyClickable(pressedScale = 0.92f) { rate(1) }
                                     .padding(horizontal = 18.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Rounded.ThumbUp, contentDescription = "Like", tint = if (rating == 1) OnAccentSoft else TextPrimary, modifier = Modifier.size(22.dp))
+                                Icon(Icons.Rounded.ThumbUp, contentDescription = "Like", tint = if (rating == 1) OnAccent else TextPrimary, modifier = Modifier.size(22.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text(likes.ifEmpty { "Like" }, color = if (rating == 1) OnAccentSoft else TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                Text(likes.ifEmpty { "Like" }, color = if (rating == 1) OnAccent else TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             }
                             Box(Modifier.width(1.dp).height(26.dp).background(Hairline))
                             Box(

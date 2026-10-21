@@ -77,7 +77,7 @@ fun CompactRow(v: VideoItem, onClick: () -> Unit, modifier: Modifier = Modifier,
         Box(Modifier.width(150.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(18.dp)).background(Hairline)) {
             VideoThumb(v.id, Modifier.matchParentSize())
             if (v.live) {
-                Badge("LIVE", Color(0xFFFF4B4B), Modifier.align(Alignment.BottomEnd).padding(6.dp))
+                Badge("LIVE", Color(0xFFFF0000), Modifier.align(Alignment.BottomEnd).padding(6.dp))
             } else if (v.durationSec > 0) {
                 Badge(formatDuration(v.durationSec), Color(0xB3000000), Modifier.align(Alignment.BottomEnd).padding(6.dp))
             }
@@ -125,10 +125,10 @@ fun ActionTile(
         modifier
             .size(52.dp)
             .clip(CircleShape)
-            .background(if (active) AccentSoft else Card)
+            .background(if (active) Accent else Card)
             .bouncyClickable(pressedScale = 0.88f, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = label, tint = if (active) OnAccentSoft else TextPrimary, modifier = Modifier.size(22.dp))
+        Icon(icon, contentDescription = label, tint = if (active) OnAccent else TextPrimary, modifier = Modifier.size(22.dp))
     }
 }

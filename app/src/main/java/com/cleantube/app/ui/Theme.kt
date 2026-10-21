@@ -36,17 +36,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 // Colours when no video is open:
-//  - only black, white and YouTube red (light: white + red, dark: black + red)
+//  - only black, white and YouTube red. Roles: surfaces / text = white or black (greys between them);
+//    header card + tiles = neutral container; RED = "active / important" only (selected tab, buttons, progress, LIVE).
 // As soon as a video opens, the colours follow that video's thumbnail instead (see "colours from the playing video").
 
 private val YtRed = Color(0xFFFF0000)
-private val Live = Color(0xFFFF4B4B)
+private val Live = YtRed
 
 private val LightScheme = lightColorScheme(
     primary = YtRed,
     onPrimary = Color.White,
-    primaryContainer = YtRed,
-    onPrimaryContainer = Color.White,
+    primaryContainer = Color(0xFFF0F0F0),
+    onPrimaryContainer = Color.Black,
     secondary = YtRed,
     onSecondary = Color.White,
     background = Color.White,
@@ -70,7 +71,7 @@ private val LightScheme = lightColorScheme(
 private val DarkScheme = darkColorScheme(
     primary = YtRed,
     onPrimary = Color.White,
-    primaryContainer = YtRed,
+    primaryContainer = Color(0xFF1F1F1F),
     onPrimaryContainer = Color.White,
     secondary = YtRed,
     onSecondary = Color.White,

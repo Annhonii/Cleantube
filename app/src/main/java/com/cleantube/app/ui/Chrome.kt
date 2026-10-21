@@ -249,7 +249,7 @@ private fun HeaderButton(icon: ImageVector, desc: String, onClick: () -> Unit) {
 
 /** Surface of the search bar and round buttons: light grey in light mode (so it shows on white), dark grey in dark mode. */
 private val PillSurface: Color
-    @Composable get() = if (isSystemInDarkTheme()) Color(0xFF15181D) else Color.White
+    @Composable get() = Card
 
 private val TopButtonSize = 52.dp
 
@@ -383,8 +383,8 @@ fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifi
                 androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 400f),
                 label = "dockW"
             )
-            val bg by androidx.compose.animation.animateColorAsState(if (sel) AccentSoft else Color.Transparent, androidx.compose.animation.core.tween(220), label = "dockBg")
-            val fg by androidx.compose.animation.animateColorAsState(if (sel) OnAccentSoft else plain, androidx.compose.animation.core.tween(220), label = "dockFg")
+            val bg by androidx.compose.animation.animateColorAsState(if (sel) Accent else Color.Transparent, androidx.compose.animation.core.tween(220), label = "dockBg")
+            val fg by androidx.compose.animation.animateColorAsState(if (sel) OnAccent else plain, androidx.compose.animation.core.tween(220), label = "dockFg")
             Row(
                 Modifier
                     .weight(w.coerceAtLeast(0.05f))

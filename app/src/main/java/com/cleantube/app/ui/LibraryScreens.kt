@@ -202,9 +202,9 @@ private fun LibEntry(icon: ImageVector, title: String, subtitle: String, onClick
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(46.dp).clip(RoundedCornerShape(16.dp)).background(AccentSoft),
+            Modifier.size(46.dp).clip(RoundedCornerShape(16.dp)).background(Bg),
             contentAlignment = Alignment.Center
-        ) { Icon(icon, contentDescription = null, tint = OnAccentSoft, modifier = Modifier.size(24.dp)) }
+        ) { Icon(icon, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp)) }
         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
             Text(title, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
             Text(subtitle, color = TextMuted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -233,19 +233,19 @@ private fun StatTile(
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(30.dp)
-    val fg = if (hero) OnAccentSoft else TextPrimary
-    val sub = if (hero) OnAccentSoft.copy(alpha = 0.75f) else TextMuted
+    val fg = if (hero) OnAccent else TextPrimary
+    val sub = if (hero) OnAccent.copy(alpha = 0.8f) else TextMuted
     Column(
         modifier
             .aspectRatio(1.25f)
             .clip(shape)
-            .background(if (hero) AccentSoft else Card)
+            .background(if (hero) Accent else Card)
             .bouncyClickable(pressedScale = 0.95f, onClick = onClick)
             .padding(18.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Box(
-            Modifier.size(42.dp).clip(CircleShape).background(if (hero) OnAccentSoft.copy(alpha = 0.12f) else Hairline),
+            Modifier.size(42.dp).clip(CircleShape).background(if (hero) OnAccent.copy(alpha = 0.2f) else Hairline),
             contentAlignment = Alignment.Center
         ) { Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(22.dp)) }
         Column {
