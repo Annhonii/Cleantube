@@ -35,61 +35,62 @@ import androidx.palette.graphics.Palette as ImagePalette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-// Colours: Material You (Monet, from the wallpaper) on Android 12+; on older phones the mint scheme below.
+// Colours when no video is open:
+//  - light mode: warm, slightly yellowish white with YouTube red
+//  - dark mode: pure black and white
+// As soon as a video opens, the colours follow that video's thumbnail instead (see "colours from the playing video").
 
-private val Mint = Color(0xFF3DF5A0)
-private val MintLight = Color(0xFF14C97A)
-private val OnMint = Color(0xFF04150C)
+private val YtRed = Color(0xFFFF0000)
 private val Live = Color(0xFFFF4B4B)
 
 private val LightScheme = lightColorScheme(
-    primary = MintLight,
-    onPrimary = OnMint,
-    primaryContainer = Color(0xFFD9FBE9),
-    onPrimaryContainer = Color(0xFF05361F),
-    secondary = MintLight,
-    onSecondary = OnMint,
-    background = Color(0xFFF2F4F7),
-    onBackground = Color(0xFF0B0D10),
-    surface = Color(0xFFF2F4F7),
-    onSurface = Color(0xFF0B0D10),
-    surfaceVariant = Color(0xFFFFFFFF),
-    onSurfaceVariant = Color(0xFF6A7380),
-    surfaceContainerLowest = Color.White,
-    surfaceContainerLow = Color(0xFFF8F9FB),
-    surfaceContainer = Color.White,
-    surfaceContainerHigh = Color.White,
-    surfaceContainerHighest = Color(0xFFE6E9EE),
-    outline = Color(0xFF9AA3AF),
-    outlineVariant = Color(0xFFE3E6EB),
-    error = Live,
-    inverseSurface = Color(0xFF0B0D10),
-    inverseOnSurface = Color.White
+    primary = YtRed,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFFFDAD4),
+    onPrimaryContainer = Color(0xFF410002),
+    secondary = Color(0xFFC4161C),
+    onSecondary = Color.White,
+    background = Color(0xFFFFFAEB),
+    onBackground = Color(0xFF1C1B16),
+    surface = Color(0xFFFFFAEB),
+    onSurface = Color(0xFF1C1B16),
+    surfaceVariant = Color(0xFFFFF1D6),
+    onSurfaceVariant = Color(0xFF6E6858),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFFFF6E0),
+    surfaceContainer = Color(0xFFFFF1D6),
+    surfaceContainerHigh = Color(0xFFFFEBC9),
+    surfaceContainerHighest = Color(0xFFF6E3BE),
+    outline = Color(0xFF9A927E),
+    outlineVariant = Color(0xFFEBDDBA),
+    error = YtRed,
+    inverseSurface = Color(0xFF1C1B16),
+    inverseOnSurface = Color(0xFFFFFAEB)
 )
 
 private val DarkScheme = darkColorScheme(
-    primary = Mint,
-    onPrimary = OnMint,
-    primaryContainer = Color(0xFF12352A),
-    onPrimaryContainer = Color(0xFFA7FFD3),
-    secondary = Mint,
-    onSecondary = OnMint,
-    background = Color(0xFF0A0B0E),
-    onBackground = Color(0xFFF3F5F7),
-    surface = Color(0xFF0A0B0E),
-    onSurface = Color(0xFFF3F5F7),
-    surfaceVariant = Color(0xFF15181D),
-    onSurfaceVariant = Color(0xFF98A0AB),
-    surfaceContainerLowest = Color(0xFF0A0B0E),
-    surfaceContainerLow = Color(0xFF101216),
-    surfaceContainer = Color(0xFF15181D),
-    surfaceContainerHigh = Color(0xFF1B1F25),
-    surfaceContainerHighest = Color(0xFF262B33),
-    outline = Color(0xFF6B7280),
-    outlineVariant = Color(0xFF242830),
+    primary = Color.White,
+    onPrimary = Color.Black,
+    primaryContainer = Color(0xFF242424),
+    onPrimaryContainer = Color.White,
+    secondary = Color(0xFFE0E0E0),
+    onSecondary = Color.Black,
+    background = Color.Black,
+    onBackground = Color.White,
+    surface = Color.Black,
+    onSurface = Color.White,
+    surfaceVariant = Color(0xFF141414),
+    onSurfaceVariant = Color(0xFFA8A8A8),
+    surfaceContainerLowest = Color.Black,
+    surfaceContainerLow = Color(0xFF0B0B0B),
+    surfaceContainer = Color(0xFF121212),
+    surfaceContainerHigh = Color(0xFF1A1A1A),
+    surfaceContainerHighest = Color(0xFF262626),
+    outline = Color(0xFF6E6E6E),
+    outlineVariant = Color(0xFF2A2A2A),
     error = Live,
-    inverseSurface = Color(0xFFF3F5F7),
-    inverseOnSurface = Color(0xFF0A0B0E)
+    inverseSurface = Color.White,
+    inverseOnSurface = Color.Black
 )
 
 /** Current colours as observable state, so reading them anywhere stays in sync. */
@@ -99,8 +100,8 @@ private object Palette {
     var hairline by mutableStateOf(Color(0xFFE8EAED))
     var text by mutableStateOf(Color(0xFF0F0F10))
     var muted by mutableStateOf(Color(0xFF6B7280))
-    var accent by mutableStateOf(MintLight)
-    var onAccent by mutableStateOf(OnMint)
+    var accent by mutableStateOf(YtRed)
+    var onAccent by mutableStateOf(Color.White)
     var accentSoft by mutableStateOf(Color(0xFFFDE4E4))
     var onAccentSoft by mutableStateOf(Color(0xFF7A0A0E))
     var danger by mutableStateOf(Live)
@@ -272,13 +273,7 @@ private fun animatedScheme(t: ColorScheme): ColorScheme {
 fun CleanTubeTheme(content: @Composable () -> Unit) {
     val dark = isSystemInDarkTheme()
     // Set before the content is composed, so the first frame already has the right colours.
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    val baseScheme = when {
-        android.os.Build.VERSION.SDK_INT >= 31 ->
-            if (dark) androidx.compose.material3.dynamicDarkColorScheme(ctx) else androidx.compose.material3.dynamicLightColorScheme(ctx)
-        dark -> DarkScheme
-        else -> LightScheme
-    }
+    val baseScheme = if (dark) DarkScheme else LightScheme
 
     // colour of the video that is open (the old colour stays until the new thumbnail is read)
     val videoId = VideoHost.videoId
