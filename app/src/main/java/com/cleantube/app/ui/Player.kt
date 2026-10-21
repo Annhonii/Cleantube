@@ -81,6 +81,9 @@ object PipHost {
     var active by mutableStateOf(false)
     var enter: (() -> Unit)? = null
 
+    /** True from the moment the user leaves the app until the popup is up (or the app is back): hide extra buttons. */
+    var transitioning by mutableStateOf(false)
+
     /** True while a video is playing on screen: leaving the app should then open the popup by itself. */
     @Volatile var autoEnter = false
 

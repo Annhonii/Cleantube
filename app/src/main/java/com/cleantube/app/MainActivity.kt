@@ -50,7 +50,10 @@ class MainActivity : ComponentActivity() {
         // "Popup" button: shrink the video into a floating picture-in-picture window.
         pip.attach()
         PipHost.enter = { enterPopup() }
-        addOnPictureInPictureModeChangedListener { info -> PipHost.active = info.isInPictureInPictureMode }
+        addOnPictureInPictureModeChangedListener { info ->
+            PipHost.active = info.isInPictureInPictureMode
+            PipHost.transitioning = false
+        }
         handleIntent(intent)
 
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -106,11 +109,19 @@ class MainActivity : ComponentActivity() {
     /** Home gesture / app switch (Android 11 and older): a playing video moves into the popup window. */
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
+        PipHost.transitioning = true   // controls on the mini player vanish before the system takes its snapshot
         pip.onUserLeaveHint(Graph.store.autoPopup)
+    }
+
+    /** Android 13+: told when the move into the popup starts, before the window changes size. */
+    override fun onPictureInPictureUiStateChanged(state: android.app.PictureInPictureUiState) {
+        super.onPictureInPictureUiStateChanged(state)
+        if (state.isTransitioningToPip) PipHost.transitioning = true
     }
 
     override fun onResume() {
         super.onResume()
+        PipHost.transitioning = false
         // safety net: never stay stuck in the "player only" layout after the popup window is gone
         PipHost.active = Build.VERSION.SDK_INT >= 24 && isInPictureInPictureMode
     }

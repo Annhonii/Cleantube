@@ -56,6 +56,9 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.layout.offset
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.gestures.DraggableState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.material.icons.rounded.OpenInFull
@@ -280,12 +283,41 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
     val route = remember(id) { Route.Video(id, VideoHost.seed) }
     var miniWdp by remember { mutableFloatStateOf(Graph.store.miniWidthDp) }
     var dragging by remember { mutableStateOf(false) }
-    // popup window: the very same picture (same surface, no flash) just fills the whole little window
-    val inPip = PipHost.active
+    // the buttons on the mini player are hidden; one tap shows them for a few seconds
+    var controls by remember { mutableStateOf(false) }
+    var controlsTick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(controls, controlsTick) {
+        if (controls) {
+            delay(3000)
+            controls = false
+        }
+    }
+    // keeps the biggest window size seen: the popup window is far smaller than that in both directions
+    val biggest = remember { FloatArray(2) }
+    // fade of the picture: goes black when the user leaves the app and fades in again inside the popup window,
+    // so the system's own shrink animation is not seen as a jump
+    val fadeA = remember { Animatable(1f) }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val w = constraints.maxWidth.toFloat()
         val h = constraints.maxHeight.toFloat()
+        biggest[0] = maxOf(biggest[0], w)
+        biggest[1] = maxOf(biggest[1], h)
+        // popup window: the very same picture (same surface, no flash) just fills the whole little window.
+        // Also true for the first frames of the move into the popup, when the window is already small but the
+        // system hasn't announced the popup yet: that is what made the switch jump.
+        val inPip = PipHost.active || (w > h && w < biggest[0] * 0.7f && h < biggest[1] * 0.7f)
+        LaunchedEffect(inPip, PipHost.transitioning) {
+            when {
+                inPip -> {
+                    fadeA.snapTo(0f)
+                    delay(80)
+                    fadeA.animateTo(1f, tween(320))
+                }
+                PipHost.transitioning && PipHost.autoEnter -> fadeA.snapTo(0f)
+                else -> if (fadeA.value < 1f) fadeA.animateTo(1f, tween(220))
+            }
+        }
         val statusPx = WindowInsets.statusBars.getTop(density).toFloat()
         val navPx = WindowInsets.navigationBars.getBottom(density).toFloat()
         // mini player = just the picture (16:9), floating bottom-right; its size is changed with the corner handle
@@ -314,7 +346,10 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
         val expandedLook by remember(inPip) { derivedStateOf { !inPip && pA.value > 0.97f } }
         val miniOn by remember(inPip) { derivedStateOf { !inPip && pA.value < 0.5f } }
 
+        val controlsOn = controls && miniOn && !dragging && !PipHost.transitioning
+
         fun expand() {
+            controls = false
             scope.launch { pA.animateTo(1f, spring(dampingRatio = 1f, stiffness = 340f)) }
         }
 
@@ -380,7 +415,10 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                     shadowElevation = (1f - pc) * 12.dp.toPx()
                     alpha = if (pv < 0f) (1f + pv * 1.5f).coerceIn(0f, 1f) else 1f
                 }
-                .drawBehind { drawRect(if (inPip) Color.Black else lerp(Card, Bg, pA.value.coerceIn(0f, 1f))) }
+                .drawBehind {
+                    val dark = inPip || (PipHost.transitioning && PipHost.autoEnter)
+                    drawRect(if (dark) Color.Black else lerp(Card, Bg, pA.value.coerceIn(0f, 1f)))
+                }
         ) {
             // ---- the rest of the page (title, buttons, comments, up next); fades in while opening
             Box(
@@ -395,7 +433,7 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                     }
                     .graphicsLayer { alpha = ((pA.value - 0.3f) / 0.7f).coerceIn(0f, 1f) }
             ) {
-                if (!inPip) VideoScreen(route)
+                VideoScreen(route)
             }
 
             // ---- the picture. It is always laid out at the full-page size and only scaled / moved on the GPU while
@@ -410,6 +448,7 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                     }
                     .graphicsLayer {
                         transformOrigin = TransformOrigin(0f, 0f)
+                        alpha = fadeA.value
                         if (inPip) {
                             clip = false
                         } else {
@@ -441,12 +480,17 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                         onFullscreen = { fullscreen = true; host.setActive(true) }
                     )
                 }
-                if (miniOn && err == null) {
+                AnimatedVisibility(
+                    visible = controlsOn && err == null,
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                    enter = fadeIn(tween(150)),
+                    exit = fadeOut(tween(200))
+                ) {
                     val dur = player.duration.coerceAtLeast(1L)
                     CtProgressLine(
                         (player.position.toFloat() / dur).coerceIn(0f, 1f),
                         (player.buffered.toFloat() / dur).coerceIn(0f, 1f),
-                        Modifier.align(Alignment.BottomCenter).graphicsLayer {
+                        Modifier.graphicsLayer {
                             transformOrigin = TransformOrigin(0f, 1f)
                             scaleY = 1f / miniScale.coerceAtLeast(0.3f)
                         }
@@ -477,9 +521,15 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                         .fillMaxSize()
                         .graphicsLayer { alpha = (1f - pA.value * 2f).coerceIn(0f, 1f) }
                         .then(dragMod(dragCard))
-                        .clickable(enabled = miniOn) { expand() }
+                        // 1st tap: show the buttons. Tap on the picture while they are shown: open the page.
+                        .clickable(enabled = miniOn) { if (controls) expand() else controls = true }
                 ) {
-                    Box(Modifier.size(with(density) { cardW.toDp() }, with(density) { cardH.toDp() })) {
+                    AnimatedVisibility(
+                        visible = controlsOn,
+                        enter = fadeIn(tween(150)),
+                        exit = fadeOut(tween(200))
+                    ) {
+                    Box(Modifier.size(with(density) { cardW.toDp() }, with(density) { cardH.toDp() }).background(Color(0x40000000))) {
                         // play / pause
                         Box(
                             Modifier
@@ -487,7 +537,7 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                                 .size(40.dp)
                                 .clip(CircleShape)
                                 .background(Color(0x66000000))
-                                .clickable { player.togglePlay() },
+                                .clickable { controlsTick++; player.togglePlay() },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -496,8 +546,8 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                             )
                         }
                         // quality and speed: the same two buttons the popup window has
-                        MiniPill(qualityText(player), { cycleQuality(player) }, Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 8.dp))
-                        MiniPill(speedText(player.speed), { cycleSpeed(player) }, Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 8.dp))
+                        MiniPill(qualityText(player), { controlsTick++; cycleQuality(player) }, Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 8.dp))
+                        MiniPill(speedText(player.speed), { controlsTick++; cycleSpeed(player) }, Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 8.dp))
                         // close
                         Box(
                             Modifier
@@ -525,6 +575,7 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                                         onDragCancel = { Graph.store.miniWidthDp = miniWdp }
                                     ) { change, drag ->
                                         change.consume()
+                                        controlsTick++
                                         miniWdp = (miniWdp - (drag.x + drag.y * 16f / 9f) / 2f / dens).coerceIn(140f, 320f)
                                     }
                                 },
@@ -535,6 +586,7 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                                 modifier = Modifier.size(15.dp).rotate(90f)
                             )
                         }
+                    }
                     }
                 }
             }
