@@ -30,6 +30,15 @@ object QuickPicks {
     var freshIds by mutableStateOf<Set<String>>(emptySet())
         private set
 
+    /** True from the moment the app is opened (or brought back) until the next fetch: that fetch ignores the time gap. */
+    @Volatile
+    private var forceNext = true
+
+    /** Called by the activity on every start: the next [refresh] always goes to the network. */
+    fun markAppStarted() {
+        forceNext = true
+    }
+
     private var loadedFromDisk = false
     private var lastFetch = 0L
     private var lastKey = ""
@@ -66,7 +75,7 @@ object QuickPicks {
         val key = keyOf(loggedIn, Session.handle, subs)
         val changed = key != lastKey
         if (loading) return
-        if (!force && !changed && System.currentTimeMillis() - lastFetch < MIN_GAP_MS) return
+        if (!force && !forceNext && !changed && System.currentTimeMillis() - lastFetch < MIN_GAP_MS) return
         if (!loggedIn && subs.isEmpty()) {
             lastKey = key
             pool = emptyList()
@@ -75,6 +84,7 @@ object QuickPicks {
             return
         }
 
+        forceNext = false
         loading = true
         try {
             val fetched: List<VideoItem> =

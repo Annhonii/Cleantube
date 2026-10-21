@@ -82,6 +82,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        // every time the app is opened / brought back: Quick picks must fetch fresh videos
+        com.cleantube.app.data.QuickPicks.markAppStarted()
+        super.onStart()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
