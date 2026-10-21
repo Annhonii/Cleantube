@@ -42,6 +42,11 @@ class Nav(start: Route = Route.Home) {
     val isTabRoot: Boolean get() = stack.size == 1 && current in TabRoutes
 
     fun push(r: Route) {
+        // a video opens as the bottom sheet / mini player (see VideoHost), not as a screen on the stack
+        if (r is Route.Video) {
+            VideoHost.open(r.id, r.seed)
+            return
+        }
         lastKind = NavKind.PUSH
         stack.add(r)
     }

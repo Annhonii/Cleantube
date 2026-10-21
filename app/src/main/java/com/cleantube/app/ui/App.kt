@@ -132,6 +132,9 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                 BottomNavPill(position = chipPosition)
             }
 
+            // the video page / mini player: above the screens and the bottom bar
+            VideoSheet(tabRoot = nav.isTabRoot, hidden = nav.current == Route.Shorts)
+
             // Fullscreen video from the YouTube player, drawn above everything.
             val fsView = fullscreen.view
             if (fsView != null) {
@@ -146,8 +149,16 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
         }
 
         // Back: pop a screen; on a non-Home tab go to Home first; on Home let the system close the app.
-        BackHandler(enabled = (!nav.isTabRoot || nav.current != firstRoute) && !ShortsUi.overlayOpen) {
+        BackHandler(enabled = (!nav.isTabRoot || nav.current != firstRoute) && !ShortsUi.overlayOpen && !VideoHost.expanded) {
             if (!nav.back()) nav.selectTab(firstRoute)
+        }
+        // Back minimises an open video page into the mini player first.
+        BackHandler(enabled = VideoHost.expanded && fullscreen.view == null && !VideoHost.commentsOpen) {
+            VideoHost.requestCollapse()
+        }
+        // opening another screen from the video page (channel, search...) minimises it
+        LaunchedEffect(nav.stack.size) {
+            if (VideoHost.expanded) VideoHost.requestCollapse()
         }
         // Registered last so it wins while a video is fullscreen.
         BackHandler(enabled = fullscreen.view != null) {
@@ -207,7 +218,7 @@ private fun OtherScreen(route: Route) {
         Route.Downloads -> DownloadsScreen()
         is Route.LocalPlay -> LocalPlayScreen(route)
         is Route.Search -> SearchScreen(route)
-        is Route.Video -> VideoScreen(route)
+        is Route.Video -> Unit   // videos are drawn by VideoSheet
         is Route.Channel -> ChannelScreen(route)
         is Route.Playlist -> PlaylistScreen(route)
         is Route.LocalList -> LocalListScreen(route)

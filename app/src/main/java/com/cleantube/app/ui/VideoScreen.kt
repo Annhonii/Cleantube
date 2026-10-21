@@ -219,20 +219,18 @@ fun VideoScreen(route: Route.Video) {
     // Back closes the comments panel first, only then the video page.
     BackHandler(enabled = commentsOpen) { commentsOpen = false }
 
-    val inPopup = PipHost.active
-    Column(if (inPopup) Modifier.fillMaxSize() else Modifier.fillMaxSize().statusBarsPadding()) {
-        // rounded player "card"
-        PlayerBox(
-            videoId = route.id,
-            embeddable = details?.embeddable ?: true,
-            title = video?.title.orEmpty(),
-            modifier = if (inPopup) Modifier else Modifier
-                .padding(horizontal = 8.dp, vertical = 6.dp)
-                .clip(RoundedCornerShape(30.dp))
-        )
+    // the picture itself is drawn by VideoSheet (above this page); what is left here is everything below it
+    LaunchedEffect(video?.title, video?.channelTitle) {
+        video?.let {
+            if (it.title.isNotEmpty()) VideoHost.title = it.title
+            if (it.channelTitle.isNotEmpty()) VideoHost.channel = it.channelTitle
+        }
+    }
+    LaunchedEffect(commentsOpen) { VideoHost.commentsOpen = commentsOpen }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { VideoHost.commentsOpen = false } }
 
-        // everything below the player is hidden while the video is in the popup window
-        if (!inPopup) Box(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize()) {
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 32.dp)) {
 
                 // ---- title (tap to open the description) + stats

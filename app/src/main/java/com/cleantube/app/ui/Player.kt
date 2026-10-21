@@ -158,7 +158,7 @@ fun PlayerBox(videoId: String, embeddable: Boolean, modifier: Modifier = Modifie
 
 /** Full-window player drawn in a dialog above the app. Back or the close button leaves it. */
 @Composable
-private fun CtFullscreen(videoId: String, p: CtPlayer, title: String, onExit: () -> Unit) {
+internal fun CtFullscreen(videoId: String, p: CtPlayer, title: String, onExit: () -> Unit) {
     Dialog(
         onDismissRequest = onExit,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
