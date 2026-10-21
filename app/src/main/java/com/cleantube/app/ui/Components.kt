@@ -242,6 +242,7 @@ fun PullRefresh(
     refreshing: Boolean,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
+    indicatorTop: androidx.compose.ui.unit.Dp = 0.dp,
     content: @Composable () -> Unit
 ) {
     val pullState = rememberPullToRefreshState()
@@ -254,7 +255,7 @@ fun PullRefresh(
             PullToRefreshDefaults.Indicator(
                 state = pullState,
                 isRefreshing = refreshing,
-                modifier = Modifier.align(Alignment.TopCenter),
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = indicatorTop),
                 containerColor = Card,
                 color = Accent
             )
@@ -269,6 +270,8 @@ fun <T> PagedColumn(
     state: LazyListState = paged.listState,
     emptyText: String = "Nothing here yet",
     contentPadding: PaddingValues = PaddingValues(bottom = 120.dp),
+    /** Where the pull-to-refresh spinner appears (below a header that floats over the list). */
+    refreshIndicatorTop: androidx.compose.ui.unit.Dp = 0.dp,
     header: (LazyListScope.() -> Unit)? = null,
     /** When set, the item at index i is drawn by this instead of [row] (used by the bento feed). */
     indexRow: (@Composable (Int) -> Unit)? = null,
@@ -283,7 +286,8 @@ fun <T> PagedColumn(
     PullRefresh(
         refreshing = paged.refreshing,
         onRefresh = { paged.pullRefresh() },
-        modifier = modifier.fillMaxSize()
+        modifier = modifier.fillMaxSize(),
+        indicatorTop = refreshIndicatorTop
     ) {
         LazyColumn(modifier = Modifier.fillMaxSize(), state = state, contentPadding = contentPadding) {
             header?.invoke(this)

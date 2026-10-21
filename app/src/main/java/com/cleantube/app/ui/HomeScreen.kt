@@ -1,6 +1,9 @@
 package com.cleantube.app.ui
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -17,15 +20,19 @@ fun HomeScreen() {
     val scope = rememberCoroutineScope()
     val loggedIn = Session.loggedIn
 
-    Column(Modifier.fillMaxSize()) {
-        TabTopBar("cleantube", brand = true)
+    // The header floats over the list: the feed starts below it and scrolls up underneath while it collapses.
+    Box(Modifier.fillMaxSize()) {
         val paged = TabCache.paged("home:$loggedIn:${Session.handle}") { token -> Api.home(token) }
+        val headerH = collapsingHeaderHeight()
         PagedColumn(
             paged = paged,
             emptyText = "Nothing to show right now. Pull to retry from the Feed tab, or check your connection.",
+            contentPadding = PaddingValues(top = headerH + 8.dp, bottom = 120.dp),
+            refreshIndicatorTop = headerH,
             // fixed-height rhythm: hero, two tiles, two tiles... (see BentoFeedItem)
             indexRow = { i -> BentoFeedItem(paged.items, i) { v -> nav.push(Route.Video(v.id, v)) } }
         ) { }
+        CollapsingHeader(paged.listState)
     }
 }
 
