@@ -95,6 +95,9 @@ object PipHost {
 
     /** Set by the activity: re-sends the popup's buttons and auto-open flag to the system. */
     var refresh: (() -> Unit)? = null
+
+    /** Bumped by the popup's fullscreen button: the page leaves the popup and opens the player full screen. */
+    var fullscreenTick by mutableStateOf(0)
 }
 
 /** What the popup window's buttons need from the player. */
@@ -107,6 +110,7 @@ interface PipController {
     fun togglePlay()
     fun cycleSpeed()
     fun cycleQuality()
+    fun openFullscreen()
 }
 
 val LocalFullscreen = staticCompositionLocalOf<FullscreenHost> { error("FullscreenHost not provided") }

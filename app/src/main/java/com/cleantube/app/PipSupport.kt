@@ -27,7 +27,7 @@ import com.cleantube.app.ui.PipHost
  *  - opens by itself when the user leaves the app while a video plays (Android 12+: from the Home gesture with the
  *    system's own smooth animation, older phones: from onUserLeaveHint)
  *  - the system grows the window out of the little picture of the mini player (source rect hint)
- *  - three buttons inside the popup: quality, play / pause, speed (the quality and speed buttons show the current value)
+ *  - three buttons inside the popup: quality, speed (both show the current value) and fullscreen
  */
 class PipSupport(private val act: ComponentActivity) {
 
@@ -39,9 +39,19 @@ class PipSupport(private val act: ComponentActivity) {
         override fun onReceive(context: Context, intent: Intent) {
             val c = PipHost.controller ?: return
             when (intent.getStringExtra(EXTRA)) {
-                "play" -> c.togglePlay()
                 "speed" -> c.cycleSpeed()
                 "quality" -> c.cycleQuality()
+                "full" -> {
+                    c.openFullscreen()
+                    // bring the app back out of the popup window
+                    try {
+                        act.startActivity(
+                            Intent(act, MainActivity::class.java)
+                                .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        )
+                    } catch (_: Exception) {
+                    }
+                }
             }
             update()
         }
@@ -114,17 +124,14 @@ class PipSupport(private val act: ComponentActivity) {
     private fun actions(): List<RemoteAction> {
         val c = PipHost.controller ?: return emptyList()
         val max = if (Build.VERSION.SDK_INT >= 26) act.maxNumPictureInPictureActions else 0
+        // same options as the mini player: quality + speed (the "settings" values), and fullscreen
         val list = ArrayList<RemoteAction>(3)
         list += action("quality", labelIcon(c.qualityLabel), "Quality ${c.qualityLabel}")
-        list += action(
-            "play",
-            Icon.createWithResource(act, if (c.playing) R.drawable.ic_pip_pause else R.drawable.ic_pip_play),
-            if (c.playing) "Pause" else "Play"
-        )
         list += action("speed", labelIcon(c.speedLabel), "Speed ${c.speedLabel}")
+        list += action("full", Icon.createWithResource(act, R.drawable.ic_pip_fullscreen), "Fullscreen")
         return when {
             max >= list.size -> list
-            max >= 1 -> listOf(list[1]) // phones with room for a single button: play / pause only
+            max >= 1 -> listOf(list[2]) // phones with room for a single button: fullscreen only
             else -> emptyList()
         }
     }

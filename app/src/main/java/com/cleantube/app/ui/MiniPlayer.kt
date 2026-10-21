@@ -61,7 +61,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.gestures.DraggableState
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.material.icons.rounded.OpenInFull
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
@@ -85,6 +89,7 @@ import androidx.lifecycle.LifecycleOwner
 import com.cleantube.app.data.VideoItem
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -164,16 +169,33 @@ private fun cycleQuality(p: CtPlayer) {
 }
 
 @Composable
-private fun MiniPill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun MiniChip(text: String, selected: Boolean, onClick: () -> Unit) {
     Box(
-        modifier
+        Modifier
             .clip(RoundedCornerShape(50))
-            .background(Color(0x80000000))
+            .background(if (selected) Color.White else Color(0x33FFFFFF))
             .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 8.dp, vertical = 3.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(
+            text, color = if (selected) Color.Black else Color.White,
+            fontSize = 10.sp, fontWeight = FontWeight.Medium, maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun MiniGlassButton(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(28.dp)
+            .clip(CircleShape)
+            .background(Color(0x66000000))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = description, tint = Color.White, modifier = Modifier.size(17.dp))
     }
 }
 
@@ -237,6 +259,7 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
             override val title get() = VideoHost.title
             override val channel get() = VideoHost.channel
             override fun togglePlay() = player.togglePlay()
+            override fun openFullscreen() { PipHost.fullscreenTick++ }
             override fun cycleSpeed() = cycleSpeed(player)
             override fun cycleQuality() = cycleQuality(player)
         }
@@ -254,6 +277,17 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
         wantAutoPopup, player.wantPlay, player.speed, player.quality, player.heights,
         VideoHost.title, VideoHost.channel
     ) { PipHost.refresh?.invoke() }
+
+    // the popup's fullscreen button: wait until the app is out of the popup window, then open fullscreen
+    val fsStart = remember { PipHost.fullscreenTick }
+    LaunchedEffect(PipHost.fullscreenTick) {
+        if (PipHost.fullscreenTick != fsStart) {
+            snapshotFlow { PipHost.active }.first { !it }
+            delay(150)
+            fullscreen = true
+            host.setActive(true)
+        }
+    }
 
     // ---- open / collapse requests
     LaunchedEffect(VideoHost.openTick) {
@@ -283,19 +317,21 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
     val route = remember(id) { Route.Video(id, VideoHost.seed) }
     var miniWdp by remember { mutableFloatStateOf(Graph.store.miniWidthDp) }
     var dragging by remember { mutableStateOf(false) }
-    // the buttons on the mini player are hidden; one tap shows them for a few seconds
+    // the buttons on the mini player are hidden; one tap shows them (settings + fullscreen) for a few seconds
     var controls by remember { mutableStateOf(false) }
     var controlsTick by remember { mutableIntStateOf(0) }
-    LaunchedEffect(controls, controlsTick) {
-        if (controls) {
+    var settings by remember { mutableStateOf(false) }   // the quality + speed panel on the card
+    LaunchedEffect(controls, controlsTick, settings) {
+        if (controls && !settings) {
             delay(3000)
             controls = false
         }
     }
+    LaunchedEffect(controls) { if (!controls) settings = false }
     // keeps the biggest window size seen: the popup window is far smaller than that in both directions
     val biggest = remember { FloatArray(2) }
-    // fade of the picture: goes black when the user leaves the app and fades in again inside the popup window,
-    // so the system's own shrink animation is not seen as a jump
+    // fade of the picture: hides the moment the user switches the app and fades in again once the switch is done
+    // (inside the popup window, or when coming back), so the system's own animation is not seen as a jump
     val fadeA = remember { Animatable(1f) }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -309,13 +345,19 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
         val inPip = PipHost.active || (w > h && w < biggest[0] * 0.7f && h < biggest[1] * 0.7f)
         LaunchedEffect(inPip, PipHost.transitioning) {
             when {
+                // the app is switched / goes into the popup: the player is already hidden, wait until the system's
+                // own animation is completely finished, then fade the player in
                 inPip -> {
                     fadeA.snapTo(0f)
-                    delay(80)
-                    fadeA.animateTo(1f, tween(320))
+                    delay(350)
+                    fadeA.animateTo(1f, tween(420))
                 }
-                PipHost.transitioning && PipHost.autoEnter -> fadeA.snapTo(0f)
-                else -> if (fadeA.value < 1f) fadeA.animateTo(1f, tween(220))
+                PipHost.transitioning -> fadeA.snapTo(0f)
+                // back in the app after switching: same, hidden first, then a soft fade in
+                else -> if (fadeA.value < 1f) {
+                    delay(160)
+                    fadeA.animateTo(1f, tween(380))
+                }
             }
         }
         val statusPx = WindowInsets.statusBars.getTop(density).toFloat()
@@ -512,8 +554,8 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                 }
             }
 
-            // ---- mini player controls (no title): quality, play / pause, speed, close, resize handle.
-            //      tap = open the page, drag up = open, swipe down = stop.
+            // ---- mini player controls: one tap shows just two buttons: settings (quality + speed) and fullscreen.
+            //      tap on the picture while they are shown = open the page, drag up = open, swipe down = stop.
             //      Stays while a drag that started here is still going, so the gesture is never cut in the middle.
             if (!inPip && (miniOn || dragging)) {
                 Box(
@@ -521,72 +563,57 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                         .fillMaxSize()
                         .graphicsLayer { alpha = (1f - pA.value * 2f).coerceIn(0f, 1f) }
                         .then(dragMod(dragCard))
-                        // 1st tap: show the buttons. Tap on the picture while they are shown: open the page.
-                        .clickable(enabled = miniOn) { if (controls) expand() else controls = true }
+                        .clickable(enabled = miniOn) {
+                            when {
+                                settings -> settings = false
+                                controls -> expand()
+                                else -> controls = true
+                            }
+                        }
                 ) {
                     AnimatedVisibility(
                         visible = controlsOn,
                         enter = fadeIn(tween(150)),
                         exit = fadeOut(tween(200))
                     ) {
-                    Box(Modifier.size(with(density) { cardW.toDp() }, with(density) { cardH.toDp() }).background(Color(0x40000000))) {
-                        // play / pause
                         Box(
                             Modifier
-                                .align(Alignment.Center)
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(Color(0x66000000))
-                                .clickable { controlsTick++; player.togglePlay() },
-                            contentAlignment = Alignment.Center
+                                .size(with(density) { cardW.toDp() }, with(density) { cardH.toDp() })
+                                .background(Color(if (settings) 0xB3000000L else 0x40000000L))
                         ) {
-                            Icon(
-                                if (player.wantPlay) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                contentDescription = "Play / pause", tint = Color.White, modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        // quality and speed: the same two buttons the popup window has
-                        MiniPill(qualityText(player), { controlsTick++; cycleQuality(player) }, Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 8.dp))
-                        MiniPill(speedText(player.speed), { controlsTick++; cycleSpeed(player) }, Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 8.dp))
-                        // close
-                        Box(
-                            Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(6.dp)
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(Color(0x66000000))
-                                .clickable { dismiss() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Rounded.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(18.dp))
-                        }
-                        // resize handle (top-left corner): drag it to make the mini player bigger / smaller
-                        Box(
-                            Modifier
-                                .align(Alignment.TopStart)
-                                .padding(6.dp)
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(Color(0x66000000))
-                                .pointerInput(Unit) {
-                                    detectDragGestures(
-                                        onDragEnd = { Graph.store.miniWidthDp = miniWdp },
-                                        onDragCancel = { Graph.store.miniWidthDp = miniWdp }
-                                    ) { change, drag ->
-                                        change.consume()
-                                        controlsTick++
-                                        miniWdp = (miniWdp - (drag.x + drag.y * 16f / 9f) / 2f / dens).coerceIn(140f, 320f)
+                            if (settings) {
+                                // quality and speed, the same values the popup window shows
+                                Column(
+                                    Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)
+                                ) {
+                                    val autoLabel = if (player.quality == 0 && player.currentHeight > 0) "Auto ${player.currentHeight}p" else "Auto"
+                                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                        MiniChip(autoLabel, player.quality == 0) { player.changeQuality(0) }
+                                        player.heights.sortedDescending().forEach { q ->
+                                            MiniChip("${q}p", player.quality == q) { player.changeQuality(q) }
+                                        }
                                     }
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Rounded.OpenInFull, contentDescription = "Resize", tint = Color.White,
-                                modifier = Modifier.size(15.dp).rotate(90f)
-                            )
+                                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                        PopupSpeeds.forEach { sp ->
+                                            MiniChip(speedText(sp), player.speed == sp) { player.changeSpeed(sp) }
+                                        }
+                                    }
+                                }
+                            } else {
+                                Row(
+                                    Modifier.align(Alignment.TopEnd).padding(6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    MiniGlassButton(Icons.Rounded.Settings, "Quality and speed") { settings = true }
+                                    MiniGlassButton(Icons.Rounded.Fullscreen, "Fullscreen") {
+                                        controls = false
+                                        fullscreen = true
+                                        host.setActive(true)
+                                    }
+                                }
+                            }
                         }
-                    }
                     }
                 }
             }
