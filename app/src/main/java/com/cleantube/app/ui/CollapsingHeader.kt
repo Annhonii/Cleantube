@@ -99,15 +99,8 @@ fun TrackHeaderScroll(listState: LazyListState) {
     }
 }
 
-/** How visible the header is for a pager position: 1 on the Home / Shorts pages and in between, fading away beyond. */
-fun headerVisibility(pos: Float, homeIndex: Int, shortsIndex: Int): Float {
-    val idx = listOf(homeIndex, shortsIndex).filter { it >= 0 }
-    if (idx.isEmpty()) return 0f
-    val lo = idx.min().toFloat()
-    val hi = idx.max().toFloat()
-    val dist = if (pos < lo) lo - pos else if (pos > hi) pos - hi else 0f
-    return (1f - dist).coerceIn(0f, 1f)
-}
+/** How visible the header is for a pager position: it is on every tab page, so always 1 (kept so callers can still fade it). */
+fun headerVisibility(pos: Float, homeIndex: Int, shortsIndex: Int): Float = 1f
 
 /**
  * The header card. [pagerPosition] is the tab pager's position (page + offset); with it the card knows how far
@@ -130,10 +123,15 @@ fun CollapsingHeader(
     val shortsW: () -> Float = {
         if (shortsIndex < 0) 0f else (1f - kotlin.math.abs(pagerPosition() - shortsIndex)).coerceIn(0f, 1f)
     }
-    // 0 = expanded .. 1 = collapsed
+    // 1 on the Home page, 0 one page away: only Home has a feed the header collapses with
+    val homeW: () -> Float = {
+        if (homeIndex < 0) 0f else (1f - kotlin.math.abs(pagerPosition() - homeIndex)).coerceIn(0f, 1f)
+    }
+    // 0 = expanded .. 1 = collapsed. Home follows its scroll; every other tab (and Shorts) shows the collapsed bar,
+    // and swiping between Home and another tab shrinks / grows it in step with the page.
     val fOf: () -> Float = {
-        val h = homeF.value
-        (h + (1f - h) * shortsW()).coerceIn(0f, 1f)
+        val hw = homeW()
+        (homeF.value * hw + (1f - hw)).coerceIn(0f, 1f)
     }
 
     val firstName = Session.name.trim().substringBefore(' ').ifEmpty { "Davesh" }
