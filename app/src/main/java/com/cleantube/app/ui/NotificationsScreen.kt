@@ -101,7 +101,7 @@ private fun NotificationRow(n: NotificationItem, onClick: () -> Unit) {
             if (n.avatar.isNotEmpty()) {
                 AppImage(n.avatar, Modifier.size(46.dp), CircleShape)
             } else {
-                Box(Modifier.size(46.dp).clip(CircleShape).background(Hairline), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(46.dp).clip(CircleShape).background(TertiaryContainer), contentAlignment = Alignment.Center) {
                     androidx.compose.material3.Icon(Icons.Rounded.Notifications, contentDescription = null, tint = TextMuted, modifier = Modifier.size(22.dp))
                 }
             }
@@ -128,7 +128,7 @@ private fun NotificationRow(n: NotificationItem, onClick: () -> Unit) {
         }
         if (!n.read) {
             Spacer(Modifier.width(8.dp))
-            Box(Modifier.size(8.dp).clip(CircleShape).background(Accent))
+            Box(Modifier.size(8.dp).clip(CircleShape).background(Tertiary))
         }
     }
 }

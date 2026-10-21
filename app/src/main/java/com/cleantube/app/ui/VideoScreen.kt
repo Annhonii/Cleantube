@@ -365,7 +365,7 @@ fun VideoScreen(route: Route.Video) {
                     item {
                         val ch = channel ?: ChannelItem(video.channelId, video.channelTitle)
                         val subscribed = store.isSubscribed(ch.id)
-                        val subBg by animateColorAsState(if (subscribed) Hairline else Accent, tween(280), label = "subBg")
+                        val subBg by animateColorAsState(if (subscribed) SecondaryContainer else Accent, tween(280), label = "subBg")
                         val subFg by animateColorAsState(if (subscribed) TextPrimary else OnAccent, tween(280), label = "subFg")
                         Row(
                             Modifier

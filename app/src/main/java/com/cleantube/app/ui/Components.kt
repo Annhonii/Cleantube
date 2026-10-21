@@ -114,8 +114,8 @@ fun Pill(
     icon: ImageVector? = null,
     active: Boolean = false
 ) {
-    val bg by animateColorAsState(if (active) Accent else Card, tween(240), label = "pillBg")
-    val fg by animateColorAsState(if (active) OnAccent else TextPrimary, tween(240), label = "pillFg")
+    val bg by animateColorAsState(if (active) Accent else SecondaryContainer, tween(240), label = "pillBg")
+    val fg by animateColorAsState(if (active) OnAccent else OnSecondaryContainer, tween(240), label = "pillFg")
     val edge by animateColorAsState(if (active) Accent else Hairline, tween(240), label = "pillEdge")
     Row(
         modifier = modifier

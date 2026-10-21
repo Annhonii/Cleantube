@@ -321,10 +321,10 @@ private fun SettingsRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(48.dp).clip(RoundedCornerShape(17.dp)).background(Bg),
+            Modifier.size(48.dp).clip(RoundedCornerShape(17.dp)).background(TertiaryContainer),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
+            Icon(icon, contentDescription = null, tint = OnTertiaryContainer, modifier = Modifier.size(24.dp))
         }
         Spacer(Modifier.width(18.dp))
         Column(Modifier.weight(1f)) {

@@ -46,7 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.cleantube.app.data.Session
 import kotlin.math.roundToInt
 
-// Collapsing top header (Material You style): a floating rounded card below the status bar.
+// Collapsing top header (Material You style): a flat full-width bar, no card.
 // One card for the whole app, drawn above the tab pager (see App.kt): on Home it collapses with the feed's scroll,
 // on Shorts it floats over the video already collapsed, and swiping / tapping between the two shrinks or grows it
 // in step with the page movement. On the other tabs it slides away.
@@ -60,9 +60,9 @@ import kotlin.math.roundToInt
 // 1 = collapsed) that follows the list's scroll through a spring, and the size / position of every part is
 // worked out from it in the layout phase: no recomposition per frame, no jumps.
 
-private val CardMargin = 12.dp      // space between the card and the screen's left / right edge
+private val CardMargin = 0.dp      // space between the card and the screen's left / right edge
 private val CardTop = 8.dp          // space between the status bar and the card
-private val InnerPad = 14.dp        // space between the card's edge and what is inside
+private val InnerPad = 16.dp        // space between the card's edge and what is inside
 private val Gap = 10.dp
 private val AvatarBig = 56.dp
 private val AvatarSmall = 40.dp
@@ -144,7 +144,7 @@ fun CollapsingHeader(
             // 0: greeting (fades out and slides toward the photo while collapsing)
             Text(
                 "Hi, $firstName!",
-                color = OnAccentSoft, fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
+                color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, softWrap = false, overflow = TextOverflow.Clip,
                 modifier = Modifier.graphicsLayer {
                     val p = fOf()
@@ -160,7 +160,7 @@ fun CollapsingHeader(
             Box(
                 Modifier
                     .clip(CircleShape)
-                    .background(Card)
+                    .background(SecondaryContainer)
                     .bouncyClickable(pressedScale = 0.9f, onClick = { if (nav.current != Route.Settings) nav.push(Route.Settings) }),
                 contentAlignment = Alignment.Center
             ) {
@@ -171,7 +171,7 @@ fun CollapsingHeader(
             Row(
                 Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(Bg)
+                    .background(Card)
                     .bouncyClickable(pressedScale = 0.98f, onClick = { nav.push(Route.Search()) })
                     .padding(horizontal = 18.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -193,25 +193,25 @@ fun CollapsingHeader(
                 translationY = -(1f - v) * 36.dp.toPx()
             }
             .drawBehind {
-                val p = fOf()
                 val w = shortsW()
-                // screen colour behind the status bar and around the card, so the feed never shows through there
-                // (not on Shorts: there the video stays visible around the card)
+                // flat bar over the full screen width (status bar included), in the screen colour: part of the page, not a card.
+                // The feed slides under it with a soft fade. Over a Short the bar goes away and only a dark scrim stays,
+                // so the search pill and photo float on the video.
                 val bgA = 1f - w
+                val barH = size.height
                 if (bgA > 0f) {
-                    drawRect(Bg, alpha = bgA)
+                    drawRect(Bg, size = Size(size.width, barH), alpha = bgA)
                     drawRect(
-                        Brush.verticalGradient(listOf(Bg, Color.Transparent), startY = size.height, endY = size.height + FadeBelow.toPx()),
-                        topLeft = Offset(0f, size.height), size = Size(size.width, FadeBelow.toPx()), alpha = bgA
+                        Brush.verticalGradient(listOf(Bg, Color.Transparent), startY = barH, endY = barH + FadeBelow.toPx()),
+                        topLeft = Offset(0f, barH), size = Size(size.width, FadeBelow.toPx()), alpha = bgA
                     )
                 }
-                val cardH = lf(CardBig.toPx(), CardSmall.toPx(), p)
-                val r = lf(32.dp.toPx(), 28.dp.toPx(), p)
-                val left = CardMargin.toPx()
-                val top = sbPx + CardTop.toPx()
-                val width = size.width - 2 * left
-                // the card: all four corners rounded
-                drawRoundRect(AccentSoft, Offset(left, top), Size(width, cardH), CornerRadius(r, r))
+                if (w > 0f) {
+                    drawRect(
+                        Brush.verticalGradient(listOf(Color(0x99000000), Color.Transparent), startY = 0f, endY = barH),
+                        size = Size(size.width, barH), alpha = w
+                    )
+                }
             }
     ) { measurables, c ->
         val p = fOf()

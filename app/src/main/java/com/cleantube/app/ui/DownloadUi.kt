@@ -256,9 +256,9 @@ private fun DownloadRow(d: DownloadItem) {
             val shownProgress by animateFloatAsState(d.progress, tween(500, easing = LinearOutSlowInEasing), label = "dlProgress")
             if (live) {
                 if (running && d.phase.isEmpty() && d.progress > 0f) {
-                    LinearProgressIndicator(progress = { shownProgress }, modifier = Modifier.fillMaxWidth(), color = Accent, trackColor = Hairline)
+                    LinearProgressIndicator(progress = { shownProgress }, modifier = Modifier.fillMaxWidth(), color = Accent, trackColor = SecondaryContainer)
                 } else {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Accent, trackColor = Hairline)
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Accent, trackColor = SecondaryContainer)
                 }
             }
 

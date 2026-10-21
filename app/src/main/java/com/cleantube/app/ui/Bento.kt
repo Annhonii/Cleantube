@@ -105,7 +105,7 @@ fun CompactRankRow(all: List<VideoItem>, index: Int, onOpen: (VideoItem) -> Unit
     val v = all.getOrNull(index) ?: return
     Row(Modifier.fillMaxWidth().padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
-            "${index + 1}", color = Accent, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+            "${index + 1}", color = Tertiary, fontSize = 20.sp, fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center, modifier = Modifier.width(30.dp)
         )
         CompactRow(v, onClick = { onOpen(v) }, modifier = Modifier.weight(1f))
@@ -125,10 +125,10 @@ fun ActionTile(
         modifier
             .size(52.dp)
             .clip(CircleShape)
-            .background(if (active) Accent else Card)
+            .background(if (active) Accent else SecondaryContainer)
             .bouncyClickable(pressedScale = 0.88f, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = label, tint = if (active) OnAccent else TextPrimary, modifier = Modifier.size(22.dp))
+        Icon(icon, contentDescription = label, tint = if (active) OnAccent else OnSecondaryContainer, modifier = Modifier.size(22.dp))
     }
 }

@@ -49,8 +49,14 @@ private val LightScheme = lightColorScheme(
     onPrimary = Color.White,
     primaryContainer = Color(0xFFF0F0F0),
     onPrimaryContainer = Color.Black,
-    secondary = Color.Black,
+    secondary = Color(0xFF3A3A3A),
     onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE4E4E4),
+    onSecondaryContainer = Color.Black,
+    tertiary = Color(0xFF5E5E5E),
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFD6D6D6),
+    onTertiaryContainer = Color.Black,
     background = Color.White,
     onBackground = Color.Black,
     surface = Color.White,
@@ -74,8 +80,14 @@ private val DarkScheme = darkColorScheme(
     onPrimary = Color.Black,
     primaryContainer = Color(0xFF1F1F1F),
     onPrimaryContainer = Color.White,
-    secondary = Color.White,
+    secondary = Color(0xFFD0D0D0),
     onSecondary = Color.Black,
+    secondaryContainer = Color(0xFF2C2C2C),
+    onSecondaryContainer = Color.White,
+    tertiary = Color(0xFFA8A8A8),
+    onTertiary = Color.Black,
+    tertiaryContainer = Color(0xFF3A3A3A),
+    onTertiaryContainer = Color.White,
     background = Color.Black,
     onBackground = Color.White,
     surface = Color.Black,
@@ -106,10 +118,28 @@ private object Palette {
     var accentSoft by mutableStateOf(Color(0xFFFDE4E4))
     var onAccentSoft by mutableStateOf(Color(0xFF7A0A0E))
     var danger by mutableStateOf(Live)
+    var secondary by mutableStateOf(Color(0xFF3A3A3A))
+    var secondaryContainer by mutableStateOf(Color(0xFFE4E4E4))
+    var onSecondaryContainer by mutableStateOf(Color.Black)
+    var tertiary by mutableStateOf(Color(0xFF5E5E5E))
+    var tertiaryContainer by mutableStateOf(Color(0xFFD6D6D6))
+    var onTertiaryContainer by mutableStateOf(Color.Black)
+    var surfaceLow by mutableStateOf(Color(0xFFF8F8F8))
+    var surfaceMid by mutableStateOf(Color(0xFFF2F2F2))
+    var surfaceHighest by mutableStateOf(Color(0xFFE6E6E6))
     var nav by mutableStateOf(Color(0xFF15181D))
     var onNav by mutableStateOf(Color.White)
 
     fun apply(s: androidx.compose.material3.ColorScheme) {
+        secondary = s.secondary
+        secondaryContainer = s.secondaryContainer
+        onSecondaryContainer = s.onSecondaryContainer
+        tertiary = s.tertiary
+        tertiaryContainer = s.tertiaryContainer
+        onTertiaryContainer = s.onTertiaryContainer
+        surfaceLow = s.surfaceContainerLow
+        surfaceMid = s.surfaceContainer
+        surfaceHighest = s.surfaceContainerHighest
         nav = s.surfaceContainerHigh
         onNav = s.onSurface
         bg = s.background
@@ -144,6 +174,23 @@ val OnAccent: Color get() = Palette.onAccent
 /** Soft tinted background of the selected tab and the colour for its icon / label. */
 val AccentSoft: Color get() = Palette.accentSoft
 val OnAccentSoft: Color get() = Palette.onAccentSoft
+
+/**
+ * The other tones of the scheme, so a video's colour reaches more than the accent: with a video open these come
+ * from its thumbnail (secondary = calmer shade of the same hue, tertiary = the shifted hue, containers = soft fills).
+ * Idle they are plain greys.
+ */
+val Secondary: Color get() = Palette.secondary
+val SecondaryContainer: Color get() = Palette.secondaryContainer
+val OnSecondaryContainer: Color get() = Palette.onSecondaryContainer
+val Tertiary: Color get() = Palette.tertiary
+val TertiaryContainer: Color get() = Palette.tertiaryContainer
+val OnTertiaryContainer: Color get() = Palette.onTertiaryContainer
+
+/** Surface steps from lightest to strongest: [SurfaceLow] < [SurfaceMid] < [Card] < [SurfaceHighest]. */
+val SurfaceLow: Color get() = Palette.surfaceLow
+val SurfaceMid: Color get() = Palette.surfaceMid
+val SurfaceHighest: Color get() = Palette.surfaceHighest
 
 /** Bottom navigation pill, and the colour of the icons / selected chip on it. */
 val NavBg: Color get() = Palette.nav
