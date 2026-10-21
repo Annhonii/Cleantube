@@ -366,7 +366,7 @@ fun VideoRow(
                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0x80000000))))
             )
             if (v.live) {
-                Badge("LIVE", Color(0xFFFF0000), Modifier.align(Alignment.BottomEnd).padding(10.dp))
+                Badge("LIVE", Color.Black, Modifier.align(Alignment.BottomEnd).padding(10.dp))
             } else if (v.durationSec > 0) {
                 Badge(formatDuration(v.durationSec), Color(0xB3000000), Modifier.align(Alignment.BottomEnd).padding(10.dp))
             }

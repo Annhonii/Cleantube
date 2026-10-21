@@ -36,19 +36,20 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 // Colours when no video is open:
-//  - only black, white and YouTube red. Roles: surfaces / text = white or black (greys between them);
-//    header card + tiles = neutral container; RED = "active / important" only (selected tab, buttons, progress, LIVE).
+//  - monochrome: black and white only (greys between them). Roles: surfaces / text = white or black;
+//    header card + tiles = neutral container; ACCENT (black in light, white in dark) = selected tab, buttons, progress.
+//    Red (YtRed) is kept only as the "danger" colour while a video's colours are active.
 // As soon as a video opens, the colours follow that video's thumbnail instead (see "colours from the playing video").
 
 private val YtRed = Color(0xFFFF0000)
 private val Live = YtRed
 
 private val LightScheme = lightColorScheme(
-    primary = YtRed,
+    primary = Color.Black,
     onPrimary = Color.White,
     primaryContainer = Color(0xFFF0F0F0),
     onPrimaryContainer = Color.Black,
-    secondary = YtRed,
+    secondary = Color.Black,
     onSecondary = Color.White,
     background = Color.White,
     onBackground = Color.Black,
@@ -63,18 +64,18 @@ private val LightScheme = lightColorScheme(
     surfaceContainerHighest = Color(0xFFE6E6E6),
     outline = Color(0xFF909090),
     outlineVariant = Color(0xFFE0E0E0),
-    error = YtRed,
+    error = Color.Black,
     inverseSurface = Color.Black,
     inverseOnSurface = Color.White
 )
 
 private val DarkScheme = darkColorScheme(
-    primary = YtRed,
-    onPrimary = Color.White,
+    primary = Color.White,
+    onPrimary = Color.Black,
     primaryContainer = Color(0xFF1F1F1F),
     onPrimaryContainer = Color.White,
-    secondary = YtRed,
-    onSecondary = Color.White,
+    secondary = Color.White,
+    onSecondary = Color.Black,
     background = Color.Black,
     onBackground = Color.White,
     surface = Color.Black,
@@ -88,7 +89,7 @@ private val DarkScheme = darkColorScheme(
     surfaceContainerHighest = Color(0xFF262626),
     outline = Color(0xFF6E6E6E),
     outlineVariant = Color(0xFF2A2A2A),
-    error = YtRed,
+    error = Color.White,
     inverseSurface = Color.White,
     inverseOnSurface = Color.Black
 )
@@ -100,7 +101,7 @@ private object Palette {
     var hairline by mutableStateOf(Color(0xFFE8EAED))
     var text by mutableStateOf(Color(0xFF0F0F10))
     var muted by mutableStateOf(Color(0xFF6B7280))
-    var accent by mutableStateOf(YtRed)
+    var accent by mutableStateOf(Color.Black)
     var onAccent by mutableStateOf(Color.White)
     var accentSoft by mutableStateOf(Color(0xFFFDE4E4))
     var onAccentSoft by mutableStateOf(Color(0xFF7A0A0E))
