@@ -23,7 +23,7 @@ fun HomeScreen() {
     // The header floats over the list: the feed starts below it and scrolls up underneath while it collapses.
     Box(Modifier.fillMaxSize()) {
         val paged = TabCache.paged("home:$loggedIn:${Session.handle}") { token -> Api.home(token) }
-        val headerH = collapsingHeaderHeight()
+        val headerH = collapsingHeaderHeight(Route.Home)
         PagedColumn(
             paged = paged,
             emptyText = "Nothing to show right now. Pull to retry from the Feed tab, or check your connection.",

@@ -117,7 +117,7 @@ private fun AccountFeedScreen() {
     val stripChannels = accountChannels.ifEmpty { Graph.store.subscriptions }
 
     // The header floats over the list (see CollapsingHeader): the feed starts below it and collapses it while scrolling.
-    val headerH = collapsingHeaderHeight()
+    val headerH = collapsingHeaderHeight(Route.Feed)
     Box(Modifier.fillMaxSize()) {
         PagedColumn(
             paged,
@@ -165,7 +165,7 @@ private fun LocalFeedScreen() {
         if (subs.isNotEmpty() && !FeedCache.valid(subs)) load()
     }
 
-    val headerH = collapsingHeaderHeight()
+    val headerH = collapsingHeaderHeight(Route.Feed)
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     Box(Modifier.fillMaxSize()) {
         val list = items
@@ -263,7 +263,7 @@ fun LibraryScreen() {
     val nav = LocalNav.current
     val store = Graph.store
 
-    val headerH = collapsingHeaderHeight()
+    val headerH = collapsingHeaderHeight(Route.Library)
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     Box(Modifier.fillMaxSize()) {
         LazyColumn(

@@ -59,7 +59,7 @@ import kotlin.math.roundToInt
 //             ( search bar, full width            (round button) )
 //  collapsed: ( photo, small ) ( search bar, up to the right edge )
 //
-// A red glow (same red in light and dark mode) sits behind the expanded header and fades away while it collapses. Everything is driven by ONE number (0 = expanded,
+// A red glow (same red in light and dark mode) sits behind the header, expanded and collapsed. Everything is driven by ONE number (0 = expanded,
 // 1 = collapsed) that follows the list's scroll through a spring, and the size / position of every part is
 // worked out from it in the layout phase: no recomposition per frame, no jumps.
 
@@ -83,9 +83,21 @@ private val BelowCard = 4.dp
 // The red of the header glow. One fixed colour, the same in light and dark mode (taken from the dark design).
 private val HeaderRed = Color(0xFFC62A3F)
 
-/** Full (expanded) height of [CollapsingHeader]: use it as the top padding of the list underneath. */
+// One spring for the header and for the list padding under it, so the feed follows the header exactly.
+private val HeaderSpring = spring<Float>(dampingRatio = 0.9f, stiffness = 380f)
+
+/**
+ * Current height of [CollapsingHeader] for the feed of [route]: use it as the top padding of that feed. It follows
+ * the header (big -> small with the same spring), so the feed moves up together with the header and no empty gap
+ * is left under the collapsed bar.
+ */
 @Composable
-fun collapsingHeaderHeight(): Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + CardTop + CardBig + BelowCard
+fun collapsingHeaderHeight(route: Route = Route.Home): Dp {
+    val p by animateFloatAsState(HeaderScroll.get(route), HeaderSpring, label = "headerPadding")
+    val t = p.coerceIn(0f, 1f)
+    return WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + CardTop +
+        androidx.compose.ui.unit.lerp(CardBig, CardSmall, t) + BelowCard
+}
 
 private fun li(a: Int, b: Int, t: Float) = (a + (b - a) * t).roundToInt()
 private fun lf(a: Float, b: Float, t: Float) = a + (b - a) * t
@@ -155,7 +167,7 @@ fun CollapsingHeader(
     val sbPx = WindowInsets.statusBars.getTop(density)
 
     // spring smoothing: the card glides to where each feed's scroll wants it instead of snapping with every pixel
-    val spec = spring<Float>(dampingRatio = 0.9f, stiffness = 380f)
+    val spec = HeaderSpring
     val homeF = animateFloatAsState(HeaderScroll.get(Route.Home), spec, label = "headerHome")
     val feedF = animateFloatAsState(HeaderScroll.get(Route.Feed), spec, label = "headerFeed")
     val libF = animateFloatAsState(HeaderScroll.get(Route.Library), spec, label = "headerLibrary")
@@ -242,7 +254,6 @@ fun CollapsingHeader(
             }
             .drawBehind {
                 val w = shortsW()
-                val p = fOf()
                 // flat bar over the full screen width (status bar included), in the screen colour: part of the page, not a card.
                 // The feed slides under it with a clean edge. Over a Short the bar goes away and only a dark scrim stays,
                 // so the search bar and photo float on the video.
@@ -251,8 +262,8 @@ fun CollapsingHeader(
                 if (bgA > 0f) {
                     drawRect(Bg, size = Size(size.width, barH), alpha = bgA)
                     // red glow from the top left, the same red in light and dark mode; it melts into the screen colour
-                    // towards the bottom and goes away while the header collapses
-                    val glowA = (1f - p) * bgA
+                    // towards the bottom and stays behind the collapsed bar too
+                    val glowA = bgA
                     if (glowA > 0.01f) {
                         drawRect(
                             Brush.radialGradient(
