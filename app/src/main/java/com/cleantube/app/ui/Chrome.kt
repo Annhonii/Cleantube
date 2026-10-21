@@ -352,7 +352,7 @@ private fun ShortsIcon(color: () -> Color, modifier: Modifier = Modifier) {
  * its name; the others stay plain icons. Tabs and their order still come from Settings.
  */
 @Composable
-fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
+fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifier = Modifier) {
     val nav = LocalNav.current
     val tabs = visibleTabs(Graph.store)
     val dark = isSystemInDarkTheme()
@@ -360,23 +360,26 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
     val surface = NavBg
     val plain = TextMuted
     val shadowColor = Color.Black.copy(alpha = if (dark) 0.45f else 0.14f)
-    val shape = RoundedCornerShape(34.dp)
+    // 0 = full dock .. 1 = compact dock over a Short. Follows the pager like the header card does, so the dock
+    // shrinks / grows in step with the page while you swipe, and glides with the pager's spring after a tap.
+    val s = if (shortsIndex < 0) 0f else (1f - abs(position() - shortsIndex)).coerceIn(0f, 1f)
+    val shape = RoundedCornerShape((34f - 6f * s).dp)
     Row(
         modifier
             .navigationBarsPadding()
-            .padding(horizontal = 18.dp, vertical = 12.dp)
+            .padding(horizontal = (18f + 26f * s).dp, vertical = (12f - 2f * s).dp)
             .fillMaxWidth()
             .shadow(10.dp, shape, clip = false, ambientColor = shadowColor, spotColor = shadowColor)
             .clip(shape)
             .background(surface)
-            .padding(6.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+            .padding((6f - 2f * s).dp),
+        horizontalArrangement = Arrangement.spacedBy((4f - s).dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         tabs.forEachIndexed { i, t ->
             val sel = i == selected
             val w by androidx.compose.animation.core.animateFloatAsState(
-                if (sel) 2.2f else 1f,
+                if (sel) 2.2f - 0.3f * s else 1f - 0.45f * s,
                 androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 400f),
                 label = "dockW"
             )
@@ -384,16 +387,16 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
             val fg by androidx.compose.animation.animateColorAsState(if (sel) OnAccentSoft else plain, androidx.compose.animation.core.tween(220), label = "dockFg")
             Row(
                 Modifier
-                    .weight(w)
-                    .height(52.dp)
-                    .clip(RoundedCornerShape(26.dp))
+                    .weight(w.coerceAtLeast(0.05f))
+                    .height((52f - 10f * s).dp)
+                    .clip(RoundedCornerShape((26f - 5f * s).dp))
                     .background(bg)
                     .bouncyClickable(pressedScale = 0.9f, onClick = { nav.selectTab(t.route) }),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (t.route == Route.Shorts) ShortsIcon({ fg }, Modifier.size(22.dp))
-                else Icon(t.icon, contentDescription = t.label, tint = fg, modifier = Modifier.size(24.dp))
+                if (t.route == Route.Shorts) ShortsIcon({ fg }, Modifier.size((22f - 2f * s).dp))
+                else Icon(t.icon, contentDescription = t.label, tint = fg, modifier = Modifier.size((24f - 3f * s).dp))
                 if (sel) {
                     Spacer(Modifier.width(6.dp))
                     Text(t.label, color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)

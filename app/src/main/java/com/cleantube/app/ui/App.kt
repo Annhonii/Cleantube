@@ -133,13 +133,13 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
 
             // the search bar floats up when a tab opens and drops away when a screen is pushed
             AnimatedVisibility(
-                // not on the Shorts tab: the Short fills the whole screen (swipe sideways or use Back to leave it)
-                visible = nav.isTabRoot && nav.current != Route.Shorts,
+                // on the Shorts tab it floats over the Short, shrunk (see BottomNavPill); hides under a Shorts sheet / menu
+                visible = nav.isTabRoot && !(nav.current == Route.Shorts && ShortsUi.overlayOpen),
                 modifier = Modifier.align(Alignment.BottomCenter),
                 enter = slideInVertically(spring(dampingRatio = 0.72f, stiffness = 420f)) { it } + fadeIn(tween(220)),
                 exit = slideOutVertically(tween(240, easing = Motion.EmphasizedAccelerate)) { it } + fadeOut(tween(160))
             ) {
-                BottomNavPill(position = chipPosition)
+                BottomNavPill(position = chipPosition, shortsIndex = shortsIdx)
             }
 
             // the video page / mini player: above the screens and the bottom bar
