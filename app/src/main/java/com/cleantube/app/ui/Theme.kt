@@ -24,7 +24,13 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.toArgb
-import androidx.core.graphics.ColorUtils
+import android.annotation.SuppressLint
+import com.google.android.material.color.utilities.DynamicColor
+import com.google.android.material.color.utilities.Hct
+import com.google.android.material.color.utilities.MaterialDynamicColors
+import com.google.android.material.color.utilities.SchemeMonochrome
+import com.google.android.material.color.utilities.SchemeNeutral
+import com.google.android.material.color.utilities.SchemeTonalSpot
 import androidx.palette.graphics.Palette as ImagePalette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -181,8 +187,8 @@ private fun typographyWith(f: FontFamily): Typography {
 // ---------------------------------------------------------------- colours from the playing video
 //
 // Same idea as music apps that tint themselves with the album art: the thumbnail of the video that is open is
-// loaded small, its main colour is picked (Palette: vibrant first, then dominant, muted ...), and a whole colour scheme
-// (accent, backgrounds, cards, text) is built around that one colour. Every colour fades to the new one, so changing
+// loaded small, its main colour is picked (Palette: vibrant first, then dominant, muted ...), and a whole Material 3
+// colour scheme (accent, backgrounds, cards, text) is generated from that one colour, exactly like ArchiveTune. Every colour fades to the new one, so changing
 // the video changes the app's look smoothly. No video open = the normal colours again.
 
 /** Main colour of a thumbnail, or null when it can't be loaded. Runs on a background thread. */
@@ -202,41 +208,39 @@ private fun thumbnailSeed(videoId: String): Color? = try {
     null
 }
 
-private fun hsl(h: Float, s: Float, l: Float): Color =
-    Color(ColorUtils.HSLToColor(floatArrayOf(((h % 360f) + 360f) % 360f, s.coerceIn(0f, 1f), l.coerceIn(0f, 1f))))
-
-/** A full Material colour scheme built around one seed colour. Grey thumbnails give a calm neutral scheme. */
+/**
+ * A full Material 3 colour scheme from one seed colour, made the way ArchiveTune does it: the seed is turned into
+ * an HCT colour and, depending on how colourful it is, a Monochrome / Neutral / TonalSpot scheme is generated.
+ */
+@SuppressLint("RestrictedApi")
 private fun seedScheme(seed: Color, dark: Boolean): ColorScheme {
-    val f = FloatArray(3)
-    ColorUtils.colorToHSL(seed.toArgb(), f)
-    val h = f[0]
-    val grey = f[1] < 0.12f
-    val s = if (grey) 0.06f else f[1].coerceIn(0.45f, 0.9f)
-    val t = if (grey) 0.04f else s * 0.28f   // tint of the backgrounds: subtle
-    return if (dark) darkColorScheme(
-        primary = hsl(h, s, 0.72f), onPrimary = hsl(h, s * 0.8f, 0.11f),
-        primaryContainer = hsl(h, s * 0.7f, 0.24f), onPrimaryContainer = hsl(h, s, 0.89f),
-        secondary = hsl(h, s * 0.6f, 0.72f), onSecondary = hsl(h, s * 0.6f, 0.11f),
-        background = hsl(h, t, 0.07f), onBackground = hsl(h, 0.08f, 0.93f),
-        surface = hsl(h, t, 0.07f), onSurface = hsl(h, 0.08f, 0.93f),
-        surfaceVariant = hsl(h, t, 0.14f), onSurfaceVariant = hsl(h, t * 0.7f, 0.72f),
-        surfaceContainerLowest = hsl(h, t, 0.05f), surfaceContainerLow = hsl(h, t, 0.09f),
-        surfaceContainer = hsl(h, t, 0.12f), surfaceContainerHigh = hsl(h, t, 0.155f),
-        surfaceContainerHighest = hsl(h, t, 0.2f),
-        outline = hsl(h, t, 0.5f), outlineVariant = hsl(h, t, 0.22f),
-        error = Live, inverseSurface = hsl(h, 0.08f, 0.91f), inverseOnSurface = hsl(h, t, 0.12f)
-    ) else lightColorScheme(
-        primary = hsl(h, s, 0.38f), onPrimary = Color.White,
-        primaryContainer = hsl(h, s, 0.88f), onPrimaryContainer = hsl(h, s, 0.14f),
-        secondary = hsl(h, s * 0.6f, 0.4f), onSecondary = Color.White,
-        background = hsl(h, t, 0.965f), onBackground = hsl(h, 0.1f, 0.07f),
-        surface = hsl(h, t, 0.965f), onSurface = hsl(h, 0.1f, 0.07f),
-        surfaceVariant = hsl(h, t, 0.93f), onSurfaceVariant = hsl(h, t * 0.7f, 0.38f),
-        surfaceContainerLowest = Color.White, surfaceContainerLow = hsl(h, t, 0.975f),
-        surfaceContainer = hsl(h, t, 0.945f), surfaceContainerHigh = hsl(h, t, 0.925f),
-        surfaceContainerHighest = hsl(h, t, 0.9f),
-        outline = hsl(h, t, 0.55f), outlineVariant = hsl(h, t, 0.86f),
-        error = Live, inverseSurface = hsl(h, 0.1f, 0.12f), inverseOnSurface = Color.White
+    val hct = Hct.fromInt(seed.toArgb())
+    val sch = when {
+        hct.chroma < 4.0 -> SchemeMonochrome(hct, dark, 0.0)
+        hct.chroma < 12.0 -> SchemeNeutral(hct, dark, 0.0)
+        else -> SchemeTonalSpot(hct, dark, 0.0)
+    }
+    val m = MaterialDynamicColors()
+    fun c(d: DynamicColor) = Color(d.getArgb(sch))
+    return (if (dark) darkColorScheme() else lightColorScheme()).copy(
+        primary = c(m.primary()), onPrimary = c(m.onPrimary()),
+        primaryContainer = c(m.primaryContainer()), onPrimaryContainer = c(m.onPrimaryContainer()),
+        inversePrimary = c(m.inversePrimary()),
+        secondary = c(m.secondary()), onSecondary = c(m.onSecondary()),
+        secondaryContainer = c(m.secondaryContainer()), onSecondaryContainer = c(m.onSecondaryContainer()),
+        tertiary = c(m.tertiary()), onTertiary = c(m.onTertiary()),
+        tertiaryContainer = c(m.tertiaryContainer()), onTertiaryContainer = c(m.onTertiaryContainer()),
+        background = c(m.background()), onBackground = c(m.onBackground()),
+        surface = c(m.surface()), onSurface = c(m.onSurface()),
+        surfaceVariant = c(m.surfaceVariant()), onSurfaceVariant = c(m.onSurfaceVariant()),
+        surfaceTint = c(m.surfaceTint()),
+        inverseSurface = c(m.inverseSurface()), inverseOnSurface = c(m.inverseOnSurface()),
+        outline = c(m.outline()), outlineVariant = c(m.outlineVariant()),
+        surfaceBright = c(m.surfaceBright()), surfaceDim = c(m.surfaceDim()),
+        surfaceContainerLowest = c(m.surfaceContainerLowest()), surfaceContainerLow = c(m.surfaceContainerLow()),
+        surfaceContainer = c(m.surfaceContainer()), surfaceContainerHigh = c(m.surfaceContainerHigh()),
+        surfaceContainerHighest = c(m.surfaceContainerHighest()),
+        error = Live
     )
 }
 
@@ -249,6 +253,10 @@ private fun animatedScheme(t: ColorScheme): ColorScheme {
         primary = a(t.primary), onPrimary = a(t.onPrimary),
         primaryContainer = a(t.primaryContainer), onPrimaryContainer = a(t.onPrimaryContainer),
         secondary = a(t.secondary), onSecondary = a(t.onSecondary),
+        secondaryContainer = a(t.secondaryContainer), onSecondaryContainer = a(t.onSecondaryContainer),
+        tertiary = a(t.tertiary), onTertiary = a(t.onTertiary),
+        tertiaryContainer = a(t.tertiaryContainer), onTertiaryContainer = a(t.onTertiaryContainer),
+        inversePrimary = a(t.inversePrimary), surfaceBright = a(t.surfaceBright), surfaceDim = a(t.surfaceDim),
         background = a(t.background), onBackground = a(t.onBackground),
         surface = a(t.surface), onSurface = a(t.onSurface),
         surfaceVariant = a(t.surfaceVariant), onSurfaceVariant = a(t.onSurfaceVariant),
