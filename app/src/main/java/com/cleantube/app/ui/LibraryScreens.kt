@@ -127,7 +127,6 @@ private fun AccountFeedScreen() {
             header = { item { SubscriptionStrip(stripChannels, paged.items) } },
             indexRow = { i -> BentoFeedItem(paged.items, i) { v -> nav.push(Route.Video(v.id, v)) } }
         )
-        TrackHeaderScroll(paged.listState, Route.Feed)
     }
 }
 
@@ -187,7 +186,6 @@ private fun LocalFeedScreen() {
                 }
             }
         }
-        TrackHeaderScroll(listState, Route.Feed)
     }
 }
 
@@ -306,7 +304,6 @@ fun LibraryScreen() {
                 }
             }
         }
-        TrackHeaderScroll(listState, Route.Library)
     }
 }
 

@@ -105,22 +105,17 @@ private fun lf(a: Float, b: Float, t: Float) = a + (b - a) * t
 /** Scroll of the Home feed as 0 (top) .. 1 (fully scrolled past the card's growth); written by [TrackHeaderScroll]. */
 object HeaderScroll {
     private val home = androidx.compose.runtime.mutableFloatStateOf(0f)
-    private val feed = androidx.compose.runtime.mutableFloatStateOf(0f)
-    private val library = androidx.compose.runtime.mutableFloatStateOf(0f)
 
     /** Scroll (0..1) of the feed that belongs to [route]; tabs without a scroll-following feed are always 1 (collapsed). */
     fun get(route: Route): Float = when (route) {
         Route.Home -> home.floatValue
-        Route.Feed -> feed.floatValue
-        Route.Library -> library.floatValue
+        // Subscription (Feed) and Library keep the small search bar fixed, like Shorts
         else -> 1f
     }
 
     fun set(route: Route, v: Float) {
         when (route) {
             Route.Home -> home.floatValue = v
-            Route.Feed -> feed.floatValue = v
-            Route.Library -> library.floatValue = v
             else -> Unit
         }
     }
@@ -169,19 +164,15 @@ fun CollapsingHeader(
     // spring smoothing: the card glides to where each feed's scroll wants it instead of snapping with every pixel
     val spec = HeaderSpring
     val homeF = animateFloatAsState(HeaderScroll.get(Route.Home), spec, label = "headerHome")
-    val feedF = animateFloatAsState(HeaderScroll.get(Route.Feed), spec, label = "headerFeed")
-    val libF = animateFloatAsState(HeaderScroll.get(Route.Library), spec, label = "headerLibrary")
     // 1 on the Shorts page, 0 one page away: the card shrinks / grows while the pages slide
     val shortsW: () -> Float = {
         if (shortsIndex < 0) 0f else (1f - kotlin.math.abs(pagerPosition() - shortsIndex)).coerceIn(0f, 1f)
     }
-    // 0 = expanded .. 1 = collapsed. Home, Subscription and Library follow their own feed's scroll; Shorts (and any
-    // other page) shows the collapsed bar. While swiping between two pages the value glides between theirs.
+    // 0 = expanded .. 1 = collapsed. Home follows its feed's scroll; Subscription, Library and Shorts (and any
+    // other page) always show the small collapsed bar. While swiping between two pages the value glides between theirs.
     val pageValue: (Int) -> Float = { i ->
         when (routes.getOrNull(i)) {
             Route.Home -> homeF.value
-            Route.Feed -> feedF.value
-            Route.Library -> libF.value
             else -> 1f
         }
     }
