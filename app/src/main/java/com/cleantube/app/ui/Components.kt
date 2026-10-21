@@ -122,7 +122,6 @@ fun Pill(
             .bouncyClickable(pressedScale = 0.92f, onClick = onClick)
             .clip(CircleShape)
             .background(bg)
-            .border(BorderStroke(1.dp, edge), CircleShape)
             .padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
@@ -153,7 +152,6 @@ fun PillTextField(
         modifier = modifier
             .clip(CircleShape)
             .background(Card)
-            .border(BorderStroke(1.dp, Hairline), CircleShape)
             .heightIn(min = 46.dp)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -344,18 +342,14 @@ fun VideoRow(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 7.dp)
-            .clip(RoundedCornerShape(28.dp))
-            .background(Card)
-            .border(1.dp, Hairline, RoundedCornerShape(28.dp))
-            .bouncyClickable(pressedScale = 0.975f, onClick = onClick)
-            .padding(6.dp)
+            .bouncyClickable(pressedScale = 0.98f, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 9.dp)
     ) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(24.dp))
+                .clip(RoundedCornerShape(28.dp))
                 .background(Hairline)
         ) {
             VideoThumb(v.id, Modifier.fillMaxSize())
@@ -374,7 +368,7 @@ fun VideoRow(
             }
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 2.dp, top = 12.dp, bottom = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 2.dp, end = 0.dp, top = 12.dp, bottom = 2.dp),
             verticalAlignment = Alignment.Top
         ) {
             Box(
@@ -406,7 +400,7 @@ fun VideoRow(
                     fontSize = 15.sp,
                     lineHeight = 21.sp,
                     letterSpacing = (-0.1).sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -537,7 +531,6 @@ fun ChannelRow(c: ChannelItem, onClick: () -> Unit, trailing: (@Composable () ->
             .bouncyClickable(pressedScale = 0.97f, onClick = onClick)
             .clip(RoundedCornerShape(24.dp))
             .background(Card)
-            .border(1.dp, Hairline, RoundedCornerShape(24.dp))
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -570,7 +563,6 @@ fun PlaylistRow(p: PlaylistItem, onClick: () -> Unit) {
             .bouncyClickable(pressedScale = 0.97f, onClick = onClick)
             .clip(RoundedCornerShape(24.dp))
             .background(Card)
-            .border(1.dp, Hairline, RoundedCornerShape(24.dp))
             .padding(10.dp),
         verticalAlignment = Alignment.Top
     ) {

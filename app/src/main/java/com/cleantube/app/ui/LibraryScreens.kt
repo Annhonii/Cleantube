@@ -198,14 +198,13 @@ private fun LibEntry(icon: ImageVector, title: String, subtitle: String, onClick
             .fillMaxWidth()
             .clip(RoundedCornerShape(26.dp))
             .background(Card)
-            .border(1.dp, Hairline, RoundedCornerShape(26.dp))
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(46.dp).clip(RoundedCornerShape(16.dp)).background(Accent),
+            Modifier.size(46.dp).clip(RoundedCornerShape(16.dp)).background(AccentSoft),
             contentAlignment = Alignment.Center
-        ) { Icon(icon, contentDescription = null, tint = OnAccent, modifier = Modifier.size(24.dp)) }
+        ) { Icon(icon, contentDescription = null, tint = OnAccentSoft, modifier = Modifier.size(24.dp)) }
         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
             Text(title, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
             Text(subtitle, color = TextMuted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -234,25 +233,24 @@ private fun StatTile(
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(30.dp)
-    val fg = if (hero) OnAccent else TextPrimary
-    val sub = if (hero) OnAccent.copy(alpha = 0.7f) else TextMuted
+    val fg = if (hero) OnAccentSoft else TextPrimary
+    val sub = if (hero) OnAccentSoft.copy(alpha = 0.75f) else TextMuted
     Column(
         modifier
-            .aspectRatio(1.05f)
+            .aspectRatio(1.25f)
             .clip(shape)
-            .background(if (hero) Accent else Card)
-            .border(1.dp, if (hero) Accent else Hairline, shape)
+            .background(if (hero) AccentSoft else Card)
             .bouncyClickable(pressedScale = 0.95f, onClick = onClick)
             .padding(18.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Box(
-            Modifier.size(42.dp).clip(CircleShape).background(if (hero) OnAccent.copy(alpha = 0.12f) else Hairline),
+            Modifier.size(42.dp).clip(CircleShape).background(if (hero) OnAccentSoft.copy(alpha = 0.12f) else Hairline),
             contentAlignment = Alignment.Center
         ) { Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(22.dp)) }
         Column {
-            Text(count, color = fg, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-1).sp)
-            Text(label, color = sub, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text(label, color = fg, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            if (count.isNotEmpty()) Text(count, color = sub, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -274,62 +272,29 @@ fun LibraryScreen() {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         StatTile(
                             Icons.Rounded.History, "History",
-                            if (Session.loggedIn) "•" else store.history.size.toString(),
+                            "",
                             hero = true, onClick = { nav.push(Route.History) }, modifier = Modifier.weight(1f)
                         )
                         StatTile(
-                            Icons.Rounded.Download, "Downloads", Downloads.items.size.toString(),
+                            Icons.Rounded.Download, "Downloads", "",
                             hero = false, onClick = { nav.push(Route.Downloads) }, modifier = Modifier.weight(1f)
                         )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         StatTile(
                             Icons.AutoMirrored.Rounded.PlaylistPlay, "Playlists",
-                            if (Session.loggedIn) "•" else store.playlists.size.toString(),
+                            "",
                             hero = false, onClick = { nav.push(Route.Playlists) }, modifier = Modifier.weight(1f)
                         )
                         StatTile(
                             Icons.Rounded.ThumbUp, if (Session.loggedIn) "Liked" else "Subscribed",
-                            if (Session.loggedIn) "♥" else store.subscriptions.size.toString(),
+                            "",
                             hero = false,
                             onClick = {
                                 if (Session.loggedIn) nav.push(Route.Playlist("LL", "Liked videos")) else nav.push(Route.Settings)
                             },
                             modifier = Modifier.weight(1f)
                         )
-                    }
-                }
-            }
-            // recently watched, as a swipeable strip of posters
-            val recent = store.history.filter { !it.short }.take(12)
-            if (recent.isNotEmpty()) {
-                item { LibSection("CONTINUE WATCHING") }
-                item {
-                    androidx.compose.foundation.lazy.LazyRow(
-                        contentPadding = PaddingValues(horizontal = 14.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(recent.size) { i ->
-                            val v = recent[i]
-                            Column(
-                                Modifier
-                                    .width(190.dp)
-                                    .clip(RoundedCornerShape(24.dp))
-                                    .background(Card)
-                                    .border(1.dp, Hairline, RoundedCornerShape(24.dp))
-                                    .bouncyClickable(pressedScale = 0.95f) { nav.push(Route.Video(v.id, v)) }
-                                    .padding(6.dp)
-                            ) {
-                                Box(Modifier.fillMaxWidth().aspectRatio(16f / 10f).clip(RoundedCornerShape(19.dp)).background(Hairline)) {
-                                    VideoThumb(v.id, Modifier.fillMaxSize())
-                                }
-                                Text(
-                                    v.title, color = TextPrimary, fontSize = 12.sp, lineHeight = 16.sp,
-                                    fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 6.dp)
-                                )
-                            }
-                        }
                     }
                 }
             }

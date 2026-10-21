@@ -254,10 +254,10 @@ fun VideoScreen(route: Route.Video) {
                             Text(
                                 video?.title ?: "Loading…",
                                 color = TextPrimary,
-                                fontSize = 21.sp,
-                                lineHeight = 27.sp,
-                                letterSpacing = (-0.3).sp,
-                                fontWeight = FontWeight.Bold,
+                                fontSize = 19.sp,
+                                lineHeight = 25.sp,
+                                letterSpacing = (-0.2).sp,
+                                fontWeight = FontWeight.SemiBold,
                                 maxLines = if (descOpen) Int.MAX_VALUE else 3,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f).padding(top = 2.dp)
@@ -317,14 +317,14 @@ fun VideoScreen(route: Route.Video) {
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState())
                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.Top
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         val likes = details?.likesText.orEmpty()
                         Row(
                             Modifier
-                                .height(58.dp)
-                                .clip(RoundedCornerShape(21.dp))
+                                .height(52.dp)
+                                .clip(CircleShape)
                                 .background(Card)
                                 .border(1.dp, Hairline, RoundedCornerShape(21.dp)),
                             verticalAlignment = Alignment.CenterVertically
@@ -332,14 +332,14 @@ fun VideoScreen(route: Route.Video) {
                             Row(
                                 Modifier
                                     .fillMaxHeight()
-                                    .background(if (rating == 1) Accent else Color.Transparent)
+                                    .background(if (rating == 1) AccentSoft else Color.Transparent)
                                     .bouncyClickable(pressedScale = 0.92f) { rate(1) }
                                     .padding(horizontal = 18.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Rounded.ThumbUp, contentDescription = "Like", tint = if (rating == 1) OnAccent else TextPrimary, modifier = Modifier.size(22.dp))
+                                Icon(Icons.Rounded.ThumbUp, contentDescription = "Like", tint = if (rating == 1) OnAccentSoft else TextPrimary, modifier = Modifier.size(22.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text(likes.ifEmpty { "Like" }, color = if (rating == 1) OnAccent else TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                Text(likes.ifEmpty { "Like" }, color = if (rating == 1) OnAccentSoft else TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             }
                             Box(Modifier.width(1.dp).height(26.dp).background(Hairline))
                             Box(
@@ -377,7 +377,6 @@ fun VideoScreen(route: Route.Video) {
                                 .bouncyClickable(pressedScale = 0.97f) { nav.push(Route.Channel(ch.id, ch)) }
                                 .clip(RoundedCornerShape(30.dp))
                                 .background(Card)
-                                .border(1.dp, Hairline, RoundedCornerShape(30.dp))
                                 .padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -424,7 +423,6 @@ fun VideoScreen(route: Route.Video) {
                             .bouncyClickable(pressedScale = 0.975f) { commentsOpen = true }
                             .clip(RoundedCornerShape(30.dp))
                             .background(Card)
-                            .border(1.dp, Hairline, RoundedCornerShape(30.dp))
                             .animateContentSize(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow))
                             .padding(16.dp)
                     ) {
@@ -470,10 +468,9 @@ fun VideoScreen(route: Route.Video) {
                     Text(
                         "Up next",
                         color = TextPrimary,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = (-0.4).sp,
-                        modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 6.dp)
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 4.dp)
                     )
                 }
                 val vids = more.items.filter { it.id != route.id }
@@ -732,7 +729,6 @@ private fun AddCommentPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
             .shadow(10.dp, CircleShape)
             .clip(CircleShape)
             .background(Card)
-            .border(BorderStroke(1.dp, Hairline), CircleShape)
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically

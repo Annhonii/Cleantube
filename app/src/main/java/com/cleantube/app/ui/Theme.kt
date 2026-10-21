@@ -19,8 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import com.cleantube.app.R
 import com.cleantube.app.data.Graph
 
-// New look: deep graphite + one electric mint accent (dark first), soft cool-white in light mode.
-// Bento cards, big radii, glass nav. No Monet / wallpaper colours.
+// Colours: Material You (Monet, from the wallpaper) on Android 12+; on older phones the mint scheme below.
 
 private val Mint = Color(0xFF3DF5A0)
 private val MintLight = Color(0xFF14C97A)
@@ -92,10 +91,9 @@ private object Palette {
     var nav by mutableStateOf(Color(0xFF15181D))
     var onNav by mutableStateOf(Color.White)
 
-    fun apply(dark: Boolean) {
-        val s = if (dark) DarkScheme else LightScheme
-        nav = if (dark) Color(0xFF15181D) else Color.White
-        onNav = if (dark) Color(0xFFF3F5F7) else Color(0xFF0B0D10)
+    fun apply(s: androidx.compose.material3.ColorScheme) {
+        nav = s.surfaceContainerHigh
+        onNav = s.onSurface
         bg = s.background
         card = s.surfaceContainerHigh
         hairline = s.outlineVariant
@@ -174,9 +172,16 @@ private fun typographyWith(f: FontFamily): Typography {
 fun CleanTubeTheme(content: @Composable () -> Unit) {
     val dark = isSystemInDarkTheme()
     // Set before the content is composed, so the first frame already has the right colours.
-    Palette.apply(dark)
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val scheme = when {
+        android.os.Build.VERSION.SDK_INT >= 31 ->
+            if (dark) androidx.compose.material3.dynamicDarkColorScheme(ctx) else androidx.compose.material3.dynamicLightColorScheme(ctx)
+        dark -> DarkScheme
+        else -> LightScheme
+    }
+    Palette.apply(scheme)
     MaterialTheme(
-        colorScheme = if (dark) DarkScheme else LightScheme,
+        colorScheme = scheme,
         typography = typographyWith(AppFont),
         shapes = Shapes(
             extraSmall = RoundedCornerShape(12.dp),

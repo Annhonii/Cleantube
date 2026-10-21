@@ -123,7 +123,6 @@ fun ScreenTitle(
                     .size(44.dp)
                     .clip(CircleShape)
                     .background(Card)
-                    .border(1.dp, Hairline, CircleShape)
                     .bouncyClickable(pressedScale = 0.88f, onClick = onBack),
                 contentAlignment = Alignment.Center
             ) {
@@ -203,62 +202,48 @@ fun TabTopBar(
 ) {
     val nav = LocalNav.current
     val thumb = Session.thumb
-    val first = Session.name.trim().substringBefore(' ')
-    val downloading = Downloads.items.any { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
     Row(
         Modifier
             .fillMaxWidth()
             .background(Bg)
             .statusBarsPadding()
-            .padding(start = 18.dp, end = 12.dp, top = 14.dp, bottom = 8.dp),
+            .padding(start = 20.dp, end = 14.dp, top = 12.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Text(
+            if (brand) "cleantube" else title,
+            color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+            letterSpacing = (-0.8).sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        actions?.invoke(this)
+        HeaderButton(Icons.Rounded.Search, "Search", onClick = { nav.push(Route.Search()) })
+        Spacer(Modifier.width(8.dp))
         Box(
             Modifier
-                .size(48.dp)
+                .size(44.dp)
                 .clip(CircleShape)
                 .background(Card)
-                .border(2.dp, Accent, CircleShape)
-                .padding(3.dp)
-                .clip(CircleShape)
                 .bouncyClickable(pressedScale = 0.9f, onClick = { if (nav.current != Route.Settings) nav.push(Route.Settings) }),
             contentAlignment = Alignment.Center
         ) {
             if (thumb.isNotEmpty()) AppImage(thumb, Modifier.fillMaxSize(), CircleShape)
-            else Icon(Icons.Rounded.PersonOutline, contentDescription = "Account", tint = TextPrimary, modifier = Modifier.size(26.dp))
+            else Icon(Icons.Rounded.PersonOutline, contentDescription = "Account", tint = TextPrimary, modifier = Modifier.size(22.dp))
         }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                if (first.isNotEmpty()) "Hi, $first" else "Welcome back",
-                color = TextMuted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                if (brand) "Discover" else title,
-                color = TextPrimary, fontSize = 26.sp, fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.6).sp, maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-        }
-        actions?.invoke(this)
-        HeaderButton(Icons.Rounded.Search, "Search", onClick = { nav.push(Route.Search()) })
-        Spacer(Modifier.width(8.dp))
-        HeaderButton(Icons.Rounded.Download, "Downloads", dot = downloading, onClick = { if (nav.current != Route.Downloads) nav.push(Route.Downloads) })
     }
 }
 
 @Composable
-private fun HeaderButton(icon: ImageVector, desc: String, onClick: () -> Unit, dot: Boolean = false) {
+private fun HeaderButton(icon: ImageVector, desc: String, onClick: () -> Unit) {
     Box(
         Modifier
             .size(44.dp)
             .clip(CircleShape)
             .background(Card)
-            .border(1.dp, Hairline, CircleShape)
             .bouncyClickable(pressedScale = 0.88f, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = desc, tint = TextPrimary, modifier = Modifier.size(22.dp))
-        if (dot) Box(Modifier.align(Alignment.TopEnd).padding(10.dp).size(8.dp).clip(CircleShape).background(Accent))
     }
 }
 
@@ -309,7 +294,6 @@ fun TopBar(modifier: Modifier = Modifier, overVideo: Boolean = false) {
                 .height(52.dp)
                 .clip(shape)
                 .background(PillSurface)
-                .border(1.dp, Hairline, shape)
                 .bouncyClickable(pressedScale = 0.98f, onClick = { nav.push(Route.Search()) })
                 .padding(start = 10.dp, end = 16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -373,19 +357,18 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
     val tabs = visibleTabs(Graph.store)
     val dark = isSystemInDarkTheme()
     val selected by remember { androidx.compose.runtime.derivedStateOf { position().roundToInt() } }
-    val surface = if (dark) Color(0xF2171A20) else Color(0xF2FFFFFF)
-    val plain = if (dark) Color(0xFFB4BAC4) else Color(0xFF5A6270)
-    val shadowColor = Color.Black.copy(alpha = if (dark) 0.6f else 0.2f)
+    val surface = NavBg
+    val plain = TextMuted
+    val shadowColor = Color.Black.copy(alpha = if (dark) 0.45f else 0.14f)
     val shape = RoundedCornerShape(34.dp)
     Row(
         modifier
             .navigationBarsPadding()
             .padding(horizontal = 18.dp, vertical = 12.dp)
             .fillMaxWidth()
-            .shadow(22.dp, shape, clip = false, ambientColor = shadowColor, spotColor = shadowColor)
+            .shadow(10.dp, shape, clip = false, ambientColor = shadowColor, spotColor = shadowColor)
             .clip(shape)
             .background(surface)
-            .border(1.dp, Hairline, shape)
             .padding(6.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -397,8 +380,8 @@ fun BottomNavPill(position: () -> Float, modifier: Modifier = Modifier) {
                 androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 400f),
                 label = "dockW"
             )
-            val bg by androidx.compose.animation.animateColorAsState(if (sel) Accent else Color.Transparent, androidx.compose.animation.core.tween(220), label = "dockBg")
-            val fg by androidx.compose.animation.animateColorAsState(if (sel) OnAccent else plain, androidx.compose.animation.core.tween(220), label = "dockFg")
+            val bg by androidx.compose.animation.animateColorAsState(if (sel) AccentSoft else Color.Transparent, androidx.compose.animation.core.tween(220), label = "dockBg")
+            val fg by androidx.compose.animation.animateColorAsState(if (sel) OnAccentSoft else plain, androidx.compose.animation.core.tween(220), label = "dockFg")
             Row(
                 Modifier
                     .weight(w)

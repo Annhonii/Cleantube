@@ -23,7 +23,6 @@ fun HomeScreen() {
         PagedColumn(
             paged = paged,
             emptyText = "Nothing to show right now. Pull to retry from the Feed tab, or check your connection.",
-            header = { item { TopicChips() } },
             // fixed-height rhythm: hero, two tiles, two tiles... (see BentoFeedItem)
             indexRow = { i -> BentoFeedItem(paged.items, i) { v -> nav.push(Route.Video(v.id, v)) } }
         ) { }

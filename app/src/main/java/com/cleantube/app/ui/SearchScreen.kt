@@ -120,35 +120,16 @@ fun SearchScreen(route: Route.Search) {
             else store.searches.filter { it.contains(q, ignoreCase = true) }
 
             LazyColumn(Modifier.fillMaxSize()) {
-                if (text.isEmpty()) {
-                    item {
-                        Text(
-                            "Explore", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 20.dp, top = 6.dp, bottom = 4.dp)
-                        )
-                        TopicChips(onPick = { submit(it) })
-                        if (matches.isNotEmpty()) {
-                            Text(
-                                "Recent", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 6.dp)
-                            )
-                        }
-                    }
-                }
                 items(matches.size) { i ->
                     val s = matches[i]
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 4.dp)
-                            .clip(RoundedCornerShape(22.dp))
-                            .background(Card)
-                            .border(1.dp, Hairline, RoundedCornerShape(22.dp))
                             .clickable { submit(s) }
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                            .padding(horizontal = 20.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Rounded.History, contentDescription = null, tint = Accent, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Rounded.History, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(14.dp))
                         Text(
                             s,

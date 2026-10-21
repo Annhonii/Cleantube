@@ -315,15 +315,14 @@ private fun SettingsRow(
             .fillMaxWidth()
             .clip(shape)
             .background(Card)
-            .border(1.dp, Hairline, shape)
             .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(48.dp).clip(RoundedCornerShape(17.dp)).background(Hairline),
+            Modifier.size(48.dp).clip(RoundedCornerShape(17.dp)).background(AccentSoft),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
+            Icon(icon, contentDescription = null, tint = OnAccentSoft, modifier = Modifier.size(24.dp))
         }
         Spacer(Modifier.width(18.dp))
         Column(Modifier.weight(1f)) {
