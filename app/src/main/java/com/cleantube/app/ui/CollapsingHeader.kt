@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -35,6 +37,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -51,28 +54,34 @@ import kotlin.math.roundToInt
 // on Shorts it floats over the video already collapsed, and swiping / tapping between the two shrinks or grows it
 // in step with the page movement. On the other tabs it slides away.
 //
-//  expanded:  ( card ................................... Hi, Davesh!  (photo, big) )
-//             (   ( search pill, full width )                                        )
-//  collapsed: ( card: ( search pill, up to the photo )                (photo, small) )
+//  expanded:  ( photo, big )
+//             ( Hi, Davesh )
+//             ( search bar, full width            (round button) )
+//  collapsed: ( photo, small ) ( search bar, up to the right edge )
 //
-// The card colour is the theme's soft accent, which already follows the playing video (see Theme.kt), so the
-// header changes colour together with the rest of the app. Everything is driven by ONE number (0 = expanded,
+// A red glow (same red in light and dark mode) sits behind the expanded header and fades away while it collapses. Everything is driven by ONE number (0 = expanded,
 // 1 = collapsed) that follows the list's scroll through a spring, and the size / position of every part is
 // worked out from it in the layout phase: no recomposition per frame, no jumps.
 
 private val CardMargin = 0.dp      // space between the card and the screen's left / right edge
-private val CardTop = 8.dp          // space between the status bar and the card
-private val InnerPad = 16.dp        // space between the card's edge and what is inside
+private val CardTop = 0.dp          // space between the status bar and the card
+private val InnerPad = 20.dp        // space between the screen edge and what is inside
 private val Gap = 10.dp
-private val AvatarBig = 56.dp
-private val AvatarSmall = 40.dp
-private val SearchBig = 52.dp
-private val SearchSmall = 44.dp
-private val InnerVBig = 12.dp
-private val CardBig = InnerVBig + AvatarBig + InnerVBig + SearchBig + InnerVBig   // 144dp
-private val CardSmall = 56.dp
+private val AvatarBig = 60.dp
+private val AvatarSmall = 44.dp
+private val SearchBig = 54.dp
+private val SearchSmall = 46.dp
+private val TopPadBig = 12.dp       // status bar -> photo
+private val GreetGapTop = 8.dp      // photo -> greeting
+private val GreetH = 40.dp          // greeting line
+private val GreetGapBottom = 10.dp  // greeting -> search bar
+private val BottomPadBig = 14.dp
+private val CardBig = TopPadBig + AvatarBig + GreetGapTop + GreetH + GreetGapBottom + SearchBig + BottomPadBig   // 198dp
+private val CardSmall = 64.dp
 private val BelowCard = 4.dp
-private val FadeBelow = 14.dp       // soft fade where the feed slides under the header
+
+// The red of the header glow. One fixed colour, the same in light and dark mode (taken from the dark design).
+private val HeaderRed = Color(0xFFC62A3F)
 
 /** Full (expanded) height of [CollapsingHeader]: use it as the top padding of the list underneath. */
 @Composable
@@ -109,12 +118,20 @@ object HeaderScroll {
 @Composable
 fun TrackHeaderScroll(listState: LazyListState, route: Route = Route.Home) {
     val density = LocalDensity.current
-    val rangePx = with(density) { (CardBig - CardSmall).toPx() }
-    androidx.compose.runtime.LaunchedEffect(listState, rangePx, route) {
+    // The header never rests half way: as soon as the feed is scrolled a little it glides to the collapsed state,
+    // and it only grows back when the feed is (almost) back at the top. The gap between the two numbers stops flicker.
+    val collapseAtPx = with(density) { 16.dp.toPx() }
+    val expandAtPx = with(density) { 4.dp.toPx() }
+    androidx.compose.runtime.LaunchedEffect(listState, collapseAtPx, expandAtPx, route) {
+        var collapsed = HeaderScroll.get(route) >= 0.5f
         androidx.compose.runtime.snapshotFlow {
-            if (listState.firstVisibleItemIndex > 0) 1f
-            else (listState.firstVisibleItemScrollOffset / rangePx).coerceIn(0f, 1f)
-        }.collect { HeaderScroll.set(route, it) }
+            if (listState.firstVisibleItemIndex > 0) Float.MAX_VALUE
+            else listState.firstVisibleItemScrollOffset.toFloat()
+        }.collect { offset ->
+            if (!collapsed && offset > collapseAtPx) collapsed = true
+            else if (collapsed && offset < expandAtPx) collapsed = false
+            HeaderScroll.set(route, if (collapsed) 1f else 0f)
+        }
     }
 }
 
@@ -138,7 +155,7 @@ fun CollapsingHeader(
     val sbPx = WindowInsets.statusBars.getTop(density)
 
     // spring smoothing: the card glides to where each feed's scroll wants it instead of snapping with every pixel
-    val spec = spring<Float>(dampingRatio = 1f, stiffness = 320f)
+    val spec = spring<Float>(dampingRatio = 0.9f, stiffness = 380f)
     val homeF = animateFloatAsState(HeaderScroll.get(Route.Home), spec, label = "headerHome")
     val feedF = animateFloatAsState(HeaderScroll.get(Route.Feed), spec, label = "headerFeed")
     val libF = animateFloatAsState(HeaderScroll.get(Route.Library), spec, label = "headerLibrary")
@@ -167,22 +184,18 @@ fun CollapsingHeader(
 
     Layout(
         content = {
-            // 0: greeting (fades out and slides toward the photo while collapsing)
+            // 0: greeting (big, under the photo; fades out completely while the header collapses)
             Text(
-                "Hi, $firstName!",
-                color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
-                maxLines = 1, softWrap = false, overflow = TextOverflow.Clip,
+                "Hi, $firstName",
+                color = TextPrimary, fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.SemiBold,
+                letterSpacing = (-0.6).sp,
+                maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.graphicsLayer {
                     val p = fOf()
-                    alpha = (1f - p * 2.6f).coerceIn(0f, 1f)
-                    translationX = 32.dp.toPx() * p
-                    val sc = 1f - 0.12f * p
-                    scaleX = sc
-                    scaleY = sc
-                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0.5f)
+                    alpha = (1f - p * 3f).coerceIn(0f, 1f)
                 }
             )
-            // 1: profile photo (opens Settings)
+            // 1: profile photo (opens Settings), at the left edge
             Box(
                 Modifier
                     .clip(CircleShape)
@@ -191,23 +204,32 @@ fun CollapsingHeader(
                 contentAlignment = Alignment.Center
             ) {
                 if (thumb.isNotEmpty()) AppImage(thumb, Modifier.fillMaxSize(), CircleShape)
-                else Icon(Icons.Rounded.PersonOutline, contentDescription = "Account", tint = TextPrimary, modifier = Modifier.size(26.dp))
+                else Icon(Icons.Rounded.PersonOutline, contentDescription = "Account", tint = TextPrimary, modifier = Modifier.size(28.dp))
             }
-            // 2: search pill (opens the search page)
+            // 2: search bar: "search" on the left, round search button on the right (opens the search page)
             Row(
                 Modifier
-                    .clip(RoundedCornerShape(50))
+                    .clip(CircleShape)
                     .background(Card)
                     .bouncyClickable(pressedScale = 0.98f, onClick = { nav.push(Route.Search()) })
-                    .padding(horizontal = 18.dp),
+                    .padding(start = 22.dp, end = 5.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Rounded.Search, contentDescription = "Search", tint = TextPrimary, modifier = Modifier.size(22.dp))
-                Spacer(Modifier.width(12.dp))
                 Text(
-                    "Search videos", color = TextMuted, fontSize = 15.sp, fontWeight = FontWeight.Medium,
-                    maxLines = 1, softWrap = false, overflow = TextOverflow.Clip
+                    "search", color = TextMuted, fontSize = 18.sp, fontWeight = FontWeight.Normal,
+                    maxLines = 1, softWrap = false, overflow = TextOverflow.Clip,
+                    modifier = Modifier.weight(1f)
                 )
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .aspectRatio(1f)
+                        .clip(CircleShape)
+                        .background(Secondary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Rounded.Search, contentDescription = "Search", tint = if (Secondary.luminance() > 0.5f) Color.Black else Color.White, modifier = Modifier.size(22.dp))
+                }
             }
         },
         modifier = modifier
@@ -220,13 +242,36 @@ fun CollapsingHeader(
             }
             .drawBehind {
                 val w = shortsW()
+                val p = fOf()
                 // flat bar over the full screen width (status bar included), in the screen colour: part of the page, not a card.
-                // The feed slides under it with a clean edge (no fade). Over a Short the bar goes away and only a dark scrim stays,
-                // so the search pill and photo float on the video.
+                // The feed slides under it with a clean edge. Over a Short the bar goes away and only a dark scrim stays,
+                // so the search bar and photo float on the video.
                 val bgA = 1f - w
                 val barH = size.height
                 if (bgA > 0f) {
                     drawRect(Bg, size = Size(size.width, barH), alpha = bgA)
+                    // red glow from the top left, the same red in light and dark mode; it melts into the screen colour
+                    // towards the bottom and goes away while the header collapses
+                    val glowA = (1f - p) * bgA
+                    if (glowA > 0.01f) {
+                        drawRect(
+                            Brush.radialGradient(
+                                0f to HeaderRed,
+                                0.45f to HeaderRed.copy(alpha = 0.55f),
+                                1f to Color.Transparent,
+                                center = Offset(size.width * 0.24f, 0f),
+                                radius = size.width * 1.0f
+                            ),
+                            size = Size(size.width, barH), alpha = glowA
+                        )
+                        drawRect(
+                            Brush.verticalGradient(
+                                0.35f to Color.Transparent, 1f to Bg,
+                                startY = 0f, endY = barH
+                            ),
+                            size = Size(size.width, barH), alpha = glowA
+                        )
+                    }
                 }
                 if (w > 0f) {
                     drawRect(
@@ -244,36 +289,39 @@ fun CollapsingHeader(
         val cardBig = CardBig.roundToPx()
         val cardSmall = CardSmall.roundToPx()
 
-        // photo: big -> small, always at the card's right edge
+        // photo: big -> small, always at the left edge
         val aBig = AvatarBig.roundToPx()
         val aSm = AvatarSmall.roundToPx()
         val a = li(aBig, aSm, p)
         val avatar = measurables[1].measure(Constraints.fixed(a, a))
-        val avatarX = w - innerX - a
-        val centerBig = cardTop + InnerVBig.roundToPx() + aBig / 2
+        val avatarX = innerX
+        val centerBig = cardTop + TopPadBig.roundToPx() + aBig / 2
         val centerSm = cardTop + cardSmall / 2
         val cy = li(centerBig, centerSm, p)
 
-        // search pill: full card width below the photo -> from the card's left edge up to the (small) photo
+        // search bar: full width under the greeting -> from just right of the (small) photo to the right edge
         val sBig = SearchBig.roundToPx()
         val sSm = SearchSmall.roundToPx()
         val searchH = li(sBig, sSm, p)
-        val widthBig = w - 2 * innerX
-        val widthSm = (w - innerX - aSm) - gap - innerX
-        val searchW = li(widthBig, widthSm, p)
-        val topBig = cardTop + InnerVBig.roundToPx() + aBig + InnerVBig.roundToPx()
+        val greetTopBig = cardTop + TopPadBig.roundToPx() + aBig + GreetGapTop.roundToPx()
+        val greetH = GreetH.roundToPx()
+        val topBig = greetTopBig + greetH + GreetGapBottom.roundToPx()
         val topSm = centerSm - sSm / 2
         val searchTop = li(topBig, topSm, p)
+        val leftBig = innerX
+        val leftSm = innerX + aSm + gap
+        val searchX = li(leftBig, leftSm, p)
+        val searchW = w - innerX - searchX
         val search = measurables[2].measure(Constraints.fixed(searchW, searchH))
 
-        // greeting: just left of the photo
-        val greeting = measurables[0].measure(Constraints(maxWidth = (avatarX - gap - innerX).coerceAtLeast(0)))
+        // greeting: under the photo, at the left edge
+        val greeting = measurables[0].measure(Constraints(maxWidth = (w - 2 * innerX).coerceAtLeast(0)))
 
         val h = cardTop + li(cardBig, cardSmall, p) + BelowCard.roundToPx()
         layout(w, h) {
-            greeting.place(avatarX - gap - greeting.width, cy - greeting.height / 2)
+            greeting.place(innerX, greetTopBig + (greetH - greeting.height) / 2)
             avatar.place(avatarX, cy - a / 2)
-            search.place(innerX, searchTop)
+            search.place(searchX, searchTop)
         }
     }
 }
