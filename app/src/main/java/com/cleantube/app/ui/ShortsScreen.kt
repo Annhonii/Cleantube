@@ -217,18 +217,6 @@ fun ShortsScreen() {
         view.keepScreenOn = resumed
         onDispose { view.keepScreenOn = false }
     }
-    DisposableEffect(Unit) {
-        val window = ctx.findActivity()?.window
-        val c = window?.let { WindowCompat.getInsetsController(it, view) }
-        val prevStatus = c?.isAppearanceLightStatusBars ?: false
-        val prevNav = c?.isAppearanceLightNavigationBars ?: false
-        c?.isAppearanceLightStatusBars = false
-        c?.isAppearanceLightNavigationBars = false
-        onDispose {
-            c?.isAppearanceLightStatusBars = prevStatus
-            c?.isAppearanceLightNavigationBars = prevNav
-        }
-    }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         // a new feed whenever the topic changes

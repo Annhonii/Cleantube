@@ -83,19 +83,38 @@ private fun lf(a: Float, b: Float, t: Float) = a + (b - a) * t
 
 /** Scroll of the Home feed as 0 (top) .. 1 (fully scrolled past the card's growth); written by [TrackHeaderScroll]. */
 object HeaderScroll {
-    var raw by androidx.compose.runtime.mutableFloatStateOf(0f)
+    private val home = androidx.compose.runtime.mutableFloatStateOf(0f)
+    private val feed = androidx.compose.runtime.mutableFloatStateOf(0f)
+    private val library = androidx.compose.runtime.mutableFloatStateOf(0f)
+
+    /** Scroll (0..1) of the feed that belongs to [route]; tabs without a scroll-following feed are always 1 (collapsed). */
+    fun get(route: Route): Float = when (route) {
+        Route.Home -> home.floatValue
+        Route.Feed -> feed.floatValue
+        Route.Library -> library.floatValue
+        else -> 1f
+    }
+
+    fun set(route: Route, v: Float) {
+        when (route) {
+            Route.Home -> home.floatValue = v
+            Route.Feed -> feed.floatValue = v
+            Route.Library -> library.floatValue = v
+            else -> Unit
+        }
+    }
 }
 
 /** Reports a list's scroll to the header. Call it from the screen whose feed the header should follow. */
 @Composable
-fun TrackHeaderScroll(listState: LazyListState) {
+fun TrackHeaderScroll(listState: LazyListState, route: Route = Route.Home) {
     val density = LocalDensity.current
     val rangePx = with(density) { (CardBig - CardSmall).toPx() }
-    androidx.compose.runtime.LaunchedEffect(listState, rangePx) {
+    androidx.compose.runtime.LaunchedEffect(listState, rangePx, route) {
         androidx.compose.runtime.snapshotFlow {
             if (listState.firstVisibleItemIndex > 0) 1f
             else (listState.firstVisibleItemScrollOffset / rangePx).coerceIn(0f, 1f)
-        }.collect { HeaderScroll.raw = it }
+        }.collect { HeaderScroll.set(route, it) }
     }
 }
 
@@ -111,27 +130,36 @@ fun CollapsingHeader(
     pagerPosition: () -> Float,
     homeIndex: Int,
     shortsIndex: Int,
+    routes: List<Route>,
     modifier: Modifier = Modifier
 ) {
     val nav = LocalNav.current
     val density = LocalDensity.current
     val sbPx = WindowInsets.statusBars.getTop(density)
 
-    // spring smoothing: the card glides to where the Home scroll wants it instead of snapping with every pixel
-    val homeF = animateFloatAsState(HeaderScroll.raw, spring(dampingRatio = 1f, stiffness = 320f), label = "headerCollapse")
+    // spring smoothing: the card glides to where each feed's scroll wants it instead of snapping with every pixel
+    val spec = spring<Float>(dampingRatio = 1f, stiffness = 320f)
+    val homeF = animateFloatAsState(HeaderScroll.get(Route.Home), spec, label = "headerHome")
+    val feedF = animateFloatAsState(HeaderScroll.get(Route.Feed), spec, label = "headerFeed")
+    val libF = animateFloatAsState(HeaderScroll.get(Route.Library), spec, label = "headerLibrary")
     // 1 on the Shorts page, 0 one page away: the card shrinks / grows while the pages slide
     val shortsW: () -> Float = {
         if (shortsIndex < 0) 0f else (1f - kotlin.math.abs(pagerPosition() - shortsIndex)).coerceIn(0f, 1f)
     }
-    // 1 on the Home page, 0 one page away: only Home has a feed the header collapses with
-    val homeW: () -> Float = {
-        if (homeIndex < 0) 0f else (1f - kotlin.math.abs(pagerPosition() - homeIndex)).coerceIn(0f, 1f)
+    // 0 = expanded .. 1 = collapsed. Home, Subscription and Library follow their own feed's scroll; Shorts (and any
+    // other page) shows the collapsed bar. While swiping between two pages the value glides between theirs.
+    val pageValue: (Int) -> Float = { i ->
+        when (routes.getOrNull(i)) {
+            Route.Home -> homeF.value
+            Route.Feed -> feedF.value
+            Route.Library -> libF.value
+            else -> 1f
+        }
     }
-    // 0 = expanded .. 1 = collapsed. Home follows its scroll; every other tab (and Shorts) shows the collapsed bar,
-    // and swiping between Home and another tab shrinks / grows it in step with the page.
     val fOf: () -> Float = {
-        val hw = homeW()
-        (homeF.value * hw + (1f - hw)).coerceIn(0f, 1f)
+        val pos = pagerPosition().coerceAtLeast(0f)
+        val lo = kotlin.math.floor(pos).toInt()
+        lf(pageValue(lo), pageValue(lo + 1), pos - lo).coerceIn(0f, 1f)
     }
 
     val firstName = Session.name.trim().substringBefore(' ').ifEmpty { "Davesh" }

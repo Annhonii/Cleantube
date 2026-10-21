@@ -33,7 +33,7 @@ fun HomeScreen() {
             indexRow = { i -> BentoFeedItem(paged.items, i) { v -> nav.push(Route.Video(v.id, v)) } }
         ) { }
         // the card itself is drawn once for the whole app (App.kt); this only tells it how far the feed is scrolled
-        TrackHeaderScroll(paged.listState)
+        TrackHeaderScroll(paged.listState, Route.Home)
     }
 }
 

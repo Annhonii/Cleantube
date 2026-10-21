@@ -27,6 +27,7 @@ import com.cleantube.app.ui.FullscreenHost
 import com.cleantube.app.ui.Nav
 import com.cleantube.app.ui.PipHost
 import com.cleantube.app.ui.Route
+import com.cleantube.app.ui.SystemBarsUi
 import com.cleantube.app.ui.routeFromUri
 
 class MainActivity : ComponentActivity() {
@@ -66,10 +67,12 @@ class MainActivity : ComponentActivity() {
             // transparent bars; the icons turn dark / light with the system light / dark setting. The activity isn't
             // recreated on a theme switch (uiMode is in configChanges), so this is redone every time it changes.
             val dark = isSystemInDarkTheme()
-            DisposableEffect(dark) {
+            val whiteIcons = SystemBarsUi.whiteIcons   // Shorts page: black video behind the bars
+            val iconsLight = dark || whiteIcons
+            DisposableEffect(iconsLight) {
                 enableEdgeToEdge(
-                    statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark },
-                    navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark }
+                    statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { iconsLight },
+                    navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { iconsLight }
                 )
                 onDispose { }
             }
@@ -122,6 +125,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         PipHost.transitioning = false
+        // safety net: bars must never stay hidden after fullscreen / popup
+        if (fullscreen.view == null) WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
         // safety net: never stay stuck in the "player only" layout after the popup window is gone
         PipHost.active = Build.VERSION.SDK_INT >= 24 && isInPictureInPictureMode
     }

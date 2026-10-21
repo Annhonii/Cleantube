@@ -5,8 +5,10 @@ import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
@@ -43,6 +45,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.AndroidView
+
+/** Status / navigation bar icon colour override (white over a black video); read by MainActivity. */
+object SystemBarsUi {
+    var whiteIcons by androidx.compose.runtime.mutableStateOf(false)
+}
 
 @Composable
 fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
@@ -117,6 +124,11 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
             // when a screen is pushed.
             val homeIdx = visibleRoutes.indexOf(Route.Home)
             val shortsIdx = visibleRoutes.indexOf(Route.Shorts)
+            // Shorts has a black video behind the status bar: white icons only while that page is the one on screen.
+            // MainActivity applies it together with the system light / dark setting (one place, so it can't get stuck).
+            val shortsOn = nav.isTabRoot && shortsIdx >= 0 && pagerState.targetPage == shortsIdx
+            SideEffect { SystemBarsUi.whiteIcons = shortsOn }
+            DisposableEffect(Unit) { onDispose { SystemBarsUi.whiteIcons = false } }
             val headerPos: () -> Float = { pagerState.currentPage + pagerState.currentPageOffsetFraction }
             val headerOn by remember(homeIdx, shortsIdx) {
                 derivedStateOf { headerVisibility(headerPos(), homeIdx, shortsIdx) > 0.01f }
@@ -128,7 +140,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                 enter = slideInVertically(spring(dampingRatio = 0.8f, stiffness = 380f)) { -it } + fadeIn(tween(240)),
                 exit = slideOutVertically(tween(260, easing = Motion.EmphasizedAccelerate)) { -it } + fadeOut(tween(180))
             ) {
-                if (headerOn) CollapsingHeader(headerPos, homeIdx, shortsIdx)
+                if (headerOn) CollapsingHeader(headerPos, homeIdx, shortsIdx, visibleRoutes)
             }
 
             // the search bar floats up when a tab opens and drops away when a screen is pushed

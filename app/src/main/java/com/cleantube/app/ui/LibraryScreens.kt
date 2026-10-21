@@ -116,18 +116,18 @@ private fun AccountFeedScreen() {
     }
     val stripChannels = accountChannels.ifEmpty { Graph.store.subscriptions }
 
-    Column(Modifier.fillMaxSize()) {
-        TabTopBar("Feed", actions = {
-            IconButton(onClick = { paged.refresh() }) {
-                Icon(Icons.Rounded.Refresh, contentDescription = "Refresh", tint = TextPrimary)
-            }
-        })
+    // The header floats over the list (see CollapsingHeader): the feed starts below it and collapses it while scrolling.
+    val headerH = collapsingHeaderHeight()
+    Box(Modifier.fillMaxSize()) {
         PagedColumn(
             paged,
             emptyText = "Subscribe to channels and their newest videos show up here.",
+            contentPadding = PaddingValues(top = headerH + 8.dp, bottom = 120.dp),
+            refreshIndicatorTop = headerH,
             header = { item { SubscriptionStrip(stripChannels, paged.items) } },
             indexRow = { i -> BentoFeedItem(paged.items, i) { v -> nav.push(Route.Video(v.id, v)) } }
         )
+        TrackHeaderScroll(paged.listState, Route.Feed)
     }
 }
 
@@ -165,26 +165,29 @@ private fun LocalFeedScreen() {
         if (subs.isNotEmpty() && !FeedCache.valid(subs)) load()
     }
 
-    Column(Modifier.fillMaxSize()) {
-        TabTopBar("Feed", actions = {
-            IconButton(onClick = { load() }) {
-                Icon(Icons.Rounded.Refresh, contentDescription = "Refresh", tint = TextPrimary)
-            }
-        })
+    val headerH = collapsingHeaderHeight()
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    Box(Modifier.fillMaxSize()) {
         val list = items
         val err = error
         when {
-            subs.isEmpty() -> EmptyState("Subscribe to channels and their newest videos show up here.\nSign in from Settings to use your real YouTube feed.")
-            err != null -> ErrorBox(err, onRetry = { load() })
-            list == null || (loading && list.isEmpty()) -> Loading()
-            list.isEmpty() -> EmptyState("No recent videos.")
-            else -> PullRefresh(refreshing = loading, onRefresh = { load() }, modifier = Modifier.fillMaxSize()) {
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = listPadding) {
+            subs.isEmpty() -> Box(Modifier.fillMaxSize().padding(top = headerH)) {
+                EmptyState("Subscribe to channels and their newest videos show up here.\nSign in from Settings to use your real YouTube feed.")
+            }
+            err != null -> Box(Modifier.fillMaxSize().padding(top = headerH)) { ErrorBox(err, onRetry = { load() }) }
+            list == null || (loading && list.isEmpty()) -> Box(Modifier.fillMaxSize().padding(top = headerH)) { Loading() }
+            list.isEmpty() -> Box(Modifier.fillMaxSize().padding(top = headerH)) { EmptyState("No recent videos.") }
+            else -> PullRefresh(refreshing = loading, onRefresh = { load() }, modifier = Modifier.fillMaxSize(), indicatorTop = headerH) {
+                LazyColumn(
+                    Modifier.fillMaxSize(), state = listState,
+                    contentPadding = PaddingValues(top = headerH + 8.dp, bottom = 120.dp)
+                ) {
                     item { SubscriptionStrip(subs, list) }
                     items(list.size) { i -> BentoFeedItem(list, i) { v -> nav.push(Route.Video(v.id, v)) } }
                 }
             }
         }
+        TrackHeaderScroll(listState, Route.Feed)
     }
 }
 
@@ -260,9 +263,13 @@ fun LibraryScreen() {
     val nav = LocalNav.current
     val store = Graph.store
 
-    Column(Modifier.fillMaxSize()) {
-        TabTopBar("Library")
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = listPadding) {
+    val headerH = collapsingHeaderHeight()
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            Modifier.fillMaxSize(), state = listState,
+            contentPadding = PaddingValues(top = headerH + 8.dp, bottom = 120.dp)
+        ) {
             // 2 x 2 bento dashboard
             item {
                 Column(
@@ -299,6 +306,7 @@ fun LibraryScreen() {
                 }
             }
         }
+        TrackHeaderScroll(listState, Route.Library)
     }
 }
 
