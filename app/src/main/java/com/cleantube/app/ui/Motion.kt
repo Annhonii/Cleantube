@@ -133,29 +133,15 @@ fun Modifier.shimmer(): Modifier = composed {
 /** Placeholder with the same shape as a video row, shown while the first page loads. */
 @Composable
 fun VideoRowSkeleton() {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 9.dp)) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(24.dp))
-                .background(Hairline)
-                .shimmer()
-        )
-        Column(
-            Modifier.padding(start = 6.dp, top = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                Modifier.fillMaxWidth(0.85f).height(15.dp)
-                    .clip(RoundedCornerShape(8.dp)).background(Hairline).shimmer()
-            )
-            Box(
-                Modifier.fillMaxWidth(0.5f).height(12.dp)
-                    .clip(RoundedCornerShape(6.dp)).background(Hairline).shimmer()
-            )
-        }
-    }
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .aspectRatio(4f / 4.6f)
+            .clip(RoundedCornerShape(34.dp))
+            .background(Hairline)
+            .shimmer()
+    )
 }
 
 /**

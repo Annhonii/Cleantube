@@ -272,7 +272,9 @@ fun <T> PagedColumn(
     emptyText: String = "Nothing here yet",
     contentPadding: PaddingValues = PaddingValues(bottom = 120.dp),
     header: (LazyListScope.() -> Unit)? = null,
-    row: @Composable (T) -> Unit
+    /** When set, the item at index i is drawn by this instead of [row] (used by the bento feed). */
+    indexRow: (@Composable (Int) -> Unit)? = null,
+    row: @Composable (T) -> Unit = {}
 ) {
     // only the very first time: a list that is already loaded (cached) is not fetched again
     LaunchedEffect(paged) { if (paged.items.isEmpty() && !paged.loading) paged.loadMore() }
@@ -288,7 +290,9 @@ fun <T> PagedColumn(
         LazyColumn(modifier = Modifier.fillMaxSize(), state = state, contentPadding = contentPadding) {
             header?.invoke(this)
             items(paged.items.size) { i ->
-                Box(Modifier.entrance(seen, i, if (i < 6) 60 + i * 55 else 0)) { row(paged.items[i]) }
+                Box(Modifier.entrance(seen, i, if (i < 6) 60 + i * 55 else 0)) {
+                    if (indexRow != null) indexRow(i) else row(paged.items[i])
+                }
             }
             item {
                 val err = paged.error
@@ -313,7 +317,7 @@ fun <T> PagedColumn(
 
 // ------------------------------------------------------------------ rows
 
-private fun videoMeta(v: VideoItem): String =
+internal fun videoMeta(v: VideoItem): String =
     listOf(
         v.viewsText.ifEmpty { if (v.views >= 0) "${formatCount(v.views)} views" else "" },
         v.ageText.ifEmpty { timeAgo(v.publishedAt) }
@@ -446,7 +450,7 @@ fun VideoRow(
 
 /** Sharp 720p thumbnail when YouTube has one, otherwise the standard medium one. */
 @Composable
-private fun VideoThumb(id: String, modifier: Modifier = Modifier) {
+internal fun VideoThumb(id: String, modifier: Modifier = Modifier) {
     var fallback by remember(id) { mutableStateOf(false) }
     var loaded by remember(id) { mutableStateOf(false) }
     // fades in while settling from a slight zoom: the thumbnail "arrives" instead of popping
@@ -511,7 +515,7 @@ private fun ChannelPill(name: String, thumb: String = "", modifier: Modifier = M
 }
 
 @Composable
-private fun Badge(text: String, bg: Color, modifier: Modifier) {
+internal fun Badge(text: String, bg: Color, modifier: Modifier) {
     Text(
         text,
         color = Color.White,

@@ -1,5 +1,10 @@
 package com.cleantube.app.ui
 
+import com.cleantube.app.data.Downloads
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -120,10 +125,9 @@ private fun AccountFeedScreen() {
         PagedColumn(
             paged,
             emptyText = "Subscribe to channels and their newest videos show up here.",
-            header = { item { SubscriptionStrip(stripChannels, paged.items) } }
-        ) { v ->
-            VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
-        }
+            header = { item { SubscriptionStrip(stripChannels, paged.items) } },
+            indexRow = { i -> BentoFeedItem(paged.items, i) { v -> nav.push(Route.Video(v.id, v)) } }
+        )
     }
 }
 
@@ -177,10 +181,7 @@ private fun LocalFeedScreen() {
             else -> PullRefresh(refreshing = loading, onRefresh = { load() }, modifier = Modifier.fillMaxSize()) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = listPadding) {
                     item { SubscriptionStrip(subs, list) }
-                    items(list.size) { i ->
-                        val v = list[i]
-                        VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
-                    }
+                    items(list.size) { i -> BentoFeedItem(list, i) { v -> nav.push(Route.Video(v.id, v)) } }
                 }
             }
         }
@@ -195,17 +196,18 @@ private fun LibEntry(icon: ImageVector, title: String, subtitle: String, onClick
         Modifier
             .bouncyClickable(pressedScale = 0.98f, onClick = onClick)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(26.dp))
             .background(Card)
+            .border(1.dp, Hairline, RoundedCornerShape(26.dp))
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF4A5D8E)),
+            Modifier.size(46.dp).clip(RoundedCornerShape(16.dp)).background(Accent),
             contentAlignment = Alignment.Center
-        ) { Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp)) }
+        ) { Icon(icon, contentDescription = null, tint = OnAccent, modifier = Modifier.size(24.dp)) }
         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
-            Text(title, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text(title, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
             Text(subtitle, color = TextMuted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = TextMuted)
@@ -215,9 +217,44 @@ private fun LibEntry(icon: ImageVector, title: String, subtitle: String, onClick
 @Composable
 private fun LibSection(text: String) {
     Text(
-        text, color = TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium,
-        modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 6.dp)
+        text, color = TextMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+        letterSpacing = 1.sp,
+        modifier = Modifier.padding(start = 22.dp, top = 18.dp, bottom = 6.dp)
     )
+}
+
+/** Big square tile of the Library dashboard: icon, a large number and a label. [hero] = filled mint. */
+@Composable
+private fun StatTile(
+    icon: ImageVector,
+    label: String,
+    count: String,
+    hero: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(30.dp)
+    val fg = if (hero) OnAccent else TextPrimary
+    val sub = if (hero) OnAccent.copy(alpha = 0.7f) else TextMuted
+    Column(
+        modifier
+            .aspectRatio(1.05f)
+            .clip(shape)
+            .background(if (hero) Accent else Card)
+            .border(1.dp, if (hero) Accent else Hairline, shape)
+            .bouncyClickable(pressedScale = 0.95f, onClick = onClick)
+            .padding(18.dp),
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        Box(
+            Modifier.size(42.dp).clip(CircleShape).background(if (hero) OnAccent.copy(alpha = 0.12f) else Hairline),
+            contentAlignment = Alignment.Center
+        ) { Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(22.dp)) }
+        Column {
+            Text(count, color = fg, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-1).sp)
+            Text(label, color = sub, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        }
+    }
 }
 
 @Composable
@@ -228,20 +265,72 @@ fun LibraryScreen() {
     Column(Modifier.fillMaxSize()) {
         TabTopBar("Library")
         LazyColumn(Modifier.fillMaxSize(), contentPadding = listPadding) {
+            // 2 x 2 bento dashboard
             item {
                 Column(
-                    Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    LibEntry(Icons.Rounded.Download, "Downloads", "Videos saved on this phone") { nav.push(Route.Downloads) }
-                    LibEntry(
-                        Icons.Rounded.History, "History",
-                        if (Session.loggedIn) "Your YouTube history: videos and Shorts" else "Videos and Shorts you watched here"
-                    ) { nav.push(Route.History) }
-                    LibEntry(
-                        Icons.AutoMirrored.Rounded.PlaylistPlay, "Playlists",
-                        if (Session.loggedIn) "Your playlists and liked videos" else "Playlists on this phone"
-                    ) { nav.push(Route.Playlists) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StatTile(
+                            Icons.Rounded.History, "History",
+                            if (Session.loggedIn) "•" else store.history.size.toString(),
+                            hero = true, onClick = { nav.push(Route.History) }, modifier = Modifier.weight(1f)
+                        )
+                        StatTile(
+                            Icons.Rounded.Download, "Downloads", Downloads.items.size.toString(),
+                            hero = false, onClick = { nav.push(Route.Downloads) }, modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StatTile(
+                            Icons.AutoMirrored.Rounded.PlaylistPlay, "Playlists",
+                            if (Session.loggedIn) "•" else store.playlists.size.toString(),
+                            hero = false, onClick = { nav.push(Route.Playlists) }, modifier = Modifier.weight(1f)
+                        )
+                        StatTile(
+                            Icons.Rounded.ThumbUp, if (Session.loggedIn) "Liked" else "Subscribed",
+                            if (Session.loggedIn) "♥" else store.subscriptions.size.toString(),
+                            hero = false,
+                            onClick = {
+                                if (Session.loggedIn) nav.push(Route.Playlist("LL", "Liked videos")) else nav.push(Route.Settings)
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+            // recently watched, as a swipeable strip of posters
+            val recent = store.history.filter { !it.short }.take(12)
+            if (recent.isNotEmpty()) {
+                item { LibSection("CONTINUE WATCHING") }
+                item {
+                    androidx.compose.foundation.lazy.LazyRow(
+                        contentPadding = PaddingValues(horizontal = 14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(recent.size) { i ->
+                            val v = recent[i]
+                            Column(
+                                Modifier
+                                    .width(190.dp)
+                                    .clip(RoundedCornerShape(24.dp))
+                                    .background(Card)
+                                    .border(1.dp, Hairline, RoundedCornerShape(24.dp))
+                                    .bouncyClickable(pressedScale = 0.95f) { nav.push(Route.Video(v.id, v)) }
+                                    .padding(6.dp)
+                            ) {
+                                Box(Modifier.fillMaxWidth().aspectRatio(16f / 10f).clip(RoundedCornerShape(19.dp)).background(Hairline)) {
+                                    VideoThumb(v.id, Modifier.fillMaxSize())
+                                }
+                                Text(
+                                    v.title, color = TextPrimary, fontSize = 12.sp, lineHeight = 16.sp,
+                                    fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 6.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

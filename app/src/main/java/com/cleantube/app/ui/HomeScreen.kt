@@ -22,10 +22,11 @@ fun HomeScreen() {
         val paged = TabCache.paged("home:$loggedIn:${Session.handle}") { token -> Api.home(token) }
         PagedColumn(
             paged = paged,
-            emptyText = "Nothing to show right now. Pull to retry from the Feed tab, or check your connection."
-        ) { v ->
-            VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
-        }
+            emptyText = "Nothing to show right now. Pull to retry from the Feed tab, or check your connection.",
+            header = { item { TopicChips() } },
+            // fixed-height rhythm: hero, two tiles, two tiles... (see BentoFeedItem)
+            indexRow = { i -> BentoFeedItem(paged.items, i) { v -> nav.push(Route.Video(v.id, v)) } }
+        ) { }
     }
 }
 
@@ -39,9 +40,8 @@ fun TrendingScreen() {
         val paged = TabCache.paged("trending") { token -> Api.trending(token) }
         PagedColumn(
             paged = paged,
-            emptyText = "Nothing to show right now. Check your connection."
-        ) { v ->
-            VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
-        }
+            emptyText = "Nothing to show right now. Check your connection.",
+            indexRow = { i -> CompactRankRow(paged.items, i) { v -> nav.push(Route.Video(v.id, v)) } }
+        ) { }
     }
 }

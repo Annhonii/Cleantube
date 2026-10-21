@@ -1,5 +1,6 @@
 package com.cleantube.app.ui
 
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
@@ -227,7 +228,7 @@ fun VideoScreen(route: Route.Video) {
             title = video?.title.orEmpty(),
             modifier = if (inPopup) Modifier else Modifier
                 .padding(horizontal = 8.dp, vertical = 6.dp)
-                .clip(RoundedCornerShape(24.dp))
+                .clip(RoundedCornerShape(30.dp))
         )
 
         // everything below the player is hidden while the video is in the popup window
@@ -253,9 +254,10 @@ fun VideoScreen(route: Route.Video) {
                             Text(
                                 video?.title ?: "Loading…",
                                 color = TextPrimary,
-                                fontSize = 18.sp,
-                                lineHeight = 24.sp,
-                                fontWeight = FontWeight.Medium,
+                                fontSize = 21.sp,
+                                lineHeight = 27.sp,
+                                letterSpacing = (-0.3).sp,
+                                fontWeight = FontWeight.Bold,
                                 maxLines = if (descOpen) Int.MAX_VALUE else 3,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f).padding(top = 2.dp)
@@ -307,7 +309,7 @@ fun VideoScreen(route: Route.Video) {
                     }
                 }
 
-                // ---- actions
+                // ---- actions: like / dislike capsule, then round icon tiles
                 item {
                     Row(
                         Modifier
@@ -315,35 +317,48 @@ fun VideoScreen(route: Route.Video) {
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState())
                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.Top
                     ) {
                         val likes = details?.likesText.orEmpty()
-                        ActionChip(
-                            likes.ifEmpty { "Like" },
-                            Icons.Rounded.ThumbUp,
-                            onClick = { rate(1) },
-                            container = if (rating == 1) Accent else Card,
-                            content = if (rating == 1) OnAccent else TextPrimary
-                        )
-                        ActionChip(
-                            "Dislike",
-                            Icons.Rounded.ThumbDown,
-                            onClick = { rate(-1) },
-                            container = if (rating == -1) TextPrimary else Card,
-                            content = if (rating == -1) Bg else TextPrimary
-                        )
-                        ActionChip("Share", Icons.Rounded.Share, onClick = { shareVideo(ctx, route.id) })
-                        ActionChip("Save", Icons.Rounded.Add, onClick = { if (video != null) saveDialog = true })
-                        ActionChip("Download", Icons.Rounded.Download, onClick = { if (video != null) downloadDialog = true })
+                        Row(
+                            Modifier
+                                .height(58.dp)
+                                .clip(RoundedCornerShape(21.dp))
+                                .background(Card)
+                                .border(1.dp, Hairline, RoundedCornerShape(21.dp)),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                Modifier
+                                    .fillMaxHeight()
+                                    .background(if (rating == 1) Accent else Color.Transparent)
+                                    .bouncyClickable(pressedScale = 0.92f) { rate(1) }
+                                    .padding(horizontal = 18.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Rounded.ThumbUp, contentDescription = "Like", tint = if (rating == 1) OnAccent else TextPrimary, modifier = Modifier.size(22.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(likes.ifEmpty { "Like" }, color = if (rating == 1) OnAccent else TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            }
+                            Box(Modifier.width(1.dp).height(26.dp).background(Hairline))
+                            Box(
+                                Modifier
+                                    .fillMaxHeight()
+                                    .background(if (rating == -1) TextPrimary else Color.Transparent)
+                                    .bouncyClickable(pressedScale = 0.92f) { rate(-1) }
+                                    .padding(horizontal = 18.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Rounded.ThumbDown, contentDescription = "Dislike", tint = if (rating == -1) Bg else TextPrimary, modifier = Modifier.size(22.dp))
+                            }
+                        }
+                        ActionTile("Share", Icons.Rounded.Share, onClick = { shareVideo(ctx, route.id) })
+                        ActionTile("Save", Icons.Rounded.Add, onClick = { if (video != null) saveDialog = true })
+                        ActionTile("Download", Icons.Rounded.Download, onClick = { if (video != null) downloadDialog = true })
                         val bgOn = BackgroundPlay.activeId == route.id
-                        ActionChip(
-                            "Background",
-                            Icons.Rounded.Headphones,
-                            onClick = { if (video != null) toggleBackground() },
-                            container = if (bgOn) TextPrimary else Card,
-                            content = if (bgOn) Bg else TextPrimary
-                        )
-                        ActionChip("Popup", Icons.Rounded.PictureInPictureAlt, onClick = { PipHost.enter?.invoke() })
+                        ActionTile("Audio", Icons.Rounded.Headphones, onClick = { if (video != null) toggleBackground() }, active = bgOn)
+                        ActionTile("Popup", Icons.Rounded.PictureInPictureAlt, onClick = { PipHost.enter?.invoke() })
                     }
                 }
 
@@ -360,8 +375,9 @@ fun VideoScreen(route: Route.Video) {
                                 .fillMaxWidth()
                                 .padding(horizontal = 14.dp, vertical = 6.dp)
                                 .bouncyClickable(pressedScale = 0.97f) { nav.push(Route.Channel(ch.id, ch)) }
-                                .clip(RoundedCornerShape(22.dp))
+                                .clip(RoundedCornerShape(30.dp))
                                 .background(Card)
+                                .border(1.dp, Hairline, RoundedCornerShape(30.dp))
                                 .padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -406,8 +422,9 @@ fun VideoScreen(route: Route.Video) {
                             .fillMaxWidth()
                             .padding(horizontal = 14.dp, vertical = 6.dp)
                             .bouncyClickable(pressedScale = 0.975f) { commentsOpen = true }
-                            .clip(RoundedCornerShape(22.dp))
+                            .clip(RoundedCornerShape(30.dp))
                             .background(Card)
+                            .border(1.dp, Hairline, RoundedCornerShape(30.dp))
                             .animateContentSize(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow))
                             .padding(16.dp)
                     ) {
@@ -452,17 +469,18 @@ fun VideoScreen(route: Route.Video) {
                 item {
                     Text(
                         "Up next",
-                        color = TextMuted,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(start = 20.dp, top = 14.dp, bottom = 2.dp)
+                        color = TextPrimary,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.4).sp,
+                        modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 6.dp)
                     )
                 }
                 val vids = more.items.filter { it.id != route.id }
                 items(vids.size) { i ->
                     val v = vids[i]
                     Box(Modifier.entrance(seen, "up" + v.id, if (i < 4) 420 + i * 70 else 0)) {
-                        VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
+                        CompactRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
                     }
                 }
 

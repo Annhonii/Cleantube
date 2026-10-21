@@ -1,5 +1,12 @@
 package com.cleantube.app.ui
 
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -77,12 +84,17 @@ fun SearchScreen(route: Route.Search) {
 
     Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { nav.back() }) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+            Box(
+                Modifier.size(46.dp).clip(CircleShape).background(Card).border(1.dp, Hairline, CircleShape)
+                    .bouncyClickable(pressedScale = 0.88f, onClick = { nav.back() }),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = TextPrimary, modifier = Modifier.size(22.dp))
             }
+            Spacer(Modifier.width(10.dp))
             PillTextField(
                 value = text,
                 onValueChange = { text = it },
@@ -108,16 +120,35 @@ fun SearchScreen(route: Route.Search) {
             else store.searches.filter { it.contains(q, ignoreCase = true) }
 
             LazyColumn(Modifier.fillMaxSize()) {
+                if (text.isEmpty()) {
+                    item {
+                        Text(
+                            "Explore", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 20.dp, top = 6.dp, bottom = 4.dp)
+                        )
+                        TopicChips(onPick = { submit(it) })
+                        if (matches.isNotEmpty()) {
+                            Text(
+                                "Recent", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 6.dp)
+                            )
+                        }
+                    }
+                }
                 items(matches.size) { i ->
                     val s = matches[i]
                     Row(
                         Modifier
                             .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 4.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(Card)
+                            .border(1.dp, Hairline, RoundedCornerShape(22.dp))
                             .clickable { submit(s) }
-                            .padding(horizontal = 18.dp, vertical = 6.dp),
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Rounded.History, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Rounded.History, contentDescription = null, tint = Accent, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(14.dp))
                         Text(
                             s,
@@ -136,8 +167,9 @@ fun SearchScreen(route: Route.Search) {
                     item {
                         Text(
                             "Search for \"${text.trim()}\"",
-                            color = TextPrimary,
+                            color = Accent,
                             fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { submit(text) }
