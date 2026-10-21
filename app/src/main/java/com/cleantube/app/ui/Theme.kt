@@ -36,8 +36,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 // Colours when no video is open:
-//  - light mode: warm, slightly yellowish white with YouTube red
-//  - dark mode: pure black and white
+//  - only black, white and YouTube red (light: white + red, dark: black + red)
 // As soon as a video opens, the colours follow that video's thumbnail instead (see "colours from the playing video").
 
 private val YtRed = Color(0xFFFF0000)
@@ -46,41 +45,41 @@ private val Live = Color(0xFFFF4B4B)
 private val LightScheme = lightColorScheme(
     primary = YtRed,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFDAD4),
-    onPrimaryContainer = Color(0xFF410002),
-    secondary = Color(0xFFC4161C),
+    primaryContainer = YtRed,
+    onPrimaryContainer = Color.White,
+    secondary = YtRed,
     onSecondary = Color.White,
-    background = Color(0xFFFFFAEB),
-    onBackground = Color(0xFF1C1B16),
-    surface = Color(0xFFFFFAEB),
-    onSurface = Color(0xFF1C1B16),
-    surfaceVariant = Color(0xFFFFF1D6),
-    onSurfaceVariant = Color(0xFF6E6858),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFFFF6E0),
-    surfaceContainer = Color(0xFFFFF1D6),
-    surfaceContainerHigh = Color(0xFFFFEBC9),
-    surfaceContainerHighest = Color(0xFFF6E3BE),
-    outline = Color(0xFF9A927E),
-    outlineVariant = Color(0xFFEBDDBA),
+    background = Color.White,
+    onBackground = Color.Black,
+    surface = Color.White,
+    onSurface = Color.Black,
+    surfaceVariant = Color(0xFFF2F2F2),
+    onSurfaceVariant = Color(0xFF606060),
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Color(0xFFF8F8F8),
+    surfaceContainer = Color(0xFFF2F2F2),
+    surfaceContainerHigh = Color(0xFFF0F0F0),
+    surfaceContainerHighest = Color(0xFFE6E6E6),
+    outline = Color(0xFF909090),
+    outlineVariant = Color(0xFFE0E0E0),
     error = YtRed,
-    inverseSurface = Color(0xFF1C1B16),
-    inverseOnSurface = Color(0xFFFFFAEB)
+    inverseSurface = Color.Black,
+    inverseOnSurface = Color.White
 )
 
 private val DarkScheme = darkColorScheme(
-    primary = Color.White,
-    onPrimary = Color.Black,
-    primaryContainer = Color(0xFF242424),
+    primary = YtRed,
+    onPrimary = Color.White,
+    primaryContainer = YtRed,
     onPrimaryContainer = Color.White,
-    secondary = Color(0xFFE0E0E0),
-    onSecondary = Color.Black,
+    secondary = YtRed,
+    onSecondary = Color.White,
     background = Color.Black,
     onBackground = Color.White,
     surface = Color.Black,
     onSurface = Color.White,
     surfaceVariant = Color(0xFF141414),
-    onSurfaceVariant = Color(0xFFA8A8A8),
+    onSurfaceVariant = Color(0xFFAAAAAA),
     surfaceContainerLowest = Color.Black,
     surfaceContainerLow = Color(0xFF0B0B0B),
     surfaceContainer = Color(0xFF121212),
@@ -88,7 +87,7 @@ private val DarkScheme = darkColorScheme(
     surfaceContainerHighest = Color(0xFF262626),
     outline = Color(0xFF6E6E6E),
     outlineVariant = Color(0xFF2A2A2A),
-    error = Live,
+    error = YtRed,
     inverseSurface = Color.White,
     inverseOnSurface = Color.Black
 )

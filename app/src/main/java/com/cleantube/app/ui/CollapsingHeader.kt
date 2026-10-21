@@ -210,17 +210,6 @@ fun CollapsingHeader(
                 val left = CardMargin.toPx()
                 val top = sbPx + CardTop.toPx()
                 val width = size.width - 2 * left
-                // soft shadow: a few faint rounded layers, a bit stronger while collapsed / over the video
-                val shade = 0.07f + 0.08f * p + 0.06f * w
-                for (i in 1..4) {
-                    val grow = i * 2.dp.toPx()
-                    drawRoundRect(
-                        Color.Black.copy(alpha = shade / (i + 0.5f)),
-                        Offset(left - grow * 0.6f, top + grow * 0.7f),
-                        Size(width + grow * 1.2f, cardH + grow * 0.9f),
-                        CornerRadius(r + grow, r + grow)
-                    )
-                }
                 // the card: all four corners rounded
                 drawRoundRect(AccentSoft, Offset(left, top), Size(width, cardH), CornerRadius(r, r))
             }
