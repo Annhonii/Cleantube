@@ -193,16 +193,12 @@ fun CollapsingHeader(
             .drawBehind {
                 val w = shortsW()
                 // flat bar over the full screen width (status bar included), in the screen colour: part of the page, not a card.
-                // The feed slides under it with a soft fade. Over a Short the bar goes away and only a dark scrim stays,
+                // The feed slides under it with a clean edge (no fade). Over a Short the bar goes away and only a dark scrim stays,
                 // so the search pill and photo float on the video.
                 val bgA = 1f - w
                 val barH = size.height
                 if (bgA > 0f) {
                     drawRect(Bg, size = Size(size.width, barH), alpha = bgA)
-                    drawRect(
-                        Brush.verticalGradient(listOf(Bg, Color.Transparent), startY = barH, endY = barH + FadeBelow.toPx()),
-                        topLeft = Offset(0f, barH), size = Size(size.width, FadeBelow.toPx()), alpha = bgA
-                    )
                 }
                 if (w > 0f) {
                     drawRect(
