@@ -47,6 +47,9 @@ import com.cleantube.app.data.Session
 import kotlin.math.roundToInt
 
 // Collapsing top header (Material You style): a floating rounded card below the status bar.
+// One card for the whole app, drawn above the tab pager (see App.kt): on Home it collapses with the feed's scroll,
+// on Shorts it floats over the video already collapsed, and swiping / tapping between the two shrinks or grows it
+// in step with the page movement. On the other tabs it slides away.
 //
 //  expanded:  ( card ................................... Hi, Davesh!  (photo, big) )
 //             (   ( search pill, full width )                                        )
@@ -78,25 +81,60 @@ fun collapsingHeaderHeight(): Dp = WindowInsets.statusBars.asPaddingValues().cal
 private fun li(a: Int, b: Int, t: Float) = (a + (b - a) * t).roundToInt()
 private fun lf(a: Float, b: Float, t: Float) = a + (b - a) * t
 
-/**
- * Sticky header drawn over a list. Pass the list's [listState]; scrolling the content up collapses the header,
- * scrolling back to the top expands it again. The list needs [collapsingHeaderHeight] of top padding.
- */
+/** Scroll of the Home feed as 0 (top) .. 1 (fully scrolled past the card's growth); written by [TrackHeaderScroll]. */
+object HeaderScroll {
+    var raw by androidx.compose.runtime.mutableFloatStateOf(0f)
+}
+
+/** Reports a list's scroll to the header. Call it from the screen whose feed the header should follow. */
 @Composable
-fun CollapsingHeader(listState: LazyListState, modifier: Modifier = Modifier) {
-    val nav = LocalNav.current
+fun TrackHeaderScroll(listState: LazyListState) {
     val density = LocalDensity.current
     val rangePx = with(density) { (CardBig - CardSmall).toPx() }
-    val sbPx = WindowInsets.statusBars.getTop(density)
-
-    val raw = remember(listState, rangePx) {
-        derivedStateOf {
+    androidx.compose.runtime.LaunchedEffect(listState, rangePx) {
+        androidx.compose.runtime.snapshotFlow {
             if (listState.firstVisibleItemIndex > 0) 1f
             else (listState.firstVisibleItemScrollOffset / rangePx).coerceIn(0f, 1f)
-        }
+        }.collect { HeaderScroll.raw = it }
     }
-    // spring smoothing: the header glides to where the scroll wants it instead of snapping with every pixel
-    val fState = animateFloatAsState(raw.value, spring(dampingRatio = 1f, stiffness = 380f), label = "headerCollapse")
+}
+
+/** How visible the header is for a pager position: 1 on the Home / Shorts pages and in between, fading away beyond. */
+fun headerVisibility(pos: Float, homeIndex: Int, shortsIndex: Int): Float {
+    val idx = listOf(homeIndex, shortsIndex).filter { it >= 0 }
+    if (idx.isEmpty()) return 0f
+    val lo = idx.min().toFloat()
+    val hi = idx.max().toFloat()
+    val dist = if (pos < lo) lo - pos else if (pos > hi) pos - hi else 0f
+    return (1f - dist).coerceIn(0f, 1f)
+}
+
+/**
+ * The header card. [pagerPosition] is the tab pager's position (page + offset); with it the card knows how far
+ * it is from Shorts (where it is always collapsed) and from the other tabs (where it is hidden).
+ */
+@Composable
+fun CollapsingHeader(
+    pagerPosition: () -> Float,
+    homeIndex: Int,
+    shortsIndex: Int,
+    modifier: Modifier = Modifier
+) {
+    val nav = LocalNav.current
+    val density = LocalDensity.current
+    val sbPx = WindowInsets.statusBars.getTop(density)
+
+    // spring smoothing: the card glides to where the Home scroll wants it instead of snapping with every pixel
+    val homeF = animateFloatAsState(HeaderScroll.raw, spring(dampingRatio = 1f, stiffness = 320f), label = "headerCollapse")
+    // 1 on the Shorts page, 0 one page away: the card shrinks / grows while the pages slide
+    val shortsW: () -> Float = {
+        if (shortsIndex < 0) 0f else (1f - kotlin.math.abs(pagerPosition() - shortsIndex)).coerceIn(0f, 1f)
+    }
+    // 0 = expanded .. 1 = collapsed
+    val fOf: () -> Float = {
+        val h = homeF.value
+        (h + (1f - h) * shortsW()).coerceIn(0f, 1f)
+    }
 
     val firstName = Session.name.trim().substringBefore(' ').ifEmpty { "Davesh" }
     val thumb = Session.thumb
@@ -109,9 +147,13 @@ fun CollapsingHeader(listState: LazyListState, modifier: Modifier = Modifier) {
                 color = OnAccentSoft, fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, softWrap = false, overflow = TextOverflow.Clip,
                 modifier = Modifier.graphicsLayer {
-                    val p = fState.value
-                    alpha = (1f - p * 2.4f).coerceIn(0f, 1f)
-                    translationX = 28.dp.toPx() * p
+                    val p = fOf()
+                    alpha = (1f - p * 2.6f).coerceIn(0f, 1f)
+                    translationX = 32.dp.toPx() * p
+                    val sc = 1f - 0.12f * p
+                    scaleX = sc
+                    scaleY = sc
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0.5f)
                 }
             )
             // 1: profile photo (opens Settings)
@@ -144,26 +186,46 @@ fun CollapsingHeader(listState: LazyListState, modifier: Modifier = Modifier) {
         },
         modifier = modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                // slides up a little and fades while the pager moves away from Home / Shorts
+                val v = headerVisibility(pagerPosition(), homeIndex, shortsIndex)
+                alpha = v
+                translationY = -(1f - v) * 36.dp.toPx()
+            }
             .drawBehind {
-                val p = fState.value
+                val p = fOf()
+                val w = shortsW()
                 // screen colour behind the status bar and around the card, so the feed never shows through there
-                drawRect(Bg)
-                drawRect(
-                    Brush.verticalGradient(listOf(Bg, Color.Transparent), startY = size.height, endY = size.height + FadeBelow.toPx()),
-                    topLeft = Offset(0f, size.height), size = Size(size.width, FadeBelow.toPx())
-                )
-                // the card: all four corners rounded
+                // (not on Shorts: there the video stays visible around the card)
+                val bgA = 1f - w
+                if (bgA > 0f) {
+                    drawRect(Bg, alpha = bgA)
+                    drawRect(
+                        Brush.verticalGradient(listOf(Bg, Color.Transparent), startY = size.height, endY = size.height + FadeBelow.toPx()),
+                        topLeft = Offset(0f, size.height), size = Size(size.width, FadeBelow.toPx()), alpha = bgA
+                    )
+                }
                 val cardH = lf(CardBig.toPx(), CardSmall.toPx(), p)
                 val r = lf(32.dp.toPx(), 28.dp.toPx(), p)
-                drawRoundRect(
-                    AccentSoft,
-                    Offset(CardMargin.toPx(), sbPx + CardTop.toPx()),
-                    Size(size.width - 2 * CardMargin.toPx(), cardH),
-                    CornerRadius(r, r)
-                )
+                val left = CardMargin.toPx()
+                val top = sbPx + CardTop.toPx()
+                val width = size.width - 2 * left
+                // soft shadow: a few faint rounded layers, a bit stronger while collapsed / over the video
+                val shade = 0.07f + 0.08f * p + 0.06f * w
+                for (i in 1..4) {
+                    val grow = i * 2.dp.toPx()
+                    drawRoundRect(
+                        Color.Black.copy(alpha = shade / (i + 0.5f)),
+                        Offset(left - grow * 0.6f, top + grow * 0.7f),
+                        Size(width + grow * 1.2f, cardH + grow * 0.9f),
+                        CornerRadius(r + grow, r + grow)
+                    )
+                }
+                // the card: all four corners rounded
+                drawRoundRect(AccentSoft, Offset(left, top), Size(width, cardH), CornerRadius(r, r))
             }
     ) { measurables, c ->
-        val p = fState.value.coerceIn(0f, 1f)
+        val p = fOf()
         val w = c.maxWidth
         val innerX = CardMargin.roundToPx() + InnerPad.roundToPx()   // left / right edge of what is inside the card
         val gap = Gap.roundToPx()

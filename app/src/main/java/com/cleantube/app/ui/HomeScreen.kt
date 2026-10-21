@@ -32,7 +32,8 @@ fun HomeScreen() {
             // fixed-height rhythm: hero, two tiles, two tiles... (see BentoFeedItem)
             indexRow = { i -> BentoFeedItem(paged.items, i) { v -> nav.push(Route.Video(v.id, v)) } }
         ) { }
-        CollapsingHeader(paged.listState)
+        // the card itself is drawn once for the whole app (App.kt); this only tells it how far the feed is scrolled
+        TrackHeaderScroll(paged.listState)
     }
 }
 

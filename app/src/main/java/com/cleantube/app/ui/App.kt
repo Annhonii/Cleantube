@@ -5,6 +5,8 @@ import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
@@ -110,15 +112,23 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                 }
             }
 
-            // the pill stays put while the pages slide under it; it leaves upwards when a screen is pushed
+            // the header card: one card for Home and Shorts. It collapses with the Home feed's scroll, floats over the
+            // Shorts video already collapsed, shrinks / grows while the pages slide between the two, and leaves upwards
+            // when a screen is pushed.
+            val homeIdx = visibleRoutes.indexOf(Route.Home)
+            val shortsIdx = visibleRoutes.indexOf(Route.Shorts)
+            val headerPos: () -> Float = { pagerState.currentPage + pagerState.currentPageOffsetFraction }
+            val headerOn by remember(homeIdx, shortsIdx) {
+                derivedStateOf { headerVisibility(headerPos(), homeIdx, shortsIdx) > 0.01f }
+            }
             AnimatedVisibility(
-                // also on the Shorts tab (floats over the video); hides under a Shorts sheet / menu
-                visible = nav.isTabRoot && nav.current == Route.Shorts && !ShortsUi.overlayOpen,
+                // hides under a Shorts sheet / menu
+                visible = nav.isTabRoot && !(nav.current == Route.Shorts && ShortsUi.overlayOpen),
                 modifier = Modifier.align(Alignment.TopCenter),
-                enter = slideInVertically(spring(dampingRatio = 0.75f, stiffness = 420f)) { -it } + fadeIn(tween(220)),
-                exit = slideOutVertically(tween(240, easing = Motion.EmphasizedAccelerate)) { -it } + fadeOut(tween(160))
+                enter = slideInVertically(spring(dampingRatio = 0.8f, stiffness = 380f)) { -it } + fadeIn(tween(240)),
+                exit = slideOutVertically(tween(260, easing = Motion.EmphasizedAccelerate)) { -it } + fadeOut(tween(180))
             ) {
-                TopBar(overVideo = nav.current == Route.Shorts)
+                if (headerOn) CollapsingHeader(headerPos, homeIdx, shortsIdx)
             }
 
             // the search bar floats up when a tab opens and drops away when a screen is pushed
