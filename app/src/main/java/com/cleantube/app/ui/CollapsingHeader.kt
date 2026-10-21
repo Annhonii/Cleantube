@@ -32,6 +32,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
@@ -44,34 +46,34 @@ import androidx.compose.ui.unit.sp
 import com.cleantube.app.data.Session
 import kotlin.math.roundToInt
 
-// Collapsing top header (Material You style).
+// Collapsing top header (Material You style): a floating rounded card below the status bar.
 //
-//  expanded:  [ coloured card ........................ Hi, Davesh!  (photo, big) ]
-//             [ ( search pill, full width )                                       ]
-//  collapsed: [ ( search pill, up to the photo )                     (photo, small) ]
+//  expanded:  ( card ................................... Hi, Davesh!  (photo, big) )
+//             (   ( search pill, full width )                                        )
+//  collapsed: ( card: ( search pill, up to the photo )                (photo, small) )
 //
 // The card colour is the theme's soft accent, which already follows the playing video (see Theme.kt), so the
 // header changes colour together with the rest of the app. Everything is driven by ONE number (0 = expanded,
 // 1 = collapsed) that follows the list's scroll through a spring, and the size / position of every part is
 // worked out from it in the layout phase: no recomposition per frame, no jumps.
 
-private val SidePad = 16.dp
+private val CardMargin = 12.dp      // space between the card and the screen's left / right edge
+private val CardTop = 8.dp          // space between the status bar and the card
+private val InnerPad = 14.dp        // space between the card's edge and what is inside
 private val Gap = 10.dp
 private val AvatarBig = 56.dp
 private val AvatarSmall = 40.dp
 private val SearchBig = 52.dp
 private val SearchSmall = 44.dp
-
-// vertical space below the status bar
-private val TopPadBig = 12.dp
-private val BelowAvatarBig = 14.dp
-private val BottomPadBig = 18.dp
-private val BodyExpanded = TopPadBig + AvatarBig + BelowAvatarBig + SearchBig + BottomPadBig   // 152dp
-private val BodyCollapsed = 64.dp
+private val InnerVBig = 12.dp
+private val CardBig = InnerVBig + AvatarBig + InnerVBig + SearchBig + InnerVBig   // 144dp
+private val CardSmall = 56.dp
+private val BelowCard = 4.dp
+private val FadeBelow = 14.dp       // soft fade where the feed slides under the header
 
 /** Full (expanded) height of [CollapsingHeader]: use it as the top padding of the list underneath. */
 @Composable
-fun collapsingHeaderHeight(): Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + BodyExpanded
+fun collapsingHeaderHeight(): Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + CardTop + CardBig + BelowCard
 
 private fun li(a: Int, b: Int, t: Float) = (a + (b - a) * t).roundToInt()
 private fun lf(a: Float, b: Float, t: Float) = a + (b - a) * t
@@ -84,7 +86,7 @@ private fun lf(a: Float, b: Float, t: Float) = a + (b - a) * t
 fun CollapsingHeader(listState: LazyListState, modifier: Modifier = Modifier) {
     val nav = LocalNav.current
     val density = LocalDensity.current
-    val rangePx = with(density) { (BodyExpanded - BodyCollapsed).toPx() }
+    val rangePx = with(density) { (CardBig - CardSmall).toPx() }
     val sbPx = WindowInsets.statusBars.getTop(density)
 
     val raw = remember(listState, rangePx) {
@@ -143,46 +145,62 @@ fun CollapsingHeader(listState: LazyListState, modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxWidth()
             .drawBehind {
-                // coloured card; only the bottom corners are rounded (the top runs off the screen edge)
-                val r = lf(34.dp.toPx(), 24.dp.toPx(), fState.value)
-                drawRoundRect(AccentSoft, Offset(0f, -r), Size(size.width, size.height + r), CornerRadius(r, r))
+                val p = fState.value
+                // screen colour behind the status bar and around the card, so the feed never shows through there
+                drawRect(Bg)
+                drawRect(
+                    Brush.verticalGradient(listOf(Bg, Color.Transparent), startY = size.height, endY = size.height + FadeBelow.toPx()),
+                    topLeft = Offset(0f, size.height), size = Size(size.width, FadeBelow.toPx())
+                )
+                // the card: all four corners rounded
+                val cardH = lf(CardBig.toPx(), CardSmall.toPx(), p)
+                val r = lf(32.dp.toPx(), 28.dp.toPx(), p)
+                drawRoundRect(
+                    AccentSoft,
+                    Offset(CardMargin.toPx(), sbPx + CardTop.toPx()),
+                    Size(size.width - 2 * CardMargin.toPx(), cardH),
+                    CornerRadius(r, r)
+                )
             }
     ) { measurables, c ->
         val p = fState.value.coerceIn(0f, 1f)
         val w = c.maxWidth
-        val pad = SidePad.roundToPx()
+        val innerX = CardMargin.roundToPx() + InnerPad.roundToPx()   // left / right edge of what is inside the card
         val gap = Gap.roundToPx()
+        val cardTop = sbPx + CardTop.roundToPx()
+        val cardBig = CardBig.roundToPx()
+        val cardSmall = CardSmall.roundToPx()
 
-        // photo: big -> small, always at the right edge
+        // photo: big -> small, always at the card's right edge
         val aBig = AvatarBig.roundToPx()
         val aSm = AvatarSmall.roundToPx()
         val a = li(aBig, aSm, p)
         val avatar = measurables[1].measure(Constraints.fixed(a, a))
-        val avatarX = w - pad - a
-        val centerBig = sbPx + TopPadBig.roundToPx() + aBig / 2
-        val centerSm = sbPx + 8.dp.roundToPx() + 24.dp.roundToPx()
+        val avatarX = w - innerX - a
+        val centerBig = cardTop + InnerVBig.roundToPx() + aBig / 2
+        val centerSm = cardTop + cardSmall / 2
         val cy = li(centerBig, centerSm, p)
 
-        // search pill: full width below the photo -> from the left edge up to the (small) photo, next to it
+        // search pill: full card width below the photo -> from the card's left edge up to the (small) photo
         val sBig = SearchBig.roundToPx()
         val sSm = SearchSmall.roundToPx()
         val searchH = li(sBig, sSm, p)
-        val widthBig = w - 2 * pad
-        val widthSm = (w - pad - aSm) - gap - pad
+        val widthBig = w - 2 * innerX
+        val widthSm = (w - innerX - aSm) - gap - innerX
         val searchW = li(widthBig, widthSm, p)
-        val topBig = sbPx + TopPadBig.roundToPx() + aBig + BelowAvatarBig.roundToPx()
+        val topBig = cardTop + InnerVBig.roundToPx() + aBig + InnerVBig.roundToPx()
         val topSm = centerSm - sSm / 2
         val searchTop = li(topBig, topSm, p)
         val search = measurables[2].measure(Constraints.fixed(searchW, searchH))
 
         // greeting: just left of the photo
-        val greeting = measurables[0].measure(Constraints(maxWidth = (avatarX - gap - pad).coerceAtLeast(0)))
+        val greeting = measurables[0].measure(Constraints(maxWidth = (avatarX - gap - innerX).coerceAtLeast(0)))
 
-        val h = li(sbPx + BodyExpanded.roundToPx(), sbPx + BodyCollapsed.roundToPx(), p)
+        val h = cardTop + li(cardBig, cardSmall, p) + BelowCard.roundToPx()
         layout(w, h) {
             greeting.place(avatarX - gap - greeting.width, cy - greeting.height / 2)
             avatar.place(avatarX, cy - a / 2)
-            search.place(pad, searchTop)
+            search.place(innerX, searchTop)
         }
     }
 }
