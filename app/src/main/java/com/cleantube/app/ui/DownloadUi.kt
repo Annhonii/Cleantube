@@ -131,8 +131,8 @@ fun DownloadDialog(video: VideoItem, onDone: () -> Unit) {
                             }
                         }
                         Text(
-                            if (where == "app") "Private to CleanTube, shown in its Downloads list. Removed if you uninstall the app."
-                            else "Saved in Movies/CleanTube (or Music/CleanTube for audio), visible to your gallery and file manager.",
+                            if (where == "app") "Private to Voidstream, shown in its Downloads list. Removed if you uninstall the app."
+                            else "Saved in Movies/Voidstream (or Music/Voidstream for audio), visible to your gallery and file manager.",
                             color = TextMuted, fontSize = 12.sp
                         )
                     }

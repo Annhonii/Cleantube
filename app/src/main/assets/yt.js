@@ -1,4 +1,4 @@
-/* CleanTube InnerTube engine.
+/* Voidstream InnerTube engine.
  *
  * Runs inside a hidden WebView that is on https://www.youtube.com (so the user's login cookies,
  * TLS fingerprint and headers are the real browser's). Kotlin calls CT.run(id, command, argsJson);

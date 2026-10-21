@@ -258,7 +258,7 @@ class Store(context: Context) {
         .toString(2)
 
     /**
-     * Accepts CleanTube's own export and NewPipe's "subscriptions" JSON export.
+     * Accepts Voidstream's own export and NewPipe's "subscriptions" JSON export.
      * Returns how many new subscriptions were added. Throws on invalid JSON.
      */
     fun importJson(text: String): Int {

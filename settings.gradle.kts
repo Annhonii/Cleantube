@@ -18,5 +18,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "CleanTube"
+rootProject.name = "Voidstream"
 include(":app")

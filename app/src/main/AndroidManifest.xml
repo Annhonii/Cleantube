@@ -45,7 +45,7 @@
                 <data android:host="youtu.be" />
             </intent-filter>
 
-            <!-- "Share" > CleanTube from any app -->
+            <!-- "Share" > Voidstream from any app -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />

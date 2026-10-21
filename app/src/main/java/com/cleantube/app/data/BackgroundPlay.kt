@@ -126,7 +126,7 @@ class BackgroundPlayService : Service() {
             return START_NOT_STICKY
         }
         videoId = intent?.getStringExtra("id").orEmpty()
-        title = intent?.getStringExtra("title").orEmpty().ifEmpty { "CleanTube" }
+        title = intent?.getStringExtra("title").orEmpty().ifEmpty { "Voidstream" }
         val ua = intent?.getStringExtra("ua").orEmpty().ifEmpty { Np.USER_AGENT }
         val startMs = intent?.getLongExtra("start", 0L) ?: 0L
 

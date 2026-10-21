@@ -175,7 +175,7 @@ private suspend fun safeDetails(id: String): VideoDetails? = try {
 
 /**
  * The Shorts tab: a full-screen native vertical feed (edge to edge) with its own header, side action bar,
- * channel / caption overlay and scrub bar. Each Short plays in CleanTube's own player; the next ones are prepared
+ * channel / caption overlay and scrub bar. Each Short plays in Voidstream's own player; the next ones are prepared
  * in advance (links found, first seconds loaded) so swiping feels instant.
  */
 @Composable

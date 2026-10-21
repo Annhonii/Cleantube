@@ -166,7 +166,7 @@ object Downloads {
         val usePhone = item.where == "phone"
         if (usePhone && Build.VERSION.SDK_INT >= 29) {
             val collection = if (item.audioOnly) MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-            val folder = (if (item.audioOnly) Environment.DIRECTORY_MUSIC else Environment.DIRECTORY_MOVIES) + "/CleanTube"
+            val folder = (if (item.audioOnly) Environment.DIRECTORY_MUSIC else Environment.DIRECTORY_MOVIES) + "/Voidstream"
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, name)
                 put(MediaStore.MediaColumns.MIME_TYPE, item.mime)
@@ -188,7 +188,7 @@ object Downloads {
             // Android 9 and older: plain public folder (needs the storage permission; falls back below if denied)
             File(
                 Environment.getExternalStoragePublicDirectory(if (item.audioOnly) Environment.DIRECTORY_MUSIC else Environment.DIRECTORY_MOVIES),
-                "CleanTube"
+                "Voidstream"
             )
         } else {
             File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "downloads")

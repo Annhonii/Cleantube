@@ -211,7 +211,7 @@ fun TabTopBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            if (brand) "cleantube" else title,
+            if (brand) "voidstream" else title,
             color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold,
             letterSpacing = (-0.8).sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)

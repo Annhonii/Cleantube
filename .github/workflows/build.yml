@@ -27,12 +27,12 @@ jobs:
           ./gradlew assembleRelease --no-daemon --stacktrace -PversionCode=${{ github.run_number }}
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk CleanTube-v2.0.${{ github.run_number }}.apk
+        run: cp app/build/outputs/apk/release/app-release.apk Voidstream-v2.0.${{ github.run_number }}.apk
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v2.0.${{ github.run_number }}
-          name: CleanTube v2.0.${{ github.run_number }}
+          name: Voidstream v2.0.${{ github.run_number }}
           body: Automated build from commit ${{ github.sha }}
-          files: CleanTube-v2.0.${{ github.run_number }}.apk
+          files: Voidstream-v2.0.${{ github.run_number }}.apk

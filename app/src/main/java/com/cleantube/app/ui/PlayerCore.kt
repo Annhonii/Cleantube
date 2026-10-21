@@ -91,7 +91,7 @@ private fun buildSource(o: StreamOption): MediaSource {
 }
 
 /**
- * CleanTube's own video player: ExoPlayer fed with the NewPipe stream links. Everything the UI needs
+ * Voidstream's own video player: ExoPlayer fed with the NewPipe stream links. Everything the UI needs
  * (playing, buffering, position, quality...) is exposed as Compose state.
  */
 @Stable

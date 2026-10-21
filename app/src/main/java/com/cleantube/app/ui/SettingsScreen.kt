@@ -92,7 +92,7 @@ fun AccountCard(modifier: Modifier = Modifier) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "Paste the token copied from CleanTube or from your NewPipe fork (\"Copy token\"), " +
+                        "Paste the token copied from Voidstream or from your NewPipe fork (\"Copy token\"), " +
                             "or just a cookie string that contains SAPISID.",
                         color = TextMuted, fontSize = 13.sp
                     )
@@ -189,7 +189,7 @@ fun AccountCard(modifier: Modifier = Modifier) {
                 fontSize = 18.sp
             )
             Text(
-                "CleanTube talks to YouTube the way the website does, so there is no API key. " +
+                "Voidstream talks to YouTube the way the website does, so there is no API key. " +
                     "Without signing in you get YouTube's general home feed. After signing in, Home shows YouTube's " +
                     "recommendations for you, and Feed and Notification are your real ones.\n\n" +
                     "This is not an official YouTube API. It can break when YouTube changes things, " +
@@ -530,13 +530,13 @@ fun SettingsScreen() {
                     SectionTitle("STORED ONLY ON THIS PHONE")
                     Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Pill(
-                            "Import subscriptions (NewPipe or CleanTube .json)",
+                            "Import subscriptions (NewPipe or Voidstream .json)",
                             onClick = { importPicker.launch(arrayOf("*/*")) },
                             modifier = Modifier.fillMaxWidth()
                         )
                         Pill(
                             "Export backup (.json)",
-                            onClick = { exportPicker.launch("cleantube-backup.json") },
+                            onClick = { exportPicker.launch("voidstream-backup.json") },
                             modifier = Modifier.fillMaxWidth()
                         )
                         Pill("Clear watch history", onClick = {
@@ -555,7 +555,7 @@ fun SettingsScreen() {
 
                 SettingsPage.About -> {
                     Text(
-                        "CleanTube ${"2.0"}\n" +
+                        "Voidstream ${"2.0"}\n" +
                             "Browse, search and comments use YouTube's own (unofficial) internal API, no key needed. " +
                             "Playback uses YouTube's official player, so ads, quality and controls are decided by YouTube. " +
                             "Background play is not possible with it. Downloads use separate links (see the Download button on a video).\n\n" +
@@ -584,7 +584,7 @@ private suspend fun importFromUri(ctx: Context, uri: Uri): String {
     val added = try {
         store.importJson(text)
     } catch (e: Exception) {
-        return "That file isn't a valid NewPipe or CleanTube export."
+        return "That file isn't a valid NewPipe or Voidstream export."
     }
 
     // Imported subscriptions often have no avatar: fetch them.

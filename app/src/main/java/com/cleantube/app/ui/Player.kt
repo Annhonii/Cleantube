@@ -116,7 +116,7 @@ interface PipController {
 val LocalFullscreen = staticCompositionLocalOf<FullscreenHost> { error("FullscreenHost not provided") }
 
 /**
- * CleanTube's own player. It plays the video file straight from the stream links (see [CtPlayer]) and draws
+ * Voidstream's own player. It plays the video file straight from the stream links (see [CtPlayer]) and draws
  * everything itself: no YouTube page, no YouTube controls, just the picture, a loading animation and minimal controls.
  */
 @Composable
