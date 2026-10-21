@@ -93,6 +93,15 @@ class Store(context: Context) {
             sp.edit().putString("tab_hidden", value.joinToString(",")).apply()
         }
 
+    private val videoColorState = mutableStateOf(sp.getBoolean("video_color", true))
+    /** The app colours follow the thumbnail of the video that is playing. */
+    var videoColor: Boolean
+        get() = videoColorState.value
+        set(value) {
+            videoColorState.value = value
+            sp.edit().putBoolean("video_color", value).apply()
+        }
+
     private val fontState = mutableStateOf(sp.getString("app_font", "poppins").orEmpty().ifEmpty { "poppins" })
     /** App font: "poppins" (default) or "system". */
     var appFont: String

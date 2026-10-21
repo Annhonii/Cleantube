@@ -18,6 +18,16 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import com.cleantube.app.R
 import com.cleantube.app.data.Graph
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.material3.ColorScheme
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.graphics.ColorUtils
+import androidx.palette.graphics.Palette as ImagePalette
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 // Colours: Material You (Monet, from the wallpaper) on Android 12+; on older phones the mint scheme below.
 
@@ -168,17 +178,109 @@ private fun typographyWith(f: FontFamily): Typography {
     )
 }
 
+// ---------------------------------------------------------------- colours from the playing video
+//
+// Same idea as music apps that tint themselves with the album art: the thumbnail of the video that is open is
+// loaded small, its main colour is picked (Palette: vibrant first, then dominant, muted ...), and a whole colour scheme
+// (accent, backgrounds, cards, text) is built around that one colour. Every colour fades to the new one, so changing
+// the video changes the app's look smoothly. No video open = the normal colours again.
+
+/** Main colour of a thumbnail, or null when it can't be loaded. Runs on a background thread. */
+private fun thumbnailSeed(videoId: String): Color? = try {
+    val c = java.net.URL("https://i.ytimg.com/vi/$videoId/mqdefault.jpg").openConnection() as java.net.HttpURLConnection
+    c.connectTimeout = 6000
+    c.readTimeout = 6000
+    val bmp = c.inputStream.use { android.graphics.BitmapFactory.decodeStream(it) }
+    c.disconnect()
+    if (bmp == null) null else {
+        val pal = ImagePalette.from(bmp).maximumColorCount(16).generate()
+        val sw = pal.vibrantSwatch ?: pal.dominantSwatch ?: pal.mutedSwatch ?: pal.lightVibrantSwatch
+            ?: pal.darkVibrantSwatch ?: pal.lightMutedSwatch ?: pal.darkMutedSwatch
+        sw?.rgb?.let { Color(it) }
+    }
+} catch (_: Exception) {
+    null
+}
+
+private fun hsl(h: Float, s: Float, l: Float): Color =
+    Color(ColorUtils.HSLToColor(floatArrayOf(((h % 360f) + 360f) % 360f, s.coerceIn(0f, 1f), l.coerceIn(0f, 1f))))
+
+/** A full Material colour scheme built around one seed colour. Grey thumbnails give a calm neutral scheme. */
+private fun seedScheme(seed: Color, dark: Boolean): ColorScheme {
+    val f = FloatArray(3)
+    ColorUtils.colorToHSL(seed.toArgb(), f)
+    val h = f[0]
+    val grey = f[1] < 0.12f
+    val s = if (grey) 0.06f else f[1].coerceIn(0.45f, 0.9f)
+    val t = if (grey) 0.04f else s * 0.28f   // tint of the backgrounds: subtle
+    return if (dark) darkColorScheme(
+        primary = hsl(h, s, 0.72f), onPrimary = hsl(h, s * 0.8f, 0.11f),
+        primaryContainer = hsl(h, s * 0.7f, 0.24f), onPrimaryContainer = hsl(h, s, 0.89f),
+        secondary = hsl(h, s * 0.6f, 0.72f), onSecondary = hsl(h, s * 0.6f, 0.11f),
+        background = hsl(h, t, 0.07f), onBackground = hsl(h, 0.08f, 0.93f),
+        surface = hsl(h, t, 0.07f), onSurface = hsl(h, 0.08f, 0.93f),
+        surfaceVariant = hsl(h, t, 0.14f), onSurfaceVariant = hsl(h, t * 0.7f, 0.72f),
+        surfaceContainerLowest = hsl(h, t, 0.05f), surfaceContainerLow = hsl(h, t, 0.09f),
+        surfaceContainer = hsl(h, t, 0.12f), surfaceContainerHigh = hsl(h, t, 0.155f),
+        surfaceContainerHighest = hsl(h, t, 0.2f),
+        outline = hsl(h, t, 0.5f), outlineVariant = hsl(h, t, 0.22f),
+        error = Live, inverseSurface = hsl(h, 0.08f, 0.91f), inverseOnSurface = hsl(h, t, 0.12f)
+    ) else lightColorScheme(
+        primary = hsl(h, s, 0.38f), onPrimary = Color.White,
+        primaryContainer = hsl(h, s, 0.88f), onPrimaryContainer = hsl(h, s, 0.14f),
+        secondary = hsl(h, s * 0.6f, 0.4f), onSecondary = Color.White,
+        background = hsl(h, t, 0.965f), onBackground = hsl(h, 0.1f, 0.07f),
+        surface = hsl(h, t, 0.965f), onSurface = hsl(h, 0.1f, 0.07f),
+        surfaceVariant = hsl(h, t, 0.93f), onSurfaceVariant = hsl(h, t * 0.7f, 0.38f),
+        surfaceContainerLowest = Color.White, surfaceContainerLow = hsl(h, t, 0.975f),
+        surfaceContainer = hsl(h, t, 0.945f), surfaceContainerHigh = hsl(h, t, 0.925f),
+        surfaceContainerHighest = hsl(h, t, 0.9f),
+        outline = hsl(h, t, 0.55f), outlineVariant = hsl(h, t, 0.86f),
+        error = Live, inverseSurface = hsl(h, 0.1f, 0.12f), inverseOnSurface = Color.White
+    )
+}
+
+/** Fades every colour to its new value (so switching videos doesn't flash). */
+@Composable
+private fun animatedScheme(t: ColorScheme): ColorScheme {
+    val spec = tween<Color>(600)
+    @Composable fun a(c: Color) = animateColorAsState(c, spec, label = "videoColour").value
+    return t.copy(
+        primary = a(t.primary), onPrimary = a(t.onPrimary),
+        primaryContainer = a(t.primaryContainer), onPrimaryContainer = a(t.onPrimaryContainer),
+        secondary = a(t.secondary), onSecondary = a(t.onSecondary),
+        background = a(t.background), onBackground = a(t.onBackground),
+        surface = a(t.surface), onSurface = a(t.onSurface),
+        surfaceVariant = a(t.surfaceVariant), onSurfaceVariant = a(t.onSurfaceVariant),
+        surfaceContainerLowest = a(t.surfaceContainerLowest), surfaceContainerLow = a(t.surfaceContainerLow),
+        surfaceContainer = a(t.surfaceContainer), surfaceContainerHigh = a(t.surfaceContainerHigh),
+        surfaceContainerHighest = a(t.surfaceContainerHighest),
+        outline = a(t.outline), outlineVariant = a(t.outlineVariant),
+        inverseSurface = a(t.inverseSurface), inverseOnSurface = a(t.inverseOnSurface)
+    )
+}
+
 @Composable
 fun CleanTubeTheme(content: @Composable () -> Unit) {
     val dark = isSystemInDarkTheme()
     // Set before the content is composed, so the first frame already has the right colours.
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    val scheme = when {
+    val baseScheme = when {
         android.os.Build.VERSION.SDK_INT >= 31 ->
             if (dark) androidx.compose.material3.dynamicDarkColorScheme(ctx) else androidx.compose.material3.dynamicLightColorScheme(ctx)
         dark -> DarkScheme
         else -> LightScheme
     }
+
+    // colour of the video that is open (the old colour stays until the new thumbnail is read)
+    val videoId = VideoHost.videoId
+    val followVideo = Graph.store.videoColor
+    var seed by remember { mutableStateOf<Color?>(null) }
+    LaunchedEffect(videoId, followVideo) {
+        seed = if (!followVideo || videoId == null) null
+        else withContext(Dispatchers.IO) { thumbnailSeed(videoId) }
+    }
+    val scheme = animatedScheme(seed?.let { seedScheme(it, dark) } ?: baseScheme)
     Palette.apply(scheme)
     MaterialTheme(
         colorScheme = scheme,

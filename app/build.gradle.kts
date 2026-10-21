@@ -84,6 +84,8 @@ dependencies {
 
     // Thumbnails / avatars
     implementation("io.coil-kt.coil3:coil-compose:3.0.4")
+    // Picks the main colour of a video thumbnail (the app colours follow the playing video)
+    implementation("androidx.palette:palette-ktx:1.0.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.0.4")
 
     // Native player (ExoPlayer): plays the NewPipe stream links directly, no YouTube web player involved.

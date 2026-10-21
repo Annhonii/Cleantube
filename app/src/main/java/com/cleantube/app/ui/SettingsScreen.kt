@@ -436,6 +436,21 @@ fun SettingsScreen() {
                 SettingsPage.Account -> AccountCard(Modifier.padding(horizontal = 12.dp))
 
                 SettingsPage.Appearance -> {
+                    SectionTitle("COLOUR")
+                    Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Card)
+                                .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text("Colours from the video", color = TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                            Switch(checked = store.videoColor, onCheckedChange = { store.videoColor = it })
+                        }
+                        Text(
+                            "While a video is open, the app takes its colours from that video's thumbnail and changes smoothly with every new video.",
+                            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
                     SectionTitle("FONT")
                     Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
