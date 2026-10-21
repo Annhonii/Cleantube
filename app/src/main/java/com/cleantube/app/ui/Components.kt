@@ -273,6 +273,8 @@ fun <T> PagedColumn(
     /** Where the pull-to-refresh spinner appears (below a header that floats over the list). */
     refreshIndicatorTop: androidx.compose.ui.unit.Dp = 0.dp,
     header: (LazyListScope.() -> Unit)? = null,
+    /** Extra work on pull-to-refresh (Home refreshes its Quick picks too). */
+    onRefresh: (() -> Unit)? = null,
     /** When set, the item at index i is drawn by this instead of [row] (used by the bento feed). */
     indexRow: (@Composable (Int) -> Unit)? = null,
     row: @Composable (T) -> Unit = {}
@@ -285,7 +287,7 @@ fun <T> PagedColumn(
 
     PullRefresh(
         refreshing = paged.refreshing,
-        onRefresh = { paged.pullRefresh() },
+        onRefresh = { paged.pullRefresh(); onRefresh?.invoke() },
         modifier = modifier.fillMaxSize(),
         indicatorTop = refreshIndicatorTop
     ) {

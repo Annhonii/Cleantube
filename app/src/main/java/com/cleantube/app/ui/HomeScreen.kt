@@ -12,6 +12,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import com.cleantube.app.data.Api
 import com.cleantube.app.data.TabCache
 import com.cleantube.app.data.Session
+import com.cleantube.app.data.QuickPicks
+import kotlinx.coroutines.launch
 
 /** YouTube's own home feed: personalized when signed in, the general one otherwise. */
 @Composable
@@ -29,6 +31,9 @@ fun HomeScreen() {
             emptyText = "Nothing to show right now. Pull to retry from the Feed tab, or check your connection.",
             contentPadding = PaddingValues(top = headerH + 8.dp, bottom = 120.dp),
             refreshIndicatorTop = headerH,
+            // Quick picks: newest unwatched videos of your subscribed channels, refreshed automatically
+            header = { item { QuickPicksSection() } },
+            onRefresh = { TabCache.appScope.launch { QuickPicks.refresh(force = true) } },
             // fixed-height rhythm: hero, two tiles, two tiles... (see BentoFeedItem)
             indexRow = { i -> BentoFeedItem(paged.items, i) { v -> nav.push(Route.Video(v.id, v)) } }
         ) { }
