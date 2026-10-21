@@ -80,6 +80,30 @@ object PlayerControl {
 object PipHost {
     var active by mutableStateOf(false)
     var enter: (() -> Unit)? = null
+
+    /** True while a video is playing on screen: leaving the app should then open the popup by itself. */
+    @Volatile var autoEnter = false
+
+    /** Where the picture is in the window; the system grows the popup out of this rectangle (smooth animation). */
+    @Volatile var sourceRect: android.graphics.Rect? = null
+
+    /** The player behind the popup's buttons (play / pause, speed, quality). */
+    @Volatile var controller: PipController? = null
+
+    /** Set by the activity: re-sends the popup's buttons and auto-open flag to the system. */
+    var refresh: (() -> Unit)? = null
+}
+
+/** What the popup window's buttons need from the player. */
+interface PipController {
+    val playing: Boolean
+    val speedLabel: String
+    val qualityLabel: String
+    val title: String
+    val channel: String
+    fun togglePlay()
+    fun cycleSpeed()
+    fun cycleQuality()
 }
 
 val LocalFullscreen = staticCompositionLocalOf<FullscreenHost> { error("FullscreenHost not provided") }

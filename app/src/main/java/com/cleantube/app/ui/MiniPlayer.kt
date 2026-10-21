@@ -47,6 +47,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.offset
+import com.cleantube.app.data.Graph
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
@@ -64,6 +74,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import com.cleantube.app.data.VideoItem
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -71,6 +82,8 @@ import kotlin.math.roundToInt
  * The video page as a bottom sheet (like the NewPipe mini player / YouTube):
  *  - a video opens full page; drag the picture down (or press Back, or the arrow) and it shrinks into a
  *    mini player card above the bottom bar while the video keeps playing
+ *  - the mini player is a small floating card (picture 16:9, rounded corners, white border, title underneath)
+ *  - leaving the app while it plays opens the popup (picture in picture) window by itself, see PipSupport
  *  - tap the card or drag it up to open the page again
  *  - swipe the card down (or press its X) and the video stops and the card goes away
  * The player lives here, outside of the screens, so it survives navigating around the app.
@@ -120,6 +133,11 @@ object VideoHost {
 }
 
 private fun lerpF(a: Float, b: Float, t: Float) = a + (b - a) * t
+
+private val PopupSpeeds = listOf(0.5f, 1f, 1.25f, 1.5f, 2f)
+
+private fun speedText(s: Float): String =
+    if (s % 1f == 0f) "${s.toInt()}x" else "${s}x"
 
 @Composable
 fun VideoSheet(tabRoot: Boolean, hidden: Boolean) {
@@ -172,6 +190,39 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
     // the Shorts tab has its own sound: pause the video there
     LaunchedEffect(hidden) { if (hidden) player.playWhen(false) }
 
+    // ---- popup window: its buttons (quality, play / pause, speed) and the "open by itself when I leave" flag
+    DisposableEffect(player) {
+        val ctl = object : PipController {
+            override val playing get() = player.wantPlay
+            override val speedLabel get() = speedText(player.speed)
+            override val qualityLabel get() = if (player.quality == 0) "Auto" else "${player.quality}p"
+            override val title get() = VideoHost.title
+            override val channel get() = VideoHost.channel
+            override fun togglePlay() = player.togglePlay()
+            override fun cycleSpeed() {
+                val l = PopupSpeeds
+                player.changeSpeed(l[(l.indexOf(player.speed) + 1).mod(l.size)])
+            }
+            override fun cycleQuality() {
+                val opts = listOf(0) + player.heights.sortedDescending()
+                player.changeQuality(opts[(opts.indexOf(player.quality) + 1).mod(opts.size)])
+            }
+        }
+        PipHost.controller = ctl
+        onDispose {
+            if (PipHost.controller === ctl) PipHost.controller = null
+            PipHost.autoEnter = false
+            PipHost.sourceRect = null
+            PipHost.refresh?.invoke()
+        }
+    }
+    val wantAutoPopup = Graph.store.autoPopup && !hidden && !fullscreen && player.wantPlay && player.error == null
+    SideEffect { PipHost.autoEnter = wantAutoPopup }
+    LaunchedEffect(
+        wantAutoPopup, player.wantPlay, player.speed, player.quality, player.heights,
+        VideoHost.title, VideoHost.channel
+    ) { PipHost.refresh?.invoke() }
+
     // ---- open / collapse requests
     LaunchedEffect(VideoHost.openTick) {
         if (VideoHost.fresh) {
@@ -185,6 +236,15 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
         if (VideoHost.collapseTick != collapseStart) pA.animateTo(0f, spring(dampingRatio = 0.9f, stiffness = 420f))
     }
     LaunchedEffect(Unit) { snapshotFlow { pA.value > 0.5f }.collect { VideoHost.expanded = it } }
+    // once the card has stopped moving, tell the system where the picture is: the popup grows out of that spot
+    LaunchedEffect(Unit) {
+        snapshotFlow { pA.isRunning }.collectLatest { running ->
+            if (!running) {
+                delay(120)
+                PipHost.refresh?.invoke()
+            }
+        }
+    }
 
     // ---- popup window (picture in picture): just the picture
     if (PipHost.active) {
@@ -204,9 +264,15 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
         val h = constraints.maxHeight.toFloat()
         val statusPx = WindowInsets.statusBars.getTop(density).toFloat()
         val navPx = WindowInsets.navigationBars.getBottom(density).toFloat()
-        val cardH = with(density) { 72.dp.toPx() }
+        // mini player = small floating card: picture (16:9) with the title underneath, like the website's mini player
         val margin = with(density) { 12.dp.toPx() }
-        val pad = with(density) { 4.dp.toPx() }
+        val pad = with(density) { 6.dp.toPx() }
+        val cardW = with(density) { 216.dp.toPx() }.coerceAtMost(w * 0.64f)
+        val miniW = cardW - 2 * pad
+        val miniH = miniW * 9f / 16f
+        val cardH = pad + miniH + with(density) { 50.dp.toPx() }
+        val miniX = w - margin - cardW
+        val cornerPx = with(density) { 24.dp.toPx() }
         val dockSpace by animateFloatAsState(
             with(density) { (if (tabRoot) 88.dp else 12.dp).toPx() }, tween(260), label = "miniDock"
         )
@@ -219,8 +285,6 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
         val vW = w - 2 * sideX
         val vH = vW * 9f / 16f
         val area = vTop + vH + with(density) { 6.dp.toPx() }
-        val miniW = with(density) { 118.dp.toPx() }
-        val miniH = cardH - 2 * pad
 
         val bodyOn by remember { derivedStateOf { pA.value > 0.02f } }
         val expandedLook by remember { derivedStateOf { pA.value > 0.97f } }
@@ -270,8 +334,8 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                 .layout { measurable, constraints ->
                     val pv = pA.value
                     val pc = pv.coerceIn(0f, 1f)
-                    val x = lerpF(margin, 0f, pc)
-                    val sw = (w - 2 * x).roundToInt()
+                    val x = lerpF(miniX, 0f, pc)
+                    val sw = lerpF(cardW, w, pc).roundToInt()
                     val sh = lerpF(cardH, h, pc).roundToInt()
                     val top = lerpF(h - collapsedBottom - cardH, 0f, pc) + (if (pv < 0f) -pv * travel else 0f)
                     val pl = measurable.measure(Constraints.fixed(sw, sh))
@@ -280,12 +344,29 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                 .graphicsLayer {
                     val pv = pA.value
                     val pc = pv.coerceIn(0f, 1f)
-                    shape = RoundedCornerShape(lerpF(22.dp.toPx(), 0f, pc))
+                    shape = RoundedCornerShape(lerpF(cornerPx, 0f, pc))
                     clip = true
-                    shadowElevation = (1f - pc) * 10.dp.toPx()
+                    shadowElevation = (1f - pc) * 14.dp.toPx()
                     alpha = if (pv < 0f) (1f + pv * 1.5f).coerceIn(0f, 1f) else 1f
                 }
                 .drawBehind { drawRect(lerp(Card, Bg, pA.value.coerceIn(0f, 1f))) }
+                .drawWithContent {
+                    drawContent()
+                    // white border around the mini card; fades away while the page opens
+                    val pc = pA.value.coerceIn(0f, 1f)
+                    val a = (1f - pc * 3f).coerceIn(0f, 1f)
+                    if (a > 0f) {
+                        val bw = 2.5.dp.toPx()
+                        val r = (lerpF(cornerPx, 0f, pc) - bw / 2).coerceAtLeast(0f)
+                        drawRoundRect(
+                            Color.White.copy(alpha = a),
+                            topLeft = Offset(bw / 2, bw / 2),
+                            size = Size(size.width - bw, size.height - bw),
+                            cornerRadius = CornerRadius(r, r),
+                            style = Stroke(bw)
+                        )
+                    }
+                }
         ) {
             // ---- the rest of the page (title, buttons, comments, up next); fades in while opening
             Box(
@@ -320,6 +401,10 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                         shape = RoundedCornerShape(lerpF(18.dp.toPx(), 26.dp.toPx(), pc))
                         clip = true
                     }
+                    .onGloballyPositioned { c ->
+                        val b = c.boundsInWindow()
+                        PipHost.sourceRect = android.graphics.Rect(b.left.roundToInt(), b.top.roundToInt(), b.right.roundToInt(), b.bottom.roundToInt())
+                    }
                     .then(dragMod)
                     .background(Color.Black)
             ) {
@@ -332,7 +417,15 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                         player, fullscreen = false, title = VideoHost.title,
                         onFullscreen = { fullscreen = true; host.setActive(true) }
                     )
-                    player.buffering -> CtSpinner(Modifier.align(Alignment.Center), size = 26.dp, disc = false)
+                    player.buffering && !miniOn -> CtSpinner(Modifier.align(Alignment.Center), size = 26.dp, disc = false)
+                }
+                if (miniOn && err == null) {
+                    val dur = player.duration.coerceAtLeast(1L)
+                    CtProgressLine(
+                        (player.position.toFloat() / dur).coerceIn(0f, 1f),
+                        (player.buffered.toFloat() / dur).coerceIn(0f, 1f),
+                        Modifier.align(Alignment.BottomCenter)
+                    )
                 }
                 if (expandedLook && err == null) {
                     Box(
@@ -350,7 +443,8 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                 }
             }
 
-            // ---- the mini player card: title, play / pause and close; tap = open, swipe down = stop
+            // ---- the mini player card: title under the picture, play / pause on the picture, close in its corner;
+            //      tap = open, drag up = open, swipe down = stop
             if (miniOn) {
                 Box(
                     Modifier
@@ -359,44 +453,56 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                         .then(dragMod)
                         .clickable { expand() }
                 ) {
-                    Row(
-                        Modifier
-                            .fillMaxSize()
-                            .padding(start = with(density) { (miniW + pad).toDp() } + 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        Modifier.padding(
+                            start = with(density) { pad.toDp() } + 6.dp,
+                            end = with(density) { pad.toDp() } + 6.dp,
+                            top = with(density) { (pad + miniH).toDp() } + 8.dp
+                        )
                     ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                VideoHost.title.ifEmpty { "Loading…" }, color = TextPrimary, fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                            if (VideoHost.channel.isNotEmpty()) {
-                                Text(VideoHost.channel, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
+                        Text(
+                            VideoHost.title.ifEmpty { "Loading…" }, color = TextPrimary, fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                        if (VideoHost.channel.isNotEmpty()) {
+                            Text(VideoHost.channel, color = TextMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        Box(
-                            Modifier.size(44.dp).clip(CircleShape).clickable { player.togglePlay() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                if (player.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                contentDescription = "Play / pause", tint = TextPrimary, modifier = Modifier.size(26.dp)
-                            )
-                        }
-                        Box(
-                            Modifier.size(44.dp).clip(CircleShape).clickable { dismiss() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Rounded.Close, contentDescription = "Close", tint = TextPrimary, modifier = Modifier.size(22.dp))
-                        }
-                        Box(Modifier.width(6.dp))
                     }
-                    val dur = player.duration.coerceAtLeast(1L)
-                    CtProgressLine(
-                        (player.position.toFloat() / dur).coerceIn(0f, 1f),
-                        (player.buffered.toFloat() / dur).coerceIn(0f, 1f),
-                        Modifier.align(Alignment.BottomCenter)
-                    )
+                    Box(
+                        Modifier
+                            .offset {
+                                IntOffset(
+                                    (pad + miniW / 2 - 20.dp.toPx()).roundToInt(),
+                                    (pad + miniH / 2 - 20.dp.toPx()).roundToInt()
+                                )
+                            }
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x66000000))
+                            .clickable { player.togglePlay() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            if (player.wantPlay) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            contentDescription = "Play / pause", tint = Color.White, modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .offset {
+                                IntOffset(
+                                    (pad + miniW - 28.dp.toPx() - 6.dp.toPx()).roundToInt(),
+                                    (pad + 6.dp.toPx()).roundToInt()
+                                )
+                            }
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x66000000))
+                            .clickable { dismiss() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
                 }
             }
         }

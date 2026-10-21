@@ -51,6 +51,15 @@ class Store(context: Context) {
             sp.edit().putInt("dl_threads", v).apply()
         }
 
+    private val autoPopupState = mutableStateOf(sp.getBoolean("auto_popup", true))
+    /** Leaving the app while a video plays opens the floating popup window by itself. */
+    var autoPopup: Boolean
+        get() = autoPopupState.value
+        set(value) {
+            autoPopupState.value = value
+            sp.edit().putBoolean("auto_popup", value).apply()
+        }
+
     // ---------------------------------------------------------------- tabs
 
     private fun readCsv(key: String): List<String> =

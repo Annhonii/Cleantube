@@ -1,6 +1,5 @@
 package com.cleantube.app
 
-import android.app.PictureInPictureParams
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Color
@@ -9,7 +8,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.util.Rational
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,6 +20,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.cleantube.app.data.Graph
 import com.cleantube.app.ui.CleanTubeRoot
 import com.cleantube.app.ui.CleanTubeTheme
 import com.cleantube.app.ui.FullscreenHost
@@ -34,6 +33,7 @@ class MainActivity : ComponentActivity() {
 
     private val nav = Nav()
     private val fullscreen = FullscreenHost()
+    private val pip by lazy { PipSupport(this) }
 
     // Android 13+ hides all notifications (including download progress) until the user allows them.
     private val notifPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -48,6 +48,7 @@ class MainActivity : ComponentActivity() {
         fullscreen.onChanged = { on -> applyFullscreen(on) }
 
         // "Popup" button: shrink the video into a floating picture-in-picture window.
+        pip.attach()
         PipHost.enter = { enterPopup() }
         addOnPictureInPictureModeChangedListener { info -> PipHost.active = info.isInPictureInPictureMode }
         handleIntent(intent)
@@ -102,6 +103,12 @@ class MainActivity : ComponentActivity() {
         nav.push(route)
     }
 
+    /** Home gesture / app switch (Android 11 and older): a playing video moves into the popup window. */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        pip.onUserLeaveHint(Graph.store.autoPopup)
+    }
+
     override fun onResume() {
         super.onResume()
         // safety net: never stay stuck in the "player only" layout after the popup window is gone
@@ -111,6 +118,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         PipHost.enter = null
         PipHost.active = false
+        pip.detach()
         super.onDestroy()
     }
 
@@ -119,11 +127,7 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Popup isn't supported on this phone.", Toast.LENGTH_SHORT).show()
             return
         }
-        try {
-            enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build())
-        } catch (e: Exception) {
-            Toast.makeText(this, "Couldn't open the popup window.", Toast.LENGTH_SHORT).show()
-        }
+        if (!pip.enter()) Toast.makeText(this, "Couldn't open the popup window.", Toast.LENGTH_SHORT).show()
     }
 
     private fun applyFullscreen(on: Boolean) {

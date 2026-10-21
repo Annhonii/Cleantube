@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material3.Switch
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxSize
@@ -296,6 +297,7 @@ private enum class SettingsPage(val title: String) {
     Navigation("Navigation bar"),
     Content("Content"),
     Downloads("Downloads"),
+    Player("Player"),
     About("About")
 }
 
@@ -417,7 +419,8 @@ fun SettingsScreen() {
                     SettingsItem(SettingsPage.Appearance, Icons.Rounded.Palette, IconGrey, "Font and visual style"),
                     SettingsItem(SettingsPage.Navigation, Icons.Rounded.Tab, IconPurple, "Order and visibility of tabs"),
                     SettingsItem(SettingsPage.Content, Icons.Rounded.Language, IconBlue, "Region and country"),
-                    SettingsItem(SettingsPage.Downloads, Icons.Rounded.Download, IconPurple, "Location and connections")
+                    SettingsItem(SettingsPage.Downloads, Icons.Rounded.Download, IconPurple, "Location and connections"),
+                    SettingsItem(SettingsPage.Player, Icons.Rounded.PictureInPictureAlt, IconBlue, "Popup and mini player")
                 ),
                 onOpen = { page = it }
             )
@@ -487,6 +490,24 @@ fun SettingsScreen() {
                             }
                         }
                         Pill("Open downloads", onClick = { nav.push(Route.Downloads) }, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+
+                SettingsPage.Player -> {
+                    SectionTitle("POPUP")
+                    Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Card)
+                                .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text("Open popup when I leave the app", color = TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                            Switch(checked = store.autoPopup, onCheckedChange = { store.autoPopup = it })
+                        }
+                        Text(
+                            "While a video is playing, going Home or switching apps shrinks it into a floating window with play / pause, speed and quality buttons.",
+                            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
+                        )
                     }
                 }
 
