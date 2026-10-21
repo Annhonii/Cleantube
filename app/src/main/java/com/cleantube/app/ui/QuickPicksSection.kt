@@ -1,7 +1,5 @@
 package com.cleantube.app.ui
 
-import android.content.Context
-import android.content.ContextWrapper
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -21,7 +19,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
 import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -33,52 +30,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.LifecycleOwner
 import com.cleantube.app.data.Graph
 import com.cleantube.app.data.QuickPicks
 import com.cleantube.app.data.Session
 import com.cleantube.app.data.formatDuration
-import kotlinx.coroutines.delay
-
-private const val AUTO_REFRESH_MS = 5 * 60_000L
-
-private tailrec fun Context.findLifecycleOwner(): LifecycleOwner? = when (this) {
-    is LifecycleOwner -> this
-    is ContextWrapper -> baseContext.findLifecycleOwner()
-    else -> null
-}
 
 /**
- * Keeps Quick picks up to date while the app is in front: on start, when the app comes back, every few minutes,
- * and when the account or the subscriptions change. (Pull-to-refresh on Home calls [QuickPicks.refresh] too.)
+ * Fetches Quick picks once per clean app start (the first time Home shows), and again when the account or the
+ * subscriptions change. No timer. Pull-to-refresh on Home calls [QuickPicks.refresh] with force = true.
  */
 @Composable
 private fun QuickPicksAutoRefresh() {
-    val owner = LocalContext.current.findLifecycleOwner()
-    var started by remember { mutableStateOf(true) }
-    DisposableEffect(owner) {
-        val obs = LifecycleEventObserver { _, e ->
-            if (e == Lifecycle.Event.ON_START) started = true
-            else if (e == Lifecycle.Event.ON_STOP) started = false
-        }
-        owner?.lifecycle?.addObserver(obs)
-        onDispose { owner?.lifecycle?.removeObserver(obs) }
-    }
     val subs = Graph.store.subscriptions
-    LaunchedEffect(started, Session.loggedIn, Session.handle, subs) {
-        if (!started) return@LaunchedEffect
-        while (true) {
-            QuickPicks.refresh()
-            delay(AUTO_REFRESH_MS)
-        }
-    }
+    LaunchedEffect(Session.loggedIn, Session.handle, subs) { QuickPicks.refresh() }
 }
 
 /**

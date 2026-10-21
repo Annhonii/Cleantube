@@ -10,8 +10,8 @@ import kotlinx.coroutines.CancellationException
  *
  *  - Signed in: YouTube's own subscriptions feed (first pages). Not signed in: the locally saved subscriptions.
  *  - The raw pool (newest first) is cached on the phone, so Home shows it instantly on the next start.
- *  - [refresh] runs on start, when the app comes back to the front, every few minutes while it is open, on
- *    pull-to-refresh and whenever the subscriptions change. Videos that were not in the previous pool are flagged
+ *  - [refresh] runs when the app is opened cleanly (new process, e.g. after removing it from recents), on
+ *    pull-to-refresh, and when the account / subscriptions change. Not on a timer, not on plain resume. Videos that were not in the previous pool are flagged
  *    in [freshIds] (the UI shows a "NEW" badge on them).
  *  - "Unwatched" is worked out from the watch history ([unwatched]), so a video disappears the moment you open it.
  */
@@ -19,7 +19,6 @@ object QuickPicks {
     /** How many cards the carousel shows at most. */
     const val MAX_CARDS = 16
     private const val POOL = 48
-    private const val MIN_GAP_MS = 3 * 60_000L
 
     /** Raw pool, newest first (watched videos are still in it; see [unwatched]). */
     var pool by mutableStateOf<List<VideoItem>>(emptyList())
@@ -30,17 +29,11 @@ object QuickPicks {
     var freshIds by mutableStateOf<Set<String>>(emptySet())
         private set
 
-    /** True from the moment the app is opened (or brought back) until the next fetch: that fetch ignores the time gap. */
+    /** True in a freshly started process (app opened cleanly): the first [refresh] goes to the network. */
     @Volatile
     private var forceNext = true
 
-    /** Called by the activity on every start: the next [refresh] always goes to the network. */
-    fun markAppStarted() {
-        forceNext = true
-    }
-
     private var loadedFromDisk = false
-    private var lastFetch = 0L
     private var lastKey = ""
 
     /** Fills the pool from the phone cache once (instant first paint). */
@@ -64,8 +57,8 @@ object QuickPicks {
         if (loggedIn) "acct:$handle" else "local:" + subs.joinToString(",") { it.id }
 
     /**
-     * Fetches the newest videos again. Skipped when the last fetch is younger than a few minutes, unless [force]
-     * or the account / subscriptions changed since then.
+     * Fetches the newest videos again, but only for a clean app start, [force] (pull-to-refresh) or when the
+     * account / subscriptions changed; any other call does nothing.
      */
     suspend fun refresh(force: Boolean = false) {
         restore()
@@ -75,7 +68,7 @@ object QuickPicks {
         val key = keyOf(loggedIn, Session.handle, subs)
         val changed = key != lastKey
         if (loading) return
-        if (!force && !forceNext && !changed && System.currentTimeMillis() - lastFetch < MIN_GAP_MS) return
+        if (!force && !forceNext && !changed) return
         if (!loggedIn && subs.isEmpty()) {
             lastKey = key
             pool = emptyList()
@@ -98,6 +91,7 @@ object QuickPicks {
 
             if (fetched.isEmpty()) {
                 // an empty answer is most likely a hiccup: keep what we had
+                forceNext = true
                 lastKey = key
                 return
             }
@@ -108,11 +102,11 @@ object QuickPicks {
             pool = fetched
             store.saveQuickPicks(fetched)
             lastKey = key
-            lastFetch = System.currentTimeMillis()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            // keep the old pool; the next refresh tries again
+            // keep the old pool and try again the next time Home asks
+            forceNext = true
         } finally {
             loading = false
         }
