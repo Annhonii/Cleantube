@@ -123,12 +123,12 @@ fun ActionTile(
 ) {
     Box(
         modifier
-            .size(52.dp)
-            .clip(CircleShape)
+            .size(40.dp)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
             .background(if (active) Accent else SecondaryContainer)
             .bouncyClickable(pressedScale = 0.88f, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = label, tint = if (active) OnAccent else OnSecondaryContainer, modifier = Modifier.size(22.dp))
+        Icon(icon, contentDescription = label, tint = if (active) OnAccent else OnSecondaryContainer, modifier = Modifier.size(19.dp))
     }
 }

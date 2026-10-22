@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -220,6 +221,7 @@ fun VideoScreen(route: Route.Video) {
 
     // Back closes the comments panel first, only then the video page.
     BackHandler(enabled = commentsOpen) { commentsOpen = false }
+    BackHandler(enabled = descOpen) { descOpen = false }
 
     // the picture itself is drawn by VideoSheet (above this page); what is left here is everything below it
     LaunchedEffect(video?.title, video?.channelTitle) {
@@ -228,26 +230,20 @@ fun VideoScreen(route: Route.Video) {
             if (it.channelTitle.isNotEmpty()) VideoHost.channel = it.channelTitle
         }
     }
-    LaunchedEffect(commentsOpen) { VideoHost.commentsOpen = commentsOpen }
+    LaunchedEffect(commentsOpen, descOpen) { VideoHost.commentsOpen = commentsOpen || descOpen }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { VideoHost.commentsOpen = false } }
 
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize()) {
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 32.dp)) {
 
-                // ---- title (tap to open the description) + stats
+                // ---- title (tap to open the description panel) + stats
                 item {
-                    val arrow by animateFloatAsState(
-                        if (descOpen) 180f else 0f,
-                        spring(dampingRatio = 0.6f, stiffness = 360f),
-                        label = "arrow"
-                    )
                     Column(
                         Modifier
                             .entrance(seen, "title", 120)
                             .fillMaxWidth()
-                            .clickable { descOpen = !descOpen }
-                            .animateContentSize(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow))
+                            .clickable { descOpen = true }
                             .padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = 4.dp)
                     ) {
                         Row(verticalAlignment = Alignment.Top) {
@@ -258,16 +254,16 @@ fun VideoScreen(route: Route.Video) {
                                 lineHeight = 25.sp,
                                 letterSpacing = (-0.2).sp,
                                 fontWeight = FontWeight.SemiBold,
-                                maxLines = if (descOpen) Int.MAX_VALUE else 3,
+                                maxLines = 3,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f).padding(top = 2.dp)
                             )
                             Spacer(Modifier.width(8.dp))
                             Icon(
                                 Icons.Rounded.KeyboardArrowDown,
-                                contentDescription = if (descOpen) "Hide description" else "Show description",
+                                contentDescription = "Show description",
                                 tint = TextPrimary,
-                                modifier = Modifier.size(28.dp).rotate(arrow)
+                                modifier = Modifier.size(28.dp)
                             )
                         }
                         val meta = listOfNotNull(
@@ -276,35 +272,6 @@ fun VideoScreen(route: Route.Video) {
                         ).joinToString(" • ")
                         if (meta.isNotEmpty()) {
                             Text(meta, color = TextMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
-                        }
-                    }
-                }
-
-                // ---- description (opens under the title)
-                val description = details?.description.orEmpty()
-                if (description.isNotBlank()) {
-                    item {
-                        androidx.compose.animation.AnimatedVisibility(
-                            visible = descOpen,
-                            enter = androidx.compose.animation.expandVertically(
-                                spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
-                            ) + fadeIn(tween(260)),
-                            exit = androidx.compose.animation.shrinkVertically(
-                                tween(260, easing = Motion.Emphasized)
-                            ) + fadeOut(tween(160))
-                        ) {
-                            Text(
-                                description,
-                                color = TextPrimary,
-                                fontSize = 13.sp,
-                                lineHeight = 19.sp,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 8.dp)
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(Card)
-                                    .padding(16.dp)
-                            )
                         }
                     }
                 }
@@ -323,10 +290,10 @@ fun VideoScreen(route: Route.Video) {
                         val likes = details?.likesText.orEmpty()
                         Row(
                             Modifier
-                                .height(52.dp)
-                                .clip(CircleShape)
+                                .height(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
                                 .background(Card)
-                                .border(1.dp, Hairline, RoundedCornerShape(21.dp)),
+                                .border(1.dp, Hairline, RoundedCornerShape(12.dp)),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(
@@ -334,23 +301,23 @@ fun VideoScreen(route: Route.Video) {
                                     .fillMaxHeight()
                                     .background(if (rating == 1) Accent else Color.Transparent)
                                     .bouncyClickable(pressedScale = 0.92f) { rate(1) }
-                                    .padding(horizontal = 18.dp),
+                                    .padding(horizontal = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Rounded.ThumbUp, contentDescription = "Like", tint = if (rating == 1) OnAccent else TextPrimary, modifier = Modifier.size(22.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text(likes.ifEmpty { "Like" }, color = if (rating == 1) OnAccent else TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                Icon(Icons.Rounded.ThumbUp, contentDescription = "Like", tint = if (rating == 1) OnAccent else TextPrimary, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(likes.ifEmpty { "Like" }, color = if (rating == 1) OnAccent else TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             }
-                            Box(Modifier.width(1.dp).height(26.dp).background(Hairline))
+                            Box(Modifier.width(1.dp).height(20.dp).background(Hairline))
                             Box(
                                 Modifier
                                     .fillMaxHeight()
                                     .background(if (rating == -1) TextPrimary else Color.Transparent)
                                     .bouncyClickable(pressedScale = 0.92f) { rate(-1) }
-                                    .padding(horizontal = 18.dp),
+                                    .padding(horizontal = 14.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Rounded.ThumbDown, contentDescription = "Dislike", tint = if (rating == -1) Bg else TextPrimary, modifier = Modifier.size(22.dp))
+                                Icon(Icons.Rounded.ThumbDown, contentDescription = "Dislike", tint = if (rating == -1) Bg else TextPrimary, modifier = Modifier.size(18.dp))
                             }
                         }
                         ActionTile("Share", Icons.Rounded.Share, onClick = { shareVideo(ctx, route.id) })
@@ -375,12 +342,12 @@ fun VideoScreen(route: Route.Video) {
                                 .fillMaxWidth()
                                 .padding(horizontal = 14.dp, vertical = 6.dp)
                                 .bouncyClickable(pressedScale = 0.97f) { nav.push(Route.Channel(ch.id, ch)) }
-                                .clip(RoundedCornerShape(30.dp))
+                                .clip(RoundedCornerShape(16.dp))
                                 .background(Card)
-                                .padding(14.dp),
+                                .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            AppImage(ch.thumb, Modifier.size(46.dp), CircleShape)
+                            AppImage(ch.thumb, Modifier.size(42.dp), CircleShape)
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(
@@ -403,9 +370,9 @@ fun VideoScreen(route: Route.Video) {
                                 fontWeight = FontWeight.Medium,
                                 modifier = Modifier
                                     .bouncyClickable(pressedScale = 0.88f) { toggleSubscription(scope, ch) }
-                                    .clip(CircleShape)
+                                    .clip(RoundedCornerShape(12.dp))
                                     .background(subBg)
-                                    .padding(horizontal = 20.dp, vertical = 11.dp)
+                                    .padding(horizontal = 16.dp, vertical = 9.dp)
                             )
                         }
                     }
@@ -421,7 +388,7 @@ fun VideoScreen(route: Route.Video) {
                             .fillMaxWidth()
                             .padding(horizontal = 14.dp, vertical = 6.dp)
                             .bouncyClickable(pressedScale = 0.975f) { commentsOpen = true }
-                            .clip(RoundedCornerShape(30.dp))
+                            .clip(RoundedCornerShape(16.dp))
                             .background(Card)
                             .animateContentSize(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow))
                             .padding(16.dp)
@@ -506,6 +473,23 @@ fun VideoScreen(route: Route.Video) {
                     onClose = { commentsOpen = false }
                 )
             }
+
+            // ---- description panel: slides up the same way, as a card under the player
+            androidx.compose.animation.AnimatedVisibility(
+                visible = descOpen,
+                enter = slideInVertically(spring(dampingRatio = 0.86f, stiffness = 320f)) { it } + fadeIn(tween(220)),
+                exit = slideOutVertically(tween(300, easing = Motion.EmphasizedAccelerate)) { it } + fadeOut(tween(220))
+            ) {
+                DescriptionPanel(
+                    title = video?.title.orEmpty(),
+                    meta = listOfNotNull(
+                        video?.viewsText?.takeIf { it.isNotEmpty() },
+                        video?.ageText?.takeIf { it.isNotEmpty() }
+                    ).joinToString(" • "),
+                    description = details?.description.orEmpty(),
+                    onClose = { descOpen = false }
+                )
+            }
         }
     }
 
@@ -514,6 +498,113 @@ fun VideoScreen(route: Route.Video) {
     }
     if (saveDialog && video != null) {
         SaveToPlaylistDialog(video) { saveDialog = false }
+    }
+}
+
+/**
+ * The video description in a card that slides up under the player, exactly like [CommentsPanel]: drag the header
+ * (or pull the text down while it is at the top) to close it.
+ */
+@Composable
+fun DescriptionPanel(title: String, meta: String, description: String, onClose: () -> Unit) {
+    val scroll = rememberScrollState()
+
+    // ---- drag down to close (same behaviour as the comments panel)
+    var dragY by remember { mutableFloatStateOf(0f) }
+    val closeAt = with(LocalDensity.current) { 120.dp.toPx() }
+    suspend fun settle(velocity: Float) {
+        if (dragY > closeAt || velocity > 1800f) onClose()
+        else animate(dragY, 0f) { v, _ -> dragY = v }
+    }
+    val headerDrag = rememberDraggableState { d -> dragY = (dragY + d).coerceAtLeast(0f) }
+    val nested = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < 0f && dragY > 0f) {
+                    val c = maxOf(available.y, -dragY)
+                    dragY += c
+                    return Offset(0f, c)
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (available.y > 0f && source == NestedScrollSource.UserInput) {
+                    dragY += available.y
+                    return Offset(0f, available.y)
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (dragY > 0f) {
+                    settle(available.y)
+                    return available
+                }
+                return Velocity.Zero
+            }
+        }
+    }
+
+    Box(Modifier.fillMaxSize().offset { IntOffset(0, dragY.roundToInt()) }) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                .background(Card)
+                // swallow taps so nothing underneath the panel reacts
+                .pointerInput(Unit) { detectTapGestures { } }
+        ) {
+            Column(
+                Modifier.fillMaxWidth().draggable(
+                    state = headerDrag,
+                    orientation = Orientation.Vertical,
+                    onDragStopped = { v -> settle(v) }
+                )
+            ) {
+                Box(
+                    Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(top = 8.dp)
+                        .size(width = 36.dp, height = 4.dp)
+                        .clip(CircleShape)
+                        .background(Hairline)
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Description", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close description", tint = TextPrimary)
+                    }
+                }
+            }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Hairline))
+
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .nestedScroll(nested)
+                    .verticalScroll(scroll)
+                    .padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 40.dp)
+            ) {
+                Text(
+                    title, color = TextPrimary, fontSize = 17.sp, lineHeight = 23.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (meta.isNotEmpty()) {
+                    Text(meta, color = TextMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+                }
+                Box(Modifier.padding(vertical = 14.dp).fillMaxWidth().height(1.dp).background(Hairline))
+                Text(
+                    description.ifBlank { "No description." },
+                    color = if (description.isBlank()) TextMuted else TextPrimary,
+                    fontSize = 14.sp, lineHeight = 21.sp
+                )
+            }
+        }
     }
 }
 
@@ -579,7 +670,7 @@ fun CommentsPanel(videoId: String, comments: Paged<Comment>, count: String, onCl
         Column(
             Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                 .background(Card)
                 // swallow taps so nothing underneath the panel reacts
                 .pointerInput(Unit) { detectTapGestures { } }
