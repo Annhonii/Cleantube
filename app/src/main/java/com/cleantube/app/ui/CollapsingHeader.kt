@@ -251,7 +251,8 @@ fun CollapsingHeader(
                 // flat bar over the full screen width (status bar included), in the screen colour: part of the page, not a card.
                 // The feed slides under it with a clean edge. Over a Short the bar goes away and only a dark scrim stays,
                 // so the search bar and photo float on the video.
-                val bgA = 1f - w
+                // the same bar on every page, Shorts included: screen colour (white / dark) with the red glow
+                val bgA = 1f
                 val barH = size.height
                 if (bgA > 0f) {
                     drawRect(Bg, size = Size(size.width, barH), alpha = bgA)
@@ -275,24 +276,6 @@ fun CollapsingHeader(
                                 startY = 0f, endY = barH
                             ),
                             size = Size(size.width, barH), alpha = glowA
-                        )
-                    }
-                }
-                if (w > 0f) {
-                    // over a Short: the same red glow floats on the video, squashed so it fades out before the
-                    // bottom of the header (no hard edge on the picture)
-                    val vy = barH * 1.25f
-                    val f = vy / size.width
-                    scale(1f, f, pivot = Offset(size.width * 0.24f, 0f)) {
-                        drawRect(
-                            Brush.radialGradient(
-                                0f to HeaderRed,
-                                0.45f to HeaderRed.copy(alpha = 0.55f),
-                                1f to Color.Transparent,
-                                center = Offset(size.width * 0.24f, 0f),
-                                radius = size.width
-                            ),
-                            size = Size(size.width, barH / f), alpha = w
                         )
                     }
                 }
