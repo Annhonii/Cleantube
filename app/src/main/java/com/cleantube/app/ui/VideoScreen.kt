@@ -204,7 +204,7 @@ fun VideoScreen(route: Route.Video) {
         }
     }
     // the player's "next" button plays the first Up next video
-    LaunchedEffect(details) { VideoHost.nextItem = details?.related?.firstOrNull { it.id != route.id } }
+    LaunchedEffect(details) { VideoHost.nextItem = details?.related?.firstOrNull { it.id != route.id && !it.isShortLike() } }
     val comments = remember(route.id) {
         Paged(scope) { token -> Api.comments(route.id, token) }
     }
@@ -440,11 +440,12 @@ fun VideoScreen(route: Route.Video) {
                         modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 4.dp)
                     )
                 }
-                val vids = more.items.filter { it.id != route.id }
+                // big cards like the home feed; no Shorts in here (they have their own tab)
+                val vids = more.items.filter { it.id != route.id && !it.isShortLike() }
                 items(vids.size) { i ->
                     val v = vids[i]
                     Box(Modifier.entrance(seen, "up" + v.id, if (i < 4) 420 + i * 70 else 0)) {
-                        CompactRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
+                        VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
                     }
                 }
 
@@ -967,3 +968,6 @@ private fun CommentRow(
         }
     }
 }
+
+/** A Short: flagged by YouTube, or a clip of a minute or so (the same rule the Shorts tab uses). */
+private fun VideoItem.isShortLike(): Boolean = short || durationSec in 1..62

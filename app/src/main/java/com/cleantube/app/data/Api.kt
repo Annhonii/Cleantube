@@ -249,7 +249,7 @@ object Api {
 
     suspend fun related(token: String?): Page<VideoItem> {
         if (token == null) return Page(emptyList(), null)
-        return videosPage(Yt.run("related", args("token" to token)))
+        return videosPage(Yt.run("related", args("token" to token)), dropShorts = true)
     }
 
     suspend fun comments(videoId: String, page: String?): Page<Comment> {
