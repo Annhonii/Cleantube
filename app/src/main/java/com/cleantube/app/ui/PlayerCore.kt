@@ -163,6 +163,8 @@ class CtPlayer(
                     if (shorts) 800 else 1_200
                 )
                 .setPrioritizeTimeOverSizeThresholds(true)
+                // keep the last 10 s behind the playhead: jumping back (double tap, bar) needs no new download
+                .setBackBuffer(if (shorts) 0 else 10_000, true)
                 .build()
         )
         .setAudioAttributes(

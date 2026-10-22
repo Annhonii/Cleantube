@@ -82,6 +82,7 @@ import com.cleantube.app.data.ChannelItem
 import com.cleantube.app.data.Graph
 import com.cleantube.app.data.Paged
 import com.cleantube.app.data.PlaylistItem
+import com.cleantube.app.data.Playback
 import com.cleantube.app.data.VideoItem
 import com.cleantube.app.data.formatCount
 import com.cleantube.app.data.formatDuration
@@ -672,4 +673,14 @@ object ChannelAvatars {
         if (t.isNotEmpty()) cache[channelId] = t
         return t
     }
+}
+
+/**
+ * Looks up the stream links of the first few videos of a list in the background, so tapping one starts playing
+ * without waiting for that lookup (links only, no video data is loaded). Shorts and live streams are skipped.
+ */
+@Composable
+fun PrefetchTop(items: List<VideoItem>, count: Int = 3) {
+    val ids = items.asSequence().filter { !it.short && !it.live && it.durationSec !in 1..62 }.take(count).map { it.id }.toList()
+    LaunchedEffect(ids) { ids.forEach { Playback.prefetch(it) } }
 }

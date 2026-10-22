@@ -127,6 +127,7 @@ private fun AccountFeedScreen() {
             header = { item { SubscriptionStrip(stripChannels, paged.items) } },
             indexRow = { i -> BentoFeedItem(paged.items, i) { v -> nav.push(Route.Video(v.id, v)) } }
         )
+        PrefetchTop(paged.items)
     }
 }
 

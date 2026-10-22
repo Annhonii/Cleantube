@@ -39,6 +39,7 @@ fun HomeScreen() {
         ) { }
         // the card itself is drawn once for the whole app (App.kt); this only tells it how far the feed is scrolled
         TrackHeaderScroll(paged.listState, Route.Home)
+        PrefetchTop(paged.items)
     }
 }
 

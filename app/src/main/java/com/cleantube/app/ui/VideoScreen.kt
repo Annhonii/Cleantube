@@ -446,6 +446,7 @@ fun VideoScreen(route: Route.Video) {
                 }
                 // big cards like the home feed; no Shorts in here (they have their own tab)
                 val vids = more.items.filter { it.id != route.id && !it.isShortLike() }
+                item { PrefetchTop(vids) }
                 items(vids.size) { i ->
                     val v = vids[i]
                     Box(Modifier.entrance(seen, "up" + v.id, if (i < 4) 420 + i * 70 else 0)) {
