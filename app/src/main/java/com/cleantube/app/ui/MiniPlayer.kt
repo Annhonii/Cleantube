@@ -375,12 +375,13 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
         val collapsedBottom = navPx + dockSpace
         val travel = (h - collapsedBottom - cardH).coerceAtLeast(1f)
 
-        // full page: picture below the status bar, then the rest of the page
-        val sideX = with(density) { 8.dp.toPx() }
-        val vTop = statusPx + with(density) { 6.dp.toPx() }
+        // full page (like the official YouTube app): the picture is full width with square corners, right under the
+        // status bar (the bar itself stays visible, its icons follow the light / dark setting), then the rest of the page
+        val sideX = 0f
+        val vTop = statusPx
         val vW = w - 2 * sideX
         val vH = vW * 9f / 16f
-        val area = vTop + vH + with(density) { 6.dp.toPx() }
+        val area = vTop + vH
         val miniScale = cardW / vW
         val dens = density.density
 
@@ -500,7 +501,7 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                             scaleY = sc
                             translationX = lerpF(0f, sideX, pc)
                             translationY = lerpF(0f, vTop, pc)
-                            shape = RoundedCornerShape(lerpF(cornerPx, 26.dp.toPx(), pc) / sc)
+                            shape = RoundedCornerShape(lerpF(cornerPx, 0f, pc) / sc)
                             clip = true
                         }
                     }
