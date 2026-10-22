@@ -367,7 +367,7 @@ fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifi
     Row(
         modifier
             .navigationBarsPadding()
-            .padding(horizontal = (18f + 8f * s).dp, vertical = 12.dp)
+            .padding(horizontal = (18f + 8f * s).dp, vertical = (12f - 4f * s).dp)
             .fillMaxWidth()
             .shadow(10.dp, shape, clip = false, ambientColor = shadowColor, spotColor = shadowColor)
             .clip(shape)
