@@ -594,18 +594,19 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                                     Modifier.fillMaxSize().padding(horizontal = 8.dp),
                                     verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)
                                 ) {
-                                    val autoLabel = if (player.quality == 0 && player.currentHeight > 0) "Auto ${player.currentHeight}p" else "Auto"
-                                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                        MiniChip(autoLabel, player.quality == 0) { player.changeQuality(0) }
-                                        player.heights.sortedDescending().forEach { q ->
-                                            MiniChip("${q}p", player.quality == q) { player.changeQuality(q) }
-                                        }
-                                    }
-                                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                        PopupSpeeds.forEach { sp ->
-                                            MiniChip(speedText(sp), player.speed == sp) { player.changeSpeed(sp) }
-                                        }
-                                    }
+                                    val qOpts = remember(player.heights) { listOf(0) + player.heights.sorted() }
+                                    TickSlider(
+                                        labels = qOpts.map { if (it == 0) "Auto" else "${it}p" },
+                                        index = qOpts.indexOf(player.quality).coerceAtLeast(0),
+                                        live = false, dark = true, compact = true, resetIndex = 0,
+                                        onPick = { player.changeQuality(qOpts[it]) }
+                                    )
+                                    TickSlider(
+                                        labels = PopupSpeeds.map { speedText(it) },
+                                        index = PopupSpeeds.indexOfFirst { kotlin.math.abs(it - player.speed) < 0.01f }.coerceAtLeast(0),
+                                        dark = true, compact = true, resetIndex = PopupSpeeds.indexOf(1f),
+                                        onPick = { player.changeSpeed(PopupSpeeds[it]) }
+                                    )
                                 }
                             } else {
                                 Row(

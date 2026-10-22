@@ -142,6 +142,7 @@ import com.cleantube.app.data.VideoDetails
 import com.cleantube.app.data.VideoItem
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlin.math.abs
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import kotlin.random.Random
@@ -455,18 +456,21 @@ private fun ShortMenu(
             val p = active?.player
             if (p != null) {
                 MenuLabel("Playback speed")
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { s ->
-                        val label = if (s == 1f) "Normal" else if (s % 1f == 0f) "${s.toInt()}x" else "${s}x"
-                        CtChip(label, p.speed == s) { p.changeSpeed(s) }
-                    }
-                }
+                val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
+                TickSlider(
+                    labels = speeds.map { if (it == 1f) "Normal" else if (it % 1f == 0f) "${it.toInt()}x" else "${it}x" },
+                    index = speeds.indexOfFirst { abs(it - p.speed) < 0.01f }.coerceAtLeast(0),
+                    dark = true, compact = true, resetIndex = speeds.indexOf(1f),
+                    onPick = { p.changeSpeed(speeds[it]) }
+                )
                 MenuLabel("Quality")
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val auto = if (p.quality == 0 && p.currentHeight > 0) "Auto ${p.currentHeight}p" else "Auto"
-                    CtChip(auto, p.quality == 0) { p.changeQuality(0) }
-                    p.heights.reversed().forEach { h -> CtChip("${h}p", p.quality == h) { p.changeQuality(h) } }
-                }
+                val qOpts = remember(p.heights) { listOf(0) + p.heights }
+                TickSlider(
+                    labels = qOpts.map { if (it == 0) "Auto" else "${it}p" },
+                    index = qOpts.indexOf(p.quality).coerceAtLeast(0),
+                    live = false, dark = true, compact = true, resetIndex = 0,
+                    onPick = { p.changeQuality(qOpts[it]) }
+                )
             }
             MenuLabel("Feed")
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

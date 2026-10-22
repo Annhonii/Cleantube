@@ -142,18 +142,11 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
             // ---- speed
             SettingsBlock("Speed", speedLabel(p.speed)) {
                 val idx = SpeedSteps.indexOfFirst { abs(it - p.speed) < 0.01f }.coerceAtLeast(0)
-                RubberPicker(
-                    count = SpeedSteps.size, index = idx, itemWidth = 72.dp, height = 76.dp, live = true,
-                    fade = 0.38f, fadeEdges = true,
+                TickSlider(
+                    labels = SpeedSteps.map { speedLabel(it) }, index = idx, live = true,
+                    resetIndex = SpeedSteps.indexOf(1f),
                     onPick = { p.changeSpeed(SpeedSteps[it]) }
-                ) { i, selected ->
-                    Text(
-                        speedLabel(SpeedSteps[i]),
-                        color = TextPrimary,
-                        fontSize = 20.sp,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
-                    )
-                }
+                )
             }
 
             // ---- quality
@@ -162,52 +155,12 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
                 "Quality",
                 if (p.quality == 0) (if (p.currentHeight > 0) "Auto · ${p.currentHeight}p" else "Auto") else "${p.quality}p"
             ) {
-                val idx = opts.indexOf(p.quality).coerceAtLeast(0)
-                RubberPicker(
-                    count = opts.size, index = idx, itemWidth = 150.dp, height = 76.dp, live = false,
-                    fade = 0.9f, fadeEdges = false,
-                    onPick = { p.changeQuality(opts[it]) },
-                    overlay = { step, pos ->
-                        val at = pos()
-                        Icon(
-                            Icons.Rounded.ChevronLeft, contentDescription = "Lower quality",
-                            tint = TextPrimary,
-                            modifier = Modifier
-                                .align(Alignment.CenterStart)
-                                .padding(start = 6.dp)
-                                .size(44.dp)
-                                .graphicsLayer { alpha = if (at < 0.5f) 0.25f else 0.8f }
-                                .clip(CircleShape)
-                                .clickable { step(-1) }
-                                .padding(10.dp)
-                        )
-                        Icon(
-                            Icons.Rounded.ChevronRight, contentDescription = "Higher quality",
-                            tint = TextPrimary,
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .padding(end = 6.dp)
-                                .size(44.dp)
-                                .graphicsLayer { alpha = if (at > opts.size - 1.5f) 0.25f else 0.8f }
-                                .clip(CircleShape)
-                                .clickable { step(1) }
-                                .padding(10.dp)
-                        )
-                    }
-                ) { i, selected ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            if (opts[i] == 0) "Auto" else "${opts[i]}p",
-                            color = TextPrimary,
-                            fontSize = 22.sp,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                            textAlign = TextAlign.Center
-                        )
-                        if (opts[i] == 0 && selected && p.currentHeight > 0) {
-                            Text("playing ${p.currentHeight}p", color = TextMuted, fontSize = 11.sp)
-                        }
-                    }
-                }
+                TickSlider(
+                    labels = opts.map { if (it == 0) "Auto" else "${it}p" },
+                    index = opts.indexOf(p.quality).coerceAtLeast(0), live = false,
+                    resetIndex = 0,
+                    onPick = { p.changeQuality(opts[it]) }
+                )
             }
 
             // ---- audio source

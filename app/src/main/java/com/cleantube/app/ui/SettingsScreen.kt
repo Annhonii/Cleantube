@@ -290,18 +290,17 @@ private fun TabsSettings(modifier: Modifier = Modifier) {
     }
 }
 
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+private val SettingsQualities = listOf(0, 144, 240, 360, 480, 720, 1080, 1440, 2160)
+
 @Composable
 private fun QualityPills(selected: Int, onPick: (Int) -> Unit) {
     Column(Modifier.padding(horizontal = 12.dp)) {
-        androidx.compose.foundation.layout.FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            listOf(0, 144, 240, 360, 480, 720, 1080, 1440, 2160).forEach { h ->
-                Pill(if (h == 0) "Auto" else "${h}p", onClick = { onPick(h) }, active = selected == h)
-            }
-        }
+        TickSlider(
+            labels = SettingsQualities.map { if (it == 0) "Auto" else "${it}p" },
+            index = SettingsQualities.indexOf(selected).coerceAtLeast(0),
+            live = true, resetIndex = 0,
+            onPick = { onPick(SettingsQualities[it]) }
+        )
     }
 }
 
@@ -379,7 +378,6 @@ private fun SettingsGroup(items: List<SettingsItem>, onOpen: (SettingsPage) -> U
 }
 
 @Composable
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 fun SettingsScreen() {
     val nav = LocalNav.current
     val store = Graph.store
@@ -547,18 +545,13 @@ fun SettingsScreen() {
                     )
                     SectionTitle("PLAYBACK SPEED")
                     Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        androidx.compose.foundation.layout.FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f).forEach { spd ->
-                                Pill(
-                                    if (spd % 1f == 0f) "${spd.toInt()}×" else "${spd}×",
-                                    onClick = { store.defaultSpeed = spd },
-                                    active = store.defaultSpeed == spd
-                                )
-                            }
-                        }
+                        val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
+                        TickSlider(
+                            labels = speeds.map { if (it % 1f == 0f) "${it.toInt()}×" else "${it}×" },
+                            index = speeds.indexOf(store.defaultSpeed).let { if (it < 0) 2 else it },
+                            resetIndex = 2,
+                            onPick = { store.defaultSpeed = speeds[it] }
+                        )
                         Text(
                             "Every video starts at this speed.",
                             color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
