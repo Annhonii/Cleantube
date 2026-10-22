@@ -72,9 +72,7 @@ fun QuickPicksSection() {
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
         )
         val status = when {
-            loading -> "Refreshing…"
-            error != null -> "Couldn't refresh: $error · tap to retry"
-            QuickPicks.updatedAt > 0 -> "Updated " + java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(QuickPicks.updatedAt))
+            error != null && !loading -> "Couldn't refresh: $error · tap to retry"
             else -> ""
         }
         if (status.isNotEmpty()) {

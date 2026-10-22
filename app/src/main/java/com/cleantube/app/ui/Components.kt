@@ -343,8 +343,12 @@ fun VideoRow(
         if (value.isEmpty() && v.channelId.isNotEmpty()) value = ChannelAvatars.load(v.channelId)
     }
 
-    // Bento card: big rounded thumbnail with duration badge, then a row with the channel logo,
-    // title and meta. The whole video sits on a soft card so the feed feels like tiles.
+    // YouTube style card: thumbnail with the channel pill (logo + name) top left, duration top right and a
+    // NEW badge bottom left; below it the title and "views • time" with the menu button on the right.
+    val isNew = remember(v.id, v.ageText) {
+        !v.live && com.cleantube.app.data.Api.ageMinutes(v.ageText) <= 2 * 1440L &&
+            com.cleantube.app.data.Graph.store.history.none { it.id == v.id }
+    }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -359,61 +363,63 @@ fun VideoRow(
                 .background(Hairline)
         ) {
             VideoThumb(v.id, Modifier.fillMaxSize())
-            // soft bottom scrim so the badge stays readable on bright thumbnails
-            Box(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0x80000000))))
-            )
+            if (v.channelTitle.isNotEmpty()) {
+                ChannelPill(
+                    v.channelTitle,
+                    avatar,
+                    Modifier.align(Alignment.TopStart).padding(10.dp).widthIn(max = 240.dp),
+                    onClick = if (v.channelId.isNotEmpty()) ({ nav.push(Route.Channel(v.channelId)) }) else null
+                )
+            }
             if (v.live) {
-                Badge("LIVE", Color.Black, Modifier.align(Alignment.BottomEnd).padding(10.dp))
+                Badge("LIVE", Color(0xFFE53935), Modifier.align(Alignment.TopEnd).padding(10.dp))
             } else if (v.durationSec > 0) {
-                Badge(formatDuration(v.durationSec), Color(0xB3000000), Modifier.align(Alignment.BottomEnd).padding(10.dp))
+                Text(
+                    formatDuration(v.durationSec),
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(10.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0x99000000))
+                        .padding(horizontal = 9.dp, vertical = 5.dp)
+                )
+            }
+            if (isNew) {
+                Text(
+                    "NEW",
+                    color = Color.Black,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(bottom = 12.dp)
+                        .clip(RoundedCornerShape(topEnd = 18.dp, bottomEnd = 18.dp))
+                        .background(Color(0xFF2BD34F))
+                        .padding(start = 12.dp, end = 14.dp, top = 3.dp, bottom = 3.dp)
+                )
             }
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 2.dp, end = 0.dp, top = 12.dp, bottom = 2.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 2.dp, top = 12.dp, bottom = 2.dp),
             verticalAlignment = Alignment.Top
         ) {
-            Box(
-                Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(Hairline)
-                    .then(if (v.channelId.isNotEmpty()) Modifier.clickable { nav.push(Route.Channel(v.channelId)) } else Modifier),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    v.channelTitle.trim().firstOrNull()?.uppercase() ?: "•",
-                    color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium
-                )
-                if (avatar.isNotEmpty()) {
-                    AsyncImage(
-                        model = avatar,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().clip(CircleShape)
-                    )
-                }
-            }
-            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     v.title,
                     color = TextPrimary,
-                    fontSize = 15.sp,
-                    lineHeight = 21.sp,
-                    letterSpacing = (-0.1).sp,
+                    fontSize = 17.sp,
+                    lineHeight = 23.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                val meta = listOf(v.channelTitle, videoMeta(v)).filter { it.isNotEmpty() }.joinToString(" • ")
+                val meta = videoMeta(v)
                 if (meta.isNotEmpty()) {
-                    Spacer(Modifier.size(4.dp))
-                    Text(meta, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.size(5.dp))
+                    Text(meta, color = TextMuted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             Box {
