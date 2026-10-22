@@ -133,7 +133,7 @@ fun CtSpinner(modifier: Modifier = Modifier, size: Dp = 62.dp, disc: Boolean = t
     }
 }
 
-/** Thumbnail shown (slowly "breathing") with the spinner until the first picture of the video is on screen. */
+/** Thumbnail shown (still, no zooming) with the spinner until the first picture of the video is on screen. */
 @Composable
 fun CtPoster(videoId: String, player: CtPlayer, modifier: Modifier = Modifier, fit: Boolean = false) {
     AnimatedVisibility(
@@ -142,18 +142,12 @@ fun CtPoster(videoId: String, player: CtPlayer, modifier: Modifier = Modifier, f
         exit = fadeOut(tween(320)),
         modifier = modifier.fillMaxSize()
     ) {
-        val t = rememberInfiniteTransition(label = "ctPoster")
-        val scale by t.animateFloat(
-            1f, 1.06f,
-            infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-            label = "breath"
-        )
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             AsyncImage(
                 model = "https://i.ytimg.com/vi/$videoId/mqdefault.jpg",
                 contentDescription = null,
                 contentScale = if (fit) ContentScale.Fit else ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = scale; scaleY = scale }
+                modifier = Modifier.fillMaxSize()
             )
             Box(Modifier.fillMaxSize().background(Color(0x66000000)))
             if (player.error == null) CtSpinner(Modifier.align(Alignment.Center))
