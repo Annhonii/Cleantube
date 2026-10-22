@@ -458,21 +458,13 @@ fun VideoRow(
 @Composable
 internal fun VideoThumb(id: String, modifier: Modifier = Modifier) {
     var fallback by remember(id) { mutableStateOf(false) }
-    var loaded by remember(id) { mutableStateOf(false) }
-    // fades in while settling from a slight zoom: the thumbnail "arrives" instead of popping
-    val show by animateFloatAsState(if (loaded) 1f else 0f, tween(420, easing = Motion.Emphasized), label = "thumb")
+    // no fade / zoom: the picture simply shows when it is there
     AsyncImage(
         model = if (fallback) "https://i.ytimg.com/vi/$id/mqdefault.jpg" else "https://i.ytimg.com/vi/$id/hq720.jpg",
         contentDescription = null,
         contentScale = ContentScale.Crop,
-        onSuccess = { loaded = true },
         onError = { fallback = true },
-        modifier = modifier.graphicsLayer {
-            alpha = show
-            val s = 1.07f - 0.07f * show
-            scaleX = s
-            scaleY = s
-        }
+        modifier = modifier
     )
 }
 

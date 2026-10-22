@@ -98,27 +98,9 @@ fun Modifier.plainClickable(onClick: () -> Unit): Modifier = composed {
 }
 
 /**
- * Fade + rise + tiny zoom the FIRST time [key] shows up. Scrolling an item out and back in does not
- * replay it ([seen] remembers). [delayMs] staggers the first few items of a list.
+ * Switched off: list items appear without any fade / slide / zoom (kept so callers still compile).
  */
-fun Modifier.entrance(seen: MutableSet<Any>, key: Any, delayMs: Int = 0): Modifier = composed {
-    val first = remember(key) { seen.add(key) }
-    val p = remember(key) { Animatable(if (first) 0f else 1f) }
-    LaunchedEffect(key) {
-        if (first) {
-            if (delayMs > 0) delay(delayMs.toLong())
-            p.animateTo(1f, spring(dampingRatio = 0.9f, stiffness = 280f))
-        }
-    }
-    this.graphicsLayer {
-        val v = p.value
-        alpha = v.coerceIn(0f, 1f)
-        translationY = (1f - v) * 18.dp.toPx()
-        val s = 0.975f + 0.025f * v
-        scaleX = s
-        scaleY = s
-    }
-}
+fun Modifier.entrance(seen: MutableSet<Any>, key: Any, delayMs: Int = 0): Modifier = this
 
 /** Moving light over a placeholder while something loads. */
 fun Modifier.shimmer(): Modifier = composed {
