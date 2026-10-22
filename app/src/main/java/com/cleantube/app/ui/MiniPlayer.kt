@@ -521,7 +521,8 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                             translationX = lerpF(0f, sideX, pc)
                             translationY = lerpF(0f, vTop, pc)
                             shape = RoundedCornerShape(lerpF(cornerPx, 0f, pc) / sc)
-                            clip = true
+                            // fully open the picture is square anyway: no clipping, so the seek bar's dot can reach below its edge
+                            clip = pc < 0.995f
                         }
                     }
                     .onGloballyPositioned { c ->

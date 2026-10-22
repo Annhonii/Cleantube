@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.Pause
@@ -175,6 +176,9 @@ fun CtErrorView(message: String, onRetry: () -> Unit, onOpen: (() -> Unit)?, mod
     }
 }
 
+/** Thickness of the progress line (the same while the controls are shown and hidden). */
+val CtLineHeight = 3.dp
+
 /** The red of YouTube's progress bar (the app itself is black / white, the player keeps YouTube's look). */
 val CtRed = Color(0xFFFF0000)
 
@@ -199,7 +203,7 @@ fun CtSeekBar(
     showThumb: Boolean = true
 ) {
     var active by remember { mutableStateOf(false) }
-    val line by animateDpAsState(if (active) 4.dp else 3.dp, label = "line")
+    val line by animateDpAsState(if (active) 4.dp else CtLineHeight, label = "line")
     val thumb by animateDpAsState(if (active) 20.dp else if (showThumb) 13.dp else 0.dp, label = "thumb")
     val start by rememberUpdatedState(onDragStart)
     val move by rememberUpdatedState(onDrag)
@@ -228,9 +232,11 @@ fun CtSeekBar(
                 }
             }
             .drawBehind {
-                val cy = size.height - 11.dp.toPx()
+                // the line sits on the very bottom edge of the picture, exactly where the hairline is while the controls
+                // are hidden, so nothing moves when the controls appear or go away (the dot may reach below the edge)
                 val th = line.toPx()
-                val top = cy - th / 2
+                val top = size.height - th
+                val cy = size.height - th / 2
                 val f = fraction.coerceIn(0f, 1f)
                 drawRect(Color.White.copy(alpha = 0.3f), Offset(0f, top), Size(size.width, th))
                 drawRect(Color.White.copy(alpha = 0.5f), Offset(0f, top), Size(size.width * buffered.coerceIn(0f, 1f), th))
@@ -246,7 +252,7 @@ fun CtProgressLine(fraction: Float, buffered: Float, modifier: Modifier = Modifi
     Box(
         modifier
             .fillMaxWidth()
-            .height(2.dp)
+            .height(CtLineHeight)
             .drawBehind {
                 drawRect(Color.White.copy(alpha = 0.3f))
                 drawRect(Color.White.copy(alpha = 0.5f), size = Size(size.width * buffered.coerceIn(0f, 1f), size.height))
@@ -357,6 +363,12 @@ fun CtOverlay(
     var panel by remember { mutableStateOf(false) }
     var skip by remember { mutableIntStateOf(0) }
     var skipTick by remember { mutableIntStateOf(0) }
+    // long press = play at 2x while the finger is down (like YouTube), back to the old speed on release
+    var holdFast by remember { mutableStateOf(false) }
+    var speedBeforeHold by remember { mutableFloatStateOf(1f) }
+
+    // paused (by the button, or from outside): the controls show; a tap then hides them again, like YouTube
+    LaunchedEffect(p.wantPlay) { if (!p.wantPlay) visible = true }
 
     // controls fade away by themselves while the video plays
     LaunchedEffect(visible, p.isPlaying, dragging, panel) {
@@ -375,7 +387,9 @@ fun CtOverlay(
     val dur = p.duration.coerceAtLeast(1L)
     val frac = if (dragging) dragFraction else (p.position.toFloat() / dur).coerceIn(0f, 1f)
     val bufFrac = (p.buffered.toFloat() / dur).coerceIn(0f, 1f)
-    val showControls = visible || p.ended || !p.wantPlay
+    val showControls = visible || p.ended
+    // in fullscreen the bar keeps a little distance from the screen edge (its dot would be cut off there)
+    val barInset = if (fullscreen) 12.dp else 0.dp
     val prevItem = VideoHost.prevItem
     val nextItem = VideoHost.nextItem
 
@@ -389,6 +403,20 @@ fun CtOverlay(
             .fillMaxSize()
             .pointerInput(Unit) {
                 detectTapGestures(
+                    onPress = {
+                        tryAwaitRelease()
+                        if (holdFast) {
+                            holdFast = false
+                            p.changeSpeed(speedBeforeHold)
+                        }
+                    },
+                    onLongPress = {
+                        if (p.wantPlay && !p.ended && p.error == null) {
+                            speedBeforeHold = p.speed
+                            holdFast = true
+                            p.changeSpeed(2f)
+                        }
+                    },
                     onTap = { if (panel) panel = false else visible = !visible },
                     onDoubleTap = { off ->
                         val right = off.x > size.width / 2
@@ -443,6 +471,22 @@ fun CtOverlay(
             }
         }
 
+        // "2x" while the finger is held down
+        AnimatedVisibility(
+            holdFast,
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp),
+            enter = fadeIn(tween(120)) + scaleIn(initialScale = 0.9f),
+            exit = fadeOut(tween(160))
+        ) {
+            Row(
+                Modifier.clip(CircleShape).background(Color(0x99000000)).padding(horizontal = 14.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("2x", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Icon(Icons.Rounded.FastForward, contentDescription = null, tint = Color.White, modifier = Modifier.padding(start = 4.dp).size(18.dp))
+            }
+        }
+
         // double-tap feedback
         AnimatedVisibility(
             skip != 0,
@@ -484,7 +528,7 @@ fun CtOverlay(
                             else -> Icons.Rounded.PlayArrow
                         },
                         description = "Play / pause",
-                        onClick = { p.togglePlay(); if (p.wantPlay) visible = true },
+                        onClick = { p.togglePlay(); visible = true },
                         size = 68.dp,
                         iconSize = 38.dp
                     )
@@ -518,7 +562,7 @@ fun CtOverlay(
             enter = fadeIn(tween(160)),
             exit = fadeOut(tween(220))
         ) {
-            Column(Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(bottom = barInset)) {
                 if (!dragging) {
                     Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         // tap the time: first tap = time left, next tap = time played again (like YouTube)
@@ -550,7 +594,7 @@ fun CtOverlay(
         }
 
         if (!showControls) {
-            CtProgressLine(frac, bufFrac, Modifier.align(Alignment.BottomCenter))
+            CtProgressLine(frac, bufFrac, Modifier.align(Alignment.BottomCenter).padding(bottom = barInset))
         }
 
         AnimatedVisibility(
