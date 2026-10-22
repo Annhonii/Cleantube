@@ -114,6 +114,10 @@ object VideoHost {
     /** Set by the page while its comments panel is open (Back closes that first). */
     var commentsOpen by mutableStateOf(false)
 
+    /** The video that was open before this one, and the first "Up next" video: used by the player's previous / next buttons. */
+    var prevItem by mutableStateOf<VideoItem?>(null)
+    var nextItem by mutableStateOf<VideoItem?>(null)
+
     /** 1 = full page, 0 = mini player card, below 0 = the card is being swiped away. */
     val p = Animatable(0f)
 
@@ -124,6 +128,11 @@ object VideoHost {
     var fresh = false
 
     fun open(id: String, s: VideoItem?) {
+        val cur = videoId
+        if (cur != null && cur != id) {
+            prevItem = seed?.takeIf { it.id == cur } ?: VideoItem(id = cur, title = title, channelTitle = channel)
+            nextItem = null
+        }
         fresh = videoId == null
         if (videoId != id) {
             title = s?.title.orEmpty()
@@ -141,6 +150,8 @@ object VideoHost {
     fun close() {
         videoId = null
         seed = null
+        prevItem = null
+        nextItem = null
         title = ""
         channel = ""
         expanded = false
@@ -361,6 +372,11 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
             }
         }
         val statusPx = WindowInsets.statusBars.getTop(density).toFloat()
+        // like the YouTube app: with the video page open the status bar sits on black and its icons are white
+        LaunchedEffect(inPip) {
+            snapshotFlow { !inPip && pA.value > 0.5f }.collect { SystemBarsUi.videoBar = it }
+        }
+        DisposableEffect(Unit) { onDispose { SystemBarsUi.videoBar = false } }
         val navPx = WindowInsets.navigationBars.getBottom(density).toFloat()
         // mini player = just the picture (16:9), floating bottom-right; its size is changed with the corner handle
         val margin = with(density) { 12.dp.toPx() }
@@ -461,6 +477,9 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                 .drawBehind {
                     val dark = inPip || (PipHost.transitioning && PipHost.autoEnter)
                     drawRect(if (dark) Color.Black else lerp(Card, Bg, pA.value.coerceIn(0f, 1f)))
+                    if (!dark) {
+                        drawRect(Color.Black, size = androidx.compose.ui.geometry.Size(size.width, statusPx), alpha = ((pA.value - 0.5f) * 2f).coerceIn(0f, 1f))
+                    }
                 }
         ) {
             // ---- the rest of the page (title, buttons, comments, up next); fades in while opening
@@ -538,20 +557,6 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                             scaleY = 1f / miniScale.coerceAtLeast(0.3f)
                         }
                     )
-                }
-                if (expandedLook && err == null) {
-                    Box(
-                        Modifier
-                            .align(Alignment.TopStart)
-                            .padding(10.dp)
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(Color(0x66000000))
-                            .clickable { VideoHost.requestCollapse() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Minimise", tint = Color.White, modifier = Modifier.size(24.dp))
-                    }
                 }
             }
 

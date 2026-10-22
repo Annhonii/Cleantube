@@ -16,7 +16,8 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -42,7 +43,9 @@ import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Replay
-import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -77,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import coil3.compose.AsyncImage
+import com.cleantube.app.data.VideoItem
 import kotlinx.coroutines.delay
 import java.util.Locale
 
@@ -171,9 +175,18 @@ fun CtErrorView(message: String, onRetry: () -> Unit, onOpen: (() -> Unit)?, mod
     }
 }
 
+/** The red of YouTube's progress bar (the app itself is black / white, the player keeps YouTube's look). */
+val CtRed = Color(0xFFFF0000)
+
+/** "Show the time that is left instead of the time played" (tap the time), remembered while the app is open. */
+object CtPrefs {
+    var showRemaining by mutableStateOf(false)
+}
+
 /**
- * Slim seek bar: grey track, lighter "buffered" part, red played part. Tap or drag anywhere on it.
- * The touch area is taller than the line so it is easy to hit.
+ * YouTube-style seek bar along the bottom edge of the picture: grey track, lighter buffered part, red played part
+ * and a red dot. Touch it anywhere: the dot jumps to the finger and follows it (it grows while it is held);
+ * the video itself seeks when the finger is lifted. A simple tap therefore just jumps to that place.
  */
 @Composable
 fun CtSeekBar(
@@ -186,48 +199,43 @@ fun CtSeekBar(
     showThumb: Boolean = true
 ) {
     var active by remember { mutableStateOf(false) }
-    val line by animateDpAsState(if (active) 6.dp else 3.dp, label = "line")
-    val thumb by animateDpAsState(if (active) 16.dp else if (showThumb) 11.dp else 0.dp, label = "thumb")
+    val line by animateDpAsState(if (active) 4.dp else 3.dp, label = "line")
+    val thumb by animateDpAsState(if (active) 20.dp else if (showThumb) 13.dp else 0.dp, label = "thumb")
     val start by rememberUpdatedState(onDragStart)
     val move by rememberUpdatedState(onDrag)
     val end by rememberUpdatedState(onDragEnd)
-    val accent = Accent
 
     Box(
         modifier
             .height(30.dp)
             .pointerInput(Unit) {
-                detectTapGestures { off ->
-                    val f = (off.x / size.width).coerceIn(0f, 1f)
-                    start(); end(f)
-                }
-            }
-            .pointerInput(Unit) {
-                var last = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { off ->
-                        active = true
-                        last = (off.x / size.width).coerceIn(0f, 1f)
-                        start(); move(last)
-                    },
-                    onDragEnd = { active = false; end(last) },
-                    onDragCancel = { active = false; end(last) },
-                    onHorizontalDrag = { change, _ ->
-                        change.consume()
-                        last = (change.position.x / size.width).coerceIn(0f, 1f)
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    active = true
+                    var last = (down.position.x / size.width).coerceIn(0f, 1f)
+                    start(); move(last)
+                    while (true) {
+                        val ev = awaitPointerEvent()
+                        val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                        ch.consume()
+                        if (!ch.pressed) break
+                        last = (ch.position.x / size.width).coerceIn(0f, 1f)
                         move(last)
                     }
-                )
+                    active = false
+                    end(last)
+                }
             }
             .drawBehind {
-                val cy = size.height / 2
+                val cy = size.height - 11.dp.toPx()
                 val th = line.toPx()
-                val r = CornerRadius(th / 2, th / 2)
                 val top = cy - th / 2
-                drawRoundRect(Color.White.copy(alpha = 0.25f), Offset(0f, top), Size(size.width, th), r)
-                drawRoundRect(Color.White.copy(alpha = 0.45f), Offset(0f, top), Size(size.width * buffered.coerceIn(0f, 1f), th), r)
-                drawRoundRect(accent, Offset(0f, top), Size(size.width * fraction.coerceIn(0f, 1f), th), r)
-                if (thumb > 0.dp) drawCircle(accent, thumb.toPx() / 2, Offset(size.width * fraction.coerceIn(0f, 1f), cy))
+                val f = fraction.coerceIn(0f, 1f)
+                drawRect(Color.White.copy(alpha = 0.3f), Offset(0f, top), Size(size.width, th))
+                drawRect(Color.White.copy(alpha = 0.5f), Offset(0f, top), Size(size.width * buffered.coerceIn(0f, 1f), th))
+                drawRect(CtRed, Offset(0f, top), Size(size.width * f, th))
+                if (thumb > 0.dp) drawCircle(CtRed, thumb.toPx() / 2, Offset(size.width * f, cy))
             }
     )
 }
@@ -235,15 +243,14 @@ fun CtSeekBar(
 /** The hairline shown at the very bottom while the controls are hidden. */
 @Composable
 fun CtProgressLine(fraction: Float, buffered: Float, modifier: Modifier = Modifier) {
-    val accent = Accent
     Box(
         modifier
             .fillMaxWidth()
             .height(2.dp)
             .drawBehind {
-                drawRect(Color.White.copy(alpha = 0.2f))
-                drawRect(Color.White.copy(alpha = 0.35f), size = Size(size.width * buffered.coerceIn(0f, 1f), size.height))
-                drawRect(accent, size = Size(size.width * fraction.coerceIn(0f, 1f), size.height))
+                drawRect(Color.White.copy(alpha = 0.3f))
+                drawRect(Color.White.copy(alpha = 0.5f), size = Size(size.width * buffered.coerceIn(0f, 1f), size.height))
+                drawRect(CtRed, size = Size(size.width * fraction.coerceIn(0f, 1f), size.height))
             }
     )
 }
@@ -265,12 +272,14 @@ private fun GlassButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     size: Dp = 40.dp,
-    iconSize: Dp = 22.dp
+    iconSize: Dp = 22.dp,
+    enabled: Boolean = true
 ) {
     Box(
         modifier
             .size(size)
-            .bouncyClickable(pressedScale = 0.9f, onClick = onClick)
+            .graphicsLayer { alpha = if (enabled) 1f else 0.4f }
+            .bouncyClickable(pressedScale = 0.9f, onClick = { if (enabled) onClick() })
             .clip(CircleShape)
             .background(Color(0x59000000)),
         contentAlignment = Alignment.Center
@@ -328,9 +337,10 @@ private fun CtSettingsPopup(p: CtPlayer, onClose: () -> Unit, modifier: Modifier
 }
 
 /**
- * Minimal controls on top of the picture: tap = show / hide, double tap on the left / right = back / forward 10 s,
- * big play-pause in the middle, seek bar + time at the bottom, a settings sheet for quality and speed.
- * While the controls are hidden only a hairline of progress remains.
+ * Controls on top of the picture, laid out like the YouTube app: tap = show / hide, double tap on the left / right =
+ * back / forward 10 s, previous / play-pause / next in the middle, the time (tap it to switch between "played" and
+ * "time left") and fullscreen above a red seek bar at the bottom edge, a settings gear (quality + speed) at the top
+ * right. While the controls are hidden only the thin red progress line remains.
  */
 @Composable
 fun CtOverlay(
@@ -340,6 +350,7 @@ fun CtOverlay(
     modifier: Modifier = Modifier,
     title: String = ""
 ) {
+    val nav = LocalNav.current
     var visible by remember { mutableStateOf(true) }
     var dragging by remember { mutableStateOf(false) }
     var dragFraction by remember { mutableFloatStateOf(0f) }
@@ -365,6 +376,13 @@ fun CtOverlay(
     val frac = if (dragging) dragFraction else (p.position.toFloat() / dur).coerceIn(0f, 1f)
     val bufFrac = (p.buffered.toFloat() / dur).coerceIn(0f, 1f)
     val showControls = visible || p.ended || !p.wantPlay
+    val prevItem = VideoHost.prevItem
+    val nextItem = VideoHost.nextItem
+
+    fun openVideo(v: VideoItem) {
+        if (fullscreen) onFullscreen()
+        nav.push(Route.Video(v.id, v))
+    }
 
     Box(
         modifier
@@ -381,21 +399,21 @@ fun CtOverlay(
                 )
             }
     ) {
-        // soft shading behind the controls
+        // soft shading over the whole picture behind the controls
         AnimatedVisibility(showControls, enter = fadeIn(tween(160)), exit = fadeOut(tween(220))) {
             Box(
                 Modifier.fillMaxSize().background(
                     Brush.verticalGradient(
-                        0f to Color(0x8C000000), 0.3f to Color.Transparent,
-                        0.65f to Color.Transparent, 1f to Color(0xA6000000)
+                        0f to Color(0x73000000), 0.35f to Color(0x4D000000),
+                        0.65f to Color(0x4D000000), 1f to Color(0x8C000000)
                     )
                 )
             )
         }
 
-        // top row
+        // top row: only the settings gear (and, in fullscreen, close + title)
         AnimatedVisibility(
-            showControls,
+            showControls && !dragging,
             modifier = Modifier.align(Alignment.TopCenter),
             enter = fadeIn(tween(160)),
             exit = fadeOut(tween(220))
@@ -414,18 +432,13 @@ fun CtOverlay(
                 } else {
                     Spacer(Modifier.weight(1f))
                 }
-                Row(
+                Box(
                     Modifier
-                        .bouncyClickable(pressedScale = 0.92f, onClick = { panel = !panel })
-                        .clip(CircleShape)
-                        .background(Color(0x59000000))
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .size(44.dp)
+                        .bouncyClickable(pressedScale = 0.9f, onClick = { panel = !panel }),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Rounded.Settings, contentDescription = "Quality and speed", tint = Color.White, modifier = Modifier.size(18.dp))
-                    if (p.currentHeight > 0) {
-                        Text("${p.currentHeight}p", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 5.dp))
-                    }
+                    Icon(Icons.Outlined.Settings, contentDescription = "Quality and speed", tint = Color.White, modifier = Modifier.size(28.dp))
                 }
             }
         }
@@ -444,48 +457,86 @@ fun CtOverlay(
             }
         }
 
-        // centre: spinner while loading / stalled, otherwise the play-pause button
+        // centre: spinner while loading / stalled, otherwise previous / play-pause / next
         if (p.buffering && p.firstFrame) {
             CtSpinner(Modifier.align(Alignment.Center))
         } else {
             AnimatedVisibility(
-                showControls && p.firstFrame,
+                showControls && p.firstFrame && !dragging,
                 modifier = Modifier.align(Alignment.Center),
                 enter = fadeIn(tween(160)) + scaleIn(initialScale = 0.85f),
                 exit = fadeOut(tween(200)) + scaleOut(targetScale = 0.9f)
             ) {
-                GlassButton(
-                    icon = when {
-                        p.ended -> Icons.Rounded.Replay
-                        p.wantPlay -> Icons.Rounded.Pause
-                        else -> Icons.Rounded.PlayArrow
-                    },
-                    description = "Play / pause",
-                    onClick = { p.togglePlay(); if (p.wantPlay) visible = true },
-                    size = 62.dp,
-                    iconSize = 34.dp
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.CenterVertically) {
+                    // like YouTube: restarts the video when it already played a few seconds, else the video before this one
+                    GlassButton(
+                        Icons.Rounded.SkipPrevious, "Previous",
+                        onClick = {
+                            if (p.position > 3000L || prevItem == null) p.seekTo(0L) else openVideo(prevItem)
+                        },
+                        size = 56.dp, iconSize = 32.dp,
+                        enabled = prevItem != null || p.position > 3000L
+                    )
+                    GlassButton(
+                        icon = when {
+                            p.ended -> Icons.Rounded.Replay
+                            p.wantPlay -> Icons.Rounded.Pause
+                            else -> Icons.Rounded.PlayArrow
+                        },
+                        description = "Play / pause",
+                        onClick = { p.togglePlay(); if (p.wantPlay) visible = true },
+                        size = 68.dp,
+                        iconSize = 38.dp
+                    )
+                    GlassButton(
+                        Icons.Rounded.SkipNext, "Next",
+                        onClick = { nextItem?.let { openVideo(it) } },
+                        size = 56.dp, iconSize = 32.dp,
+                        enabled = nextItem != null
+                    )
+                }
             }
         }
 
-        // bottom: seek bar and time
+        // while the red dot is held: the time it points at, big in the middle
+        AnimatedVisibility(
+            dragging,
+            modifier = Modifier.align(Alignment.Center),
+            enter = fadeIn(tween(100)),
+            exit = fadeOut(tween(160))
+        ) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(ctTime((dragFraction * dur).toLong()), color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Medium)
+                Text("  /  ${ctTime(p.duration)}", color = Color.White.copy(alpha = 0.7f), fontSize = 18.sp, modifier = Modifier.padding(bottom = 3.dp))
+            }
+        }
+
+        // bottom: time + fullscreen, and the red seek bar along the bottom edge
         AnimatedVisibility(
             showControls,
             modifier = Modifier.align(Alignment.BottomCenter),
             enter = fadeIn(tween(160)),
             exit = fadeOut(tween(220))
         ) {
-            Column(Modifier.fillMaxWidth().padding(start = 14.dp, end = 6.dp, bottom = 2.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val shown = if (dragging) (dragFraction * dur).toLong() else p.position
-                    Text(
-                        "${ctTime(shown)}  /  ${ctTime(p.duration)}",
-                        color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f)
-                    )
-                    GlassButton(
-                        if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
-                        "Fullscreen", onFullscreen, size = 36.dp, iconSize = 22.dp
-                    )
+            Column(Modifier.fillMaxWidth()) {
+                if (!dragging) {
+                    Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        // tap the time: first tap = time left, next tap = time played again (like YouTube)
+                        Row(
+                            Modifier
+                                .pointerInput(Unit) { detectTapGestures { CtPrefs.showRemaining = !CtPrefs.showRemaining } }
+                                .padding(end = 16.dp, top = 8.dp, bottom = 8.dp)
+                        ) {
+                            val first = if (CtPrefs.showRemaining) "-" + ctTime((p.duration - p.position).coerceAtLeast(0L)) else ctTime(p.position)
+                            Text(first, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Text(" / ${ctTime(p.duration)}", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
+                        }
+                        Spacer(Modifier.weight(1f))
+                        GlassButton(
+                            if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
+                            "Fullscreen", onFullscreen, size = 36.dp, iconSize = 22.dp
+                        )
+                    }
                 }
                 CtSeekBar(
                     fraction = frac,
@@ -493,7 +544,7 @@ fun CtOverlay(
                     onDragStart = { dragging = true; dragFraction = frac },
                     onDrag = { dragFraction = it },
                     onDragEnd = { f -> p.seekTo((f * dur).toLong()); dragging = false },
-                    modifier = Modifier.fillMaxWidth().padding(end = 8.dp)
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }

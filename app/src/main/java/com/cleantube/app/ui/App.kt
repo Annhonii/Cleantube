@@ -49,6 +49,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 /** Status / navigation bar icon colour override (white over a black video); read by MainActivity. */
 object SystemBarsUi {
     var whiteIcons by androidx.compose.runtime.mutableStateOf(false)
+    /** The video page is open: its status bar is black, so the icons must be white. */
+    var videoBar by androidx.compose.runtime.mutableStateOf(false)
 }
 
 @Composable

@@ -68,7 +68,7 @@ class MainActivity : ComponentActivity() {
             // recreated on a theme switch (uiMode is in configChanges), so this is redone every time it changes.
             val dark = isSystemInDarkTheme()
             val whiteIcons = SystemBarsUi.whiteIcons   // Shorts page: black video behind the bars
-            val iconsLight = dark || whiteIcons
+            val iconsLight = dark || whiteIcons || SystemBarsUi.videoBar
             DisposableEffect(iconsLight) {
                 enableEdgeToEdge(
                     statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { iconsLight },

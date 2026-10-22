@@ -202,6 +202,8 @@ fun VideoScreen(route: Route.Video) {
             else Api.related(token)
         }
     }
+    // the player's "next" button plays the first Up next video
+    LaunchedEffect(details) { VideoHost.nextItem = details?.related?.firstOrNull { it.id != route.id } }
     val comments = remember(route.id) {
         Paged(scope) { token -> Api.comments(route.id, token) }
     }
