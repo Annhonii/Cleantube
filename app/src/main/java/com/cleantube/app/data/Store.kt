@@ -51,6 +51,33 @@ class Store(context: Context) {
             sp.edit().putInt("dl_threads", v).apply()
         }
 
+    private val wifiQualityState = mutableStateOf(sp.getInt("wifi_quality", 0))
+    /** Fixed video quality on Wi-Fi / ethernet: 0 = Auto, otherwise the height (360, 720, 1080...). */
+    var wifiQuality: Int
+        get() = wifiQualityState.value
+        set(value) {
+            wifiQualityState.value = value
+            sp.edit().putInt("wifi_quality", value).apply()
+        }
+
+    private val mobileQualityState = mutableStateOf(sp.getInt("mobile_quality", 0))
+    /** Fixed video quality on mobile data: 0 = Auto, otherwise the height. */
+    var mobileQuality: Int
+        get() = mobileQualityState.value
+        set(value) {
+            mobileQualityState.value = value
+            sp.edit().putInt("mobile_quality", value).apply()
+        }
+
+    private val defaultSpeedState = mutableStateOf(sp.getFloat("default_speed", 1f))
+    /** Speed every video starts with. */
+    var defaultSpeed: Float
+        get() = defaultSpeedState.value
+        set(value) {
+            defaultSpeedState.value = value
+            sp.edit().putFloat("default_speed", value).apply()
+        }
+
     private val autoPopupState = mutableStateOf(sp.getBoolean("auto_popup", true))
     /** Leaving the app while a video plays opens the floating popup window by itself. */
     var autoPopup: Boolean

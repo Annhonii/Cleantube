@@ -184,14 +184,18 @@ class CtPlayer(
     var buffered by mutableLongStateOf(0L); private set
     var videoRatio by mutableFloatStateOf(16f / 9f); private set
     var error by mutableStateOf<String?>(null); private set
-    var speed by mutableFloatStateOf(1f); private set
+    var speed by mutableFloatStateOf(if (shorts) 1f else com.cleantube.app.data.Graph.store.defaultSpeed); private set
     /** What the user wants (false = paused by the user / by the screen). */
     var wantPlay by mutableStateOf(true); private set
     /** Heights offered in the quality menu, ascending. */
     var heights by mutableStateOf<List<Int>>(emptyList()); private set
     /** 0 = Auto, otherwise the chosen height. */
-    var quality by mutableIntStateOf(preferredQuality); private set
+    var quality by mutableIntStateOf(
+        if (preferredQuality >= 0) preferredQuality else settingsQuality(app, shorts)
+    ); private set
     var currentHeight by mutableIntStateOf(0); private set
+
+    init { if (speed != 1f) exo.setPlaybackSpeed(speed) }
 
     /** Sound tracks: index 0 is always "Default" (the one that comes with the picture). */
     var audioSources by mutableStateOf(listOf(AudioSource.DEFAULT)); private set
@@ -467,7 +471,22 @@ class CtPlayer(
 
     companion object {
         /** The quality picked in the menu stays for the next videos (until the app is closed). */
-        var preferredQuality = 0
+        var preferredQuality = -1
+
+        /** The fixed quality chosen in Settings for the connection in use (Wi-Fi or mobile data); 0 = Auto. */
+        fun settingsQuality(ctx: Context, shorts: Boolean): Int {
+            if (shorts) return 0
+            val store = com.cleantube.app.data.Graph.store
+            val onWifi = try {
+                val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                val caps = cm.getNetworkCapabilities(cm.activeNetwork)
+                caps != null && (caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) ||
+                    caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET))
+            } catch (e: Exception) {
+                true
+            }
+            return if (onWifi) store.wifiQuality else store.mobileQuality
+        }
 
         /** Captions switched on stay on for the next videos (until the app is closed). */
         var preferredCaptions = false

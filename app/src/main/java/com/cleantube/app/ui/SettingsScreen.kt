@@ -290,6 +290,21 @@ private fun TabsSettings(modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun QualityPills(selected: Int, onPick: (Int) -> Unit) {
+    Column(Modifier.padding(horizontal = 12.dp)) {
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf(0, 144, 240, 360, 480, 720, 1080, 1440, 2160).forEach { h ->
+                Pill(if (h == 0) "Auto" else "${h}p", onClick = { onPick(h) }, active = selected == h)
+            }
+        }
+    }
+}
+
 private enum class SettingsPage(val title: String) {
     Account("Account"),
     Data("Your data"),
@@ -364,6 +379,7 @@ private fun SettingsGroup(items: List<SettingsItem>, onOpen: (SettingsPage) -> U
 }
 
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 fun SettingsScreen() {
     val nav = LocalNav.current
     val store = Graph.store
@@ -420,7 +436,7 @@ fun SettingsScreen() {
                     SettingsItem(SettingsPage.Navigation, Icons.Rounded.Tab, IconPurple, "Order and visibility of tabs"),
                     SettingsItem(SettingsPage.Content, Icons.Rounded.Language, IconBlue, "Region and country"),
                     SettingsItem(SettingsPage.Downloads, Icons.Rounded.Download, IconPurple, "Location and connections"),
-                    SettingsItem(SettingsPage.Player, Icons.Rounded.PictureInPictureAlt, IconBlue, "Popup and mini player")
+                    SettingsItem(SettingsPage.Player, Icons.Rounded.PictureInPictureAlt, IconBlue, "Quality, speed and popup")
                 ),
                 onOpen = { page = it }
             )
@@ -521,6 +537,33 @@ fun SettingsScreen() {
                 }
 
                 SettingsPage.Player -> {
+                    SectionTitle("VIDEO QUALITY ON WI-FI")
+                    QualityPills(store.wifiQuality) { store.wifiQuality = it }
+                    SectionTitle("VIDEO QUALITY ON MOBILE DATA")
+                    QualityPills(store.mobileQuality) { store.mobileQuality = it }
+                    Text(
+                        "Auto lets the app choose. A fixed quality is used for every video (the nearest one the video has if it doesn't offer it). You can still change it for one video from the player's settings.",
+                        color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp)
+                    )
+                    SectionTitle("PLAYBACK SPEED")
+                    Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        androidx.compose.foundation.layout.FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f).forEach { spd ->
+                                Pill(
+                                    if (spd % 1f == 0f) "${spd.toInt()}×" else "${spd}×",
+                                    onClick = { store.defaultSpeed = spd },
+                                    active = store.defaultSpeed == spd
+                                )
+                            }
+                        }
+                        Text(
+                            "Every video starts at this speed.",
+                            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
                     SectionTitle("POPUP")
                     Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(
