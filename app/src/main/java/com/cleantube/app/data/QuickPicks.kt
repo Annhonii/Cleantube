@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 /**
  * Home's "Quick picks": the newest videos of the channels you are subscribed to that you have not watched yet.
@@ -32,6 +33,19 @@ object QuickPicks {
     /** True in a freshly started process (app opened cleanly): the first [refresh] goes to the network. */
     @Volatile
     private var forceNext = true
+
+    /** Why the last refresh failed (null when it worked); shown under the title so a silent failure is visible. */
+    var error by mutableStateOf<String?>(null)
+        private set
+    /** Time of the last successful refresh (0 = none since the app started). */
+    var updatedAt by mutableStateOf(0L)
+        private set
+    private var again = false
+
+    /** Starts a refresh that is not tied to any screen (a recomposition can't cancel it half way). */
+    fun request(force: Boolean = false) {
+        TabCache.appScope.launch { refresh(force) }
+    }
 
     private var loadedFromDisk = false
     private var lastKey = ""
@@ -67,8 +81,12 @@ object QuickPicks {
         val subs = store.subscriptions
         val key = keyOf(loggedIn, Session.handle, subs)
         val changed = key != lastKey
-        if (loading) return
         if (!force && !forceNext && !changed) return
+        if (loading) {
+            // something newer was asked for while a fetch runs: run once more when it is done
+            again = true
+            return
+        }
         if (!loggedIn && subs.isEmpty()) {
             lastKey = key
             pool = emptyList()
@@ -93,6 +111,7 @@ object QuickPicks {
                 // an empty answer is most likely a hiccup: keep what we had
                 forceNext = true
                 lastKey = key
+                error = "YouTube returned no videos"
                 return
             }
             val before = pool.mapTo(HashSet()) { it.id }
@@ -102,13 +121,20 @@ object QuickPicks {
             pool = fetched
             store.saveQuickPicks(fetched)
             lastKey = key
+            error = null
+            updatedAt = System.currentTimeMillis()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             // keep the old pool and try again the next time Home asks
             forceNext = true
+            error = e.message ?: "Something went wrong"
         } finally {
             loading = false
+        }
+        if (again) {
+            again = false
+            refresh(force = true)
         }
     }
 }

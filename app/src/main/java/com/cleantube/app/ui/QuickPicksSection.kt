@@ -46,7 +46,7 @@ import com.cleantube.app.data.formatDuration
 @Composable
 private fun QuickPicksAutoRefresh() {
     val subs = Graph.store.subscriptions
-    LaunchedEffect(Session.loggedIn, Session.handle, subs) { QuickPicks.refresh() }
+    LaunchedEffect(Session.loggedIn, Session.handle, subs) { QuickPicks.request() }
 }
 
 /**
@@ -60,7 +60,8 @@ fun QuickPicksSection() {
     QuickPicksAutoRefresh()
     val cards by remember { derivedStateOf { QuickPicks.unwatched(QuickPicks.pool, Graph.store.history) } }
     val loading = QuickPicks.loading
-    if (cards.isEmpty() && !loading) return
+    val error = QuickPicks.error
+    if (cards.isEmpty() && !loading && error == null) return
 
     Column(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
         Text(
@@ -70,6 +71,24 @@ fun QuickPicksSection() {
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
         )
+        val status = when {
+            loading -> "Refreshing…"
+            error != null -> "Couldn't refresh: $error · tap to retry"
+            QuickPicks.updatedAt > 0 -> "Updated " + java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(QuickPicks.updatedAt))
+            else -> ""
+        }
+        if (status.isNotEmpty()) {
+            Text(
+                status,
+                color = TextMuted,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .padding(start = 18.dp, end = 18.dp, bottom = 8.dp)
+                    .clickable(enabled = error != null && !loading) { QuickPicks.request(force = true) }
+            )
+        }
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val cardW = (maxWidth * 0.8f).coerceIn(232.dp, 340.dp)
             val cardH = 250.dp

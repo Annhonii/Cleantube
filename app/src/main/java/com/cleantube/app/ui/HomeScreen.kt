@@ -33,7 +33,7 @@ fun HomeScreen() {
             refreshIndicatorTop = headerH,
             // Quick picks: newest unwatched videos of your subscribed channels, refreshed automatically
             header = { item { QuickPicksSection() } },
-            onRefresh = { TabCache.appScope.launch { QuickPicks.refresh(force = true) } },
+            onRefresh = { QuickPicks.request(force = true) },
             // fixed-height rhythm: hero, two tiles, two tiles... (see BentoFeedItem)
             indexRow = { i -> BentoFeedItem(paged.items, i) { v -> nav.push(Route.Video(v.id, v)) } }
         ) { }
