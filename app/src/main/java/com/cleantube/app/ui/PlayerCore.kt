@@ -28,10 +28,12 @@ import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import com.cleantube.app.data.AudioSource
 import com.cleantube.app.data.Np
 import com.cleantube.app.data.Playback
 import com.cleantube.app.data.StreamInfo
 import com.cleantube.app.data.StreamOption
+import com.cleantube.app.data.SubtitleTrack
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +41,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -84,10 +87,50 @@ private fun progressive(url: String, ua: String): MediaSource =
     ProgressiveMediaSource.Factory(ranged(httpFactory(ua))).createMediaSource(MediaItem.fromUri(url))
 
 /** Picture and sound come as two files for most qualities: ExoPlayer plays them together. */
-private fun buildSource(o: StreamOption): MediaSource {
+private fun buildSource(o: StreamOption, audio: AudioSource? = null): MediaSource {
     val video = progressive(o.url, o.userAgent)
     if (!o.merge || o.audioUrl.isEmpty()) return video
+    // another sound track picked in the settings card replaces the one that came with the picture
+    if (audio != null && audio.url.isNotEmpty()) {
+        return MergingMediaSource(video, progressive(audio.url, audio.userAgent.ifEmpty { o.userAgent }))
+    }
     return MergingMediaSource(video, progressive(o.audioUrl, o.audioUserAgent.ifEmpty { o.userAgent }))
+}
+
+/** One caption line with the time it is shown. */
+internal data class CaptionCue(val startMs: Long, val endMs: Long, val text: String)
+
+private val vttTime = Regex("((?:\\d+:)?\\d{1,2}:\\d{2}[.,]\\d{3})\\s*-->\\s*((?:\\d+:)?\\d{1,2}:\\d{2}[.,]\\d{3})")
+private val tagRegex = Regex("<[^>]*>")
+
+private fun vttMs(s: String): Long {
+    val p = s.replace(',', '.').split(':')
+    val h = if (p.size == 3) p[0].toLong() else 0L
+    val m = p[p.size - 2].toLong()
+    val sec = p.last().toDouble()
+    return ((h * 3600 + m * 60 + sec) * 1000).toLong()
+}
+
+/** Reads a WebVTT caption file. Very short cues (YouTube's auto captions repeat lines for a few ms) are dropped. */
+internal fun parseVtt(text: String): List<CaptionCue> {
+    val lines = text.replace("\r", "").split("\n")
+    val out = ArrayList<CaptionCue>()
+    var i = 0
+    while (i < lines.size) {
+        val m = vttTime.find(lines[i])
+        if (m == null) { i++; continue }
+        val st = vttMs(m.groupValues[1])
+        val en = vttMs(m.groupValues[2])
+        i++
+        val body = ArrayList<String>()
+        while (i < lines.size && lines[i].isNotBlank()) { body += lines[i]; i++ }
+        val txt = body.joinToString("\n") { tagRegex.replace(it, "") }
+            .replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+            .replace("&nbsp;", " ").replace("&quot;", "\"").replace("&#39;", "'")
+            .trim()
+        if (txt.isNotEmpty() && en - st >= 150) out += CaptionCue(st, en, txt)
+    }
+    return out
 }
 
 /**
@@ -141,6 +184,17 @@ class CtPlayer(
     /** 0 = Auto, otherwise the chosen height. */
     var quality by mutableIntStateOf(preferredQuality); private set
     var currentHeight by mutableIntStateOf(0); private set
+
+    /** Sound tracks: index 0 is always "Default" (the one that comes with the picture). */
+    var audioSources by mutableStateOf(listOf(AudioSource.DEFAULT)); private set
+    var audioIndex by mutableIntStateOf(0); private set
+    var subtitles by mutableStateOf<List<SubtitleTrack>>(emptyList()); private set
+    var captionsOn by mutableStateOf(preferredCaptions); private set
+    var captionIndex by mutableIntStateOf(0); private set
+    internal var cues by mutableStateOf<List<CaptionCue>>(emptyList()); private set
+    /** 0 = not asked yet, 1 = loading the sound tracks / captions, 2 = done (lists may be empty). */
+    var extrasState by mutableIntStateOf(0); private set
+    private var cueJob: Job? = null
 
     private var info: StreamInfo? = null
     private var job: Job? = null
@@ -213,10 +267,11 @@ class CtPlayer(
             else -> maxHeight
         }
         val opt = Playback.pick(i, cap)
+        val audio = audioSources.getOrNull(audioIndex)
         val src: MediaSource = when {
             opt != null -> {
                 currentHeight = Playback.heightOf(opt)
-                buildSource(opt)
+                buildSource(opt, audio)
             }
             i.hlsUrl.isNotEmpty() -> {
                 currentHeight = 0
@@ -283,6 +338,69 @@ class CtPlayer(
         prepare(i, exo.currentPosition.coerceAtLeast(0L))
     }
 
+    /** Switches to another sound track (picture keeps playing from the same second). */
+    fun changeAudio(index: Int) {
+        if (index == audioIndex || index !in audioSources.indices) return
+        audioIndex = index
+        val i = info ?: return
+        prepare(i, exo.currentPosition.coerceAtLeast(0L))
+    }
+
+    /** Loads the other sound tracks and the caption languages (once per video). */
+    fun ensureExtras() {
+        if (extrasState != 0 || released) return
+        extrasState = 1
+        scope.launch {
+            try {
+                val e = Playback.extras(videoId)
+                audioSources = listOf(AudioSource.DEFAULT) + e.audio
+                subtitles = e.subtitles
+                captionIndex = subtitles.indexOfFirst { it.lang.startsWith("en") && !it.auto }
+                    .takeIf { it >= 0 } ?: subtitles.indexOfFirst { !it.auto }.coerceAtLeast(0)
+                extrasState = 2
+                if (captionsOn) loadCues()
+            } catch (e: CancellationException) {
+                extrasState = 0
+                throw e
+            } catch (e: Exception) {
+                extrasState = 2
+            }
+        }
+    }
+
+    fun setCaptions(on: Boolean) {
+        captionsOn = on
+        preferredCaptions = on
+        if (on) {
+            ensureExtras()
+            if (extrasState == 2) loadCues()
+        }
+    }
+
+    fun selectCaption(index: Int) {
+        if (index !in subtitles.indices) return
+        captionIndex = index
+        loadCues()
+    }
+
+    private fun loadCues() {
+        val t = subtitles.getOrNull(captionIndex) ?: run { cues = emptyList(); return }
+        cueJob?.cancel()
+        cueJob = scope.launch {
+            val parsed = try {
+                withContext(Dispatchers.IO) {
+                    val req = okhttp3.Request.Builder().url(t.url).header("User-Agent", Np.USER_AGENT).build()
+                    playerHttp.newCall(req).execute().use { r -> parseVtt(r.body?.string().orEmpty()) }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                emptyList()
+            }
+            cues = parsed
+        }
+    }
+
     fun setLooping(on: Boolean) {
         exo.repeatMode = if (on) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
     }
@@ -302,6 +420,7 @@ class CtPlayer(
         if (released) return
         released = true
         job?.cancel()
+        cueJob?.cancel()
         scope.cancel()
         exo.removeListener(listener)
         exo.release()
@@ -310,5 +429,8 @@ class CtPlayer(
     companion object {
         /** The quality picked in the menu stays for the next videos (until the app is closed). */
         var preferredQuality = 0
+
+        /** Captions switched on stay on for the next videos (until the app is closed). */
+        var preferredCaptions = false
     }
 }

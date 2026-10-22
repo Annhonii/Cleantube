@@ -222,6 +222,8 @@ fun VideoScreen(route: Route.Video) {
     // Back closes the comments panel first, only then the video page.
     BackHandler(enabled = commentsOpen) { commentsOpen = false }
     BackHandler(enabled = descOpen) { descOpen = false }
+    BackHandler(enabled = PlayerSettingsHost.open) { PlayerSettingsHost.open = false }
+    androidx.compose.runtime.LaunchedEffect(route.id) { PlayerSettingsHost.open = false }
 
     // the picture itself is drawn by VideoSheet (above this page); what is left here is everything below it
     LaunchedEffect(video?.title, video?.channelTitle) {
@@ -230,7 +232,9 @@ fun VideoScreen(route: Route.Video) {
             if (it.channelTitle.isNotEmpty()) VideoHost.channel = it.channelTitle
         }
     }
-    LaunchedEffect(commentsOpen, descOpen) { VideoHost.commentsOpen = commentsOpen || descOpen }
+    LaunchedEffect(commentsOpen, descOpen, PlayerSettingsHost.open) {
+        VideoHost.commentsOpen = commentsOpen || descOpen || PlayerSettingsHost.open
+    }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { VideoHost.commentsOpen = false } }
 
     Column(Modifier.fillMaxSize()) {
@@ -473,6 +477,23 @@ fun VideoScreen(route: Route.Video) {
                     count = details?.commentCountText.orEmpty(),
                     onClose = { commentsOpen = false }
                 )
+            }
+
+            // ---- playback settings (speed, quality, audio, captions): slides up under the player like the comments
+            androidx.compose.animation.AnimatedVisibility(
+                visible = PlayerSettingsHost.open,
+                enter = slideInVertically(spring(dampingRatio = 0.86f, stiffness = 320f)) { it } + fadeIn(tween(220)),
+                exit = slideOutVertically(tween(300, easing = Motion.EmphasizedAccelerate)) { it } + fadeOut(tween(220))
+            ) {
+                val player = PlayerControl.owner as? CtPlayer
+                if (player != null) {
+                    Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { PlayerSettingsHost.open = false } }) {
+                        PlayerSettingsSheet(
+                            player, onClose = { PlayerSettingsHost.open = false },
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                        )
+                    }
+                }
             }
 
             // ---- description panel: slides up the same way, as a card under the player

@@ -85,6 +85,17 @@ object Playback {
         }
     }
 
+    private val extrasCache = ConcurrentHashMap<String, StreamExtras>()
+
+    /** Sound tracks and captions for the settings card (needs the NewPipe engine, so it is fetched on demand and kept). */
+    suspend fun extras(id: String): StreamExtras {
+        extrasCache[id]?.let { return it }
+        val e = Np.extras(id)
+        if (extrasCache.size > 40) extrasCache.clear()
+        extrasCache[id] = e
+        return e
+    }
+
     fun prefetch(id: String) {
         if (cached(id) != null) return
         if (System.currentTimeMillis() < blockedUntil) return

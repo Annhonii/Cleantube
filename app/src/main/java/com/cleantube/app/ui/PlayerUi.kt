@@ -302,41 +302,6 @@ internal fun CtChip(text: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * Small popup that grows out of the settings pill (top right): quality and speed as two rows of chips.
- * No dimming, no full-screen sheet: the video stays visible while you pick.
- */
-@Composable
-private fun CtSettingsPopup(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { onClose() } }) {
-        Column(
-            Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 50.dp, end = 10.dp)
-                .widthIn(max = 260.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xF0181818))
-                .pointerInput(Unit) { detectTapGestures { } }
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            val autoLabel = if (p.quality == 0 && p.currentHeight > 0) "Auto ${p.currentHeight}p" else "Auto"
-            Text("Quality", color = Color(0xFF9A9A9A), fontSize = 11.sp)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                CtChip(autoLabel, p.quality == 0) { p.changeQuality(0) }
-                p.heights.reversed().forEach { h -> CtChip("${h}p", p.quality == h) { p.changeQuality(h) } }
-            }
-            Text("Speed", color = Color(0xFF9A9A9A), fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(0.5f, 1f, 1.25f, 1.5f, 2f).forEach { s ->
-                    val label = if (s == 1f) "1x" else if (s % 1f == 0f) "${s.toInt()}x" else "${s}x"
-                    CtChip(label, p.speed == s) { p.changeSpeed(s) }
-                }
-            }
-        }
-    }
-}
-
-/**
  * Controls on top of the picture, laid out like the YouTube app: tap = show / hide, double tap on the left / right =
  * back / forward 10 s, previous / play-pause / next in the middle, the time (tap it to switch between "played" and
  * "time left") and fullscreen above a red seek bar at the bottom edge, a settings gear (quality + speed) at the top
@@ -354,7 +319,9 @@ fun CtOverlay(
     var visible by remember { mutableStateOf(true) }
     var dragging by remember { mutableStateOf(false) }
     var dragFraction by remember { mutableFloatStateOf(0f) }
+    // fullscreen: the settings card is drawn right here; on the video page the page draws it under the player
     var panel by remember { mutableStateOf(false) }
+    val settingsOpen = if (fullscreen) panel else PlayerSettingsHost.open
     var skip by remember { mutableIntStateOf(0) }
     var skipTick by remember { mutableIntStateOf(0) }
     // long press = play at 2x while the finger is down (like YouTube), back to the old speed on release
@@ -365,8 +332,8 @@ fun CtOverlay(
     LaunchedEffect(p.wantPlay) { if (!p.wantPlay) visible = true }
 
     // controls fade away by themselves while the video plays
-    LaunchedEffect(visible, p.isPlaying, dragging, panel) {
-        if (visible && p.isPlaying && !dragging && !panel) {
+    LaunchedEffect(visible, p.isPlaying, dragging, settingsOpen) {
+        if (visible && p.isPlaying && !dragging && !settingsOpen) {
             delay(3000)
             visible = false
         }
@@ -411,7 +378,9 @@ fun CtOverlay(
                             p.changeSpeed(2f)
                         }
                     },
-                    onTap = { if (panel) panel = false else visible = !visible },
+                    onTap = {
+                        if (settingsOpen) { panel = false; PlayerSettingsHost.open = false } else visible = !visible
+                    },
                     onDoubleTap = { off ->
                         val right = off.x > size.width / 2
                         p.seekBy(if (right) 10_000L else -10_000L)
@@ -457,10 +426,10 @@ fun CtOverlay(
                 Box(
                     Modifier
                         .size(44.dp)
-                        .bouncyClickable(pressedScale = 0.9f, onClick = { panel = !panel }),
+                        .bouncyClickable(pressedScale = 0.9f, onClick = { if (fullscreen) panel = !panel else PlayerSettingsHost.open = !PlayerSettingsHost.open }),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Outlined.Settings, contentDescription = "Quality and speed", tint = Color.White, modifier = Modifier.size(28.dp))
+                    Icon(Icons.Outlined.Settings, contentDescription = "Playback settings", tint = Color.White, modifier = Modifier.size(28.dp))
                 }
             }
         }
@@ -596,12 +565,20 @@ fun CtOverlay(
             CtProgressLine(frac, bufFrac, Modifier.align(Alignment.BottomCenter).padding(bottom = barInset))
         }
 
-        AnimatedVisibility(
-            panel,
-            enter = fadeIn(tween(140)) + scaleIn(initialScale = 0.85f, transformOrigin = TransformOrigin(1f, 0f)),
-            exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.9f, transformOrigin = TransformOrigin(1f, 0f))
-        ) {
-            CtSettingsPopup(p, onClose = { panel = false })
+        // fullscreen only: the settings card slides up from the bottom (on the video page it sits under the player)
+        if (fullscreen) {
+            AnimatedVisibility(
+                panel,
+                enter = androidx.compose.animation.slideInVertically(androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 320f)) { it } + fadeIn(tween(200)),
+                exit = androidx.compose.animation.slideOutVertically(tween(260)) { it } + fadeOut(tween(200))
+            ) {
+                Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { panel = false } }) {
+                    PlayerSettingsSheet(
+                        p, onClose = { panel = false },
+                        modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = 560.dp)
+                    )
+                }
+            }
         }
     }
 }

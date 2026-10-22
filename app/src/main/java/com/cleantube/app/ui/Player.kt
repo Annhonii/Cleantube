@@ -145,6 +145,7 @@ fun PlayerBox(videoId: String, embeddable: Boolean, modifier: Modifier = Modifie
                 PlayerControl.pause = null
             }
             owner?.lifecycle?.removeObserver(obs)
+            PlayerSettingsHost.open = false
             if (fullscreen) host.setActive(false)
             p.release()
         }
@@ -168,6 +169,7 @@ fun PlayerBox(videoId: String, embeddable: Boolean, modifier: Modifier = Modifie
     Box((if (inPopup) modifier.fillMaxSize() else modifier.aspectRatio(16f / 9f)).background(Color.Black)) {
         CtVideoSurface(p, Modifier.fillMaxSize(), active = !fullscreen)
         CtPoster(videoId, p)
+        CtCaptions(p, fullscreen = false)
         val err = p.error
         when {
             err != null -> CtErrorView(err, onRetry = { p.retry() }, onOpen = { openInYouTube(ctx, videoId) })
@@ -211,6 +213,7 @@ internal fun CtFullscreen(videoId: String, p: CtPlayer, title: String, onExit: (
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             CtVideoSurface(p, Modifier.fillMaxSize(), active = true)
             CtPoster(videoId, p)
+            CtCaptions(p, fullscreen = true)
             val err = p.error
             if (err != null) {
                 CtErrorView(err, onRetry = { p.retry() }, onOpen = null)

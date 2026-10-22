@@ -24,6 +24,19 @@ data class StreamOption(
     val merge: Boolean = false
 )
 
+/** One selectable sound track (another language or bitrate). [DEFAULT] means "the one that comes with the picture". */
+data class AudioSource(val label: String, val url: String, val userAgent: String) {
+    companion object {
+        val DEFAULT = AudioSource("Default", "", "")
+    }
+}
+
+/** One caption language (WebVTT file). */
+data class SubtitleTrack(val label: String, val lang: String, val url: String, val auto: Boolean)
+
+/** Things the settings card offers that the quick stream lookup doesn't carry. */
+data class StreamExtras(val audio: List<AudioSource>, val subtitles: List<SubtitleTrack>)
+
 /** [hlsUrl] is set for live streams (no plain files exist for them); empty otherwise. */
 data class StreamInfo(val title: String, val options: List<StreamOption>, val hlsUrl: String = "")
 
