@@ -182,14 +182,16 @@ fun CollapsingHeader(
         lf(pageValue(lo), pageValue(lo + 1), pos - lo).coerceIn(0f, 1f)
     }
 
-    val firstName = Session.name.trim().substringBefore(' ').ifEmpty { "Davesh" }
+    // signed out (or no name yet): just "Hi!"; signed in: "Hi, <first name>!"
+    val firstName = if (Session.loggedIn) Session.name.trim().substringBefore(' ') else ""
+    val greetingText = if (firstName.isEmpty()) "Hi!" else "Hi, $firstName!"
     val thumb = Session.thumb
 
     Layout(
         content = {
             // 0: greeting (big, under the photo; fades out completely while the header collapses)
             Text(
-                "Hi, $firstName",
+                greetingText,
                 color = TextPrimary, fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.SemiBold,
                 letterSpacing = (-0.6).sp,
                 maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
