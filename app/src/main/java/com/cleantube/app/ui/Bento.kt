@@ -74,7 +74,7 @@ fun CompactRow(v: VideoItem, onClick: () -> Unit, modifier: Modifier = Modifier,
             .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.Top
     ) {
-        Box(Modifier.width(150.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(18.dp)).background(Hairline)) {
+        Box(Modifier.width(150.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)).background(Hairline)) {
             VideoThumb(v.id, Modifier.matchParentSize())
             if (v.live) {
                 Badge("LIVE", Color.Black, Modifier.align(Alignment.BottomEnd).padding(6.dp))

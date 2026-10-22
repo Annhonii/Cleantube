@@ -377,14 +377,14 @@ fun VideoRow(
                 Text(
                     formatDuration(v.durationSec),
                     color = Color.White,
-                    fontSize = 21.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(10.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xB3000000))
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .padding(8.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xCC000000))
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
                 )
             }
             if (isNew) {
