@@ -136,6 +136,7 @@ import com.cleantube.app.data.Page
 import com.cleantube.app.data.Paged
 import androidx.compose.material.icons.rounded.Download
 import com.cleantube.app.data.Playback
+import com.cleantube.app.data.ShortMeta
 import com.cleantube.app.data.Session
 import com.cleantube.app.data.VideoDetails
 import com.cleantube.app.data.VideoItem
@@ -210,6 +211,9 @@ fun ShortsScreen() {
         if (commentsFor != null) commentsFor = null else menuOpen = false
     }
 
+    // Shorts only play while this tab is the one on screen (leaving for Home or any other screen pauses them)
+    val tabVisible = nav.current == Route.Shorts
+
     // stop the sound when the app goes to the background
     DisposableEffect(Unit) {
         val owner = ctx as? LifecycleOwner
@@ -224,8 +228,8 @@ fun ShortsScreen() {
     // the video is black: keep the status / navigation bar icons white while this tab is open
     val view = LocalView.current
     // don't let the phone go to sleep while Shorts are on screen
-    DisposableEffect(view, resumed) {
-        view.keepScreenOn = resumed
+    DisposableEffect(view, resumed, tabVisible) {
+        view.keepScreenOn = resumed && tabVisible
         onDispose { view.keepScreenOn = false }
     }
 
@@ -332,7 +336,10 @@ fun ShortsScreen() {
                         if (v != null) {
                             ShortPage(
                                 v = v,
-                                current = pager.currentPage == page && resumed && !menuOpen && commentsFor == null,
+                                current = pager.currentPage == page,
+                                live = resumed && tabVisible,
+                                // only the three-dot menu pauses; the comments sheet leaves the Short playing
+                                hold = menuOpen,
                                 onActive = { active = it },
                                 onMenu = { menuOpen = true },
                                 onComments = { video, count -> commentsCount = count; commentsFor = video },
@@ -513,6 +520,16 @@ private fun MenuRow(icon: ImageVector, title: String, subtitle: String, onClick:
 
 // ------------------------------------------------------------------------------------------------ one Short
 
+/** A usable title, or "" when it is empty or really a link / image address. */
+private fun cleanShortTitle(t: String): String {
+    val s = t.trim()
+    if (s.isEmpty()) return ""
+    val link = s.startsWith("http", ignoreCase = true) || s.startsWith("//") ||
+        s.contains("ytimg.com") || s.contains("googleusercontent") || s.contains("ggpht") ||
+        (!s.contains(' ') && s.contains('/') && s.contains('.'))
+    return if (link) "" else s
+}
+
 private fun captionText(text: String): AnnotatedString = buildAnnotatedString {
     var last = 0
     Regex("#[\\p{L}\\p{N}_]+").findAll(text).forEach { m ->
@@ -527,6 +544,8 @@ private fun captionText(text: String): AnnotatedString = buildAnnotatedString {
 private fun ShortPage(
     v: VideoItem,
     current: Boolean,
+    live: Boolean,
+    hold: Boolean,
     onActive: (ActiveShort) -> Unit,
     onMenu: () -> Unit,
     onComments: (VideoItem, String) -> Unit,
@@ -562,8 +581,10 @@ private fun ShortPage(
         p.load()
         onDispose { p.release() }
     }
-    LaunchedEffect(current) {
-        if (current) p.playWhen(true) else {
+    // plays while it is the Short on screen, the tab / app is visible and no menu is open; a Short that is no longer
+    // the current one goes back to its start. (Opening comments or leaving the tab does NOT restart it.)
+    LaunchedEffect(current, live, hold) {
+        if (current) p.playWhen(live && !hold) else {
             p.playWhen(false)
             p.restart()
         }
@@ -578,8 +599,22 @@ private fun ShortPage(
     LaunchedEffect(current) {
         if (current) Graph.store.markShortSeen(v.id)
     }
+    var detailsDone by remember(v.id) { mutableStateOf(false) }
     LaunchedEffect(current) {
-        if (current && details == null) details = safeDetails(v.id)
+        if (current && details == null) {
+            details = safeDetails(v.id)
+            if (details == null) { delay(1500); details = safeDetails(v.id) }
+            detailsDone = true
+        }
+    }
+    // Many Shorts come without title / channel: ask YouTube's oEmbed + the channel page for them
+    var meta by remember(v.id) { mutableStateOf<ShortMeta.Info?>(null) }
+    LaunchedEffect(current, detailsDone) {
+        if (current && detailsDone && meta == null) {
+            val d = details
+            val missing = d?.channel == null || cleanShortTitle(v.title).isEmpty() && cleanShortTitle(d.video.title).isEmpty()
+            if (missing) meta = ShortMeta.load(v.id)
+        }
     }
     LaunchedEffect(current, details) {
         if (current) onActive(ActiveShort(v, p, details))
@@ -618,9 +653,14 @@ private fun ShortPage(
         }
     }
 
-    val ch = details?.channel
-    // The feed doesn't always carry the title: fall back to the one from the watch page.
-    val title = v.title.ifEmpty { details?.video?.title.orEmpty() }
+    val ch = details?.channel ?: meta?.channel
+    // The feed doesn't always carry the title: fall back to the watch page's, then to oEmbed's. Never a link / image address.
+    val title = listOf(v.title, details?.video?.title.orEmpty(), meta?.title.orEmpty())
+        .map { cleanShortTitle(it) }.firstOrNull { it.isNotEmpty() }.orEmpty()
+    val avatar by androidx.compose.runtime.produceState("", ch?.thumb, v.channelId) {
+        value = ch?.thumb?.takeIf { it.isNotEmpty() } ?: ChannelAvatars.known(v.channelId, v.channelThumb)
+        if (value.isEmpty() && v.channelId.isNotEmpty()) value = ChannelAvatars.load(v.channelId)
+    }
     // remember the Short in the app's watch history (also gets its title / channel once those are known)
     LaunchedEffect(current, title, ch?.title) {
         if (current) {
@@ -630,7 +670,8 @@ private fun ShortPage(
 
     Box(Modifier.fillMaxSize().background(Color.Black).onSizeChanged { box = it }) {
         CtVideoSurface(p, Modifier.fillMaxSize())
-        CtPoster(v.id, p, fit = true)
+        // no thumbnail for Shorts (it is a small 16:9 picture): just black with the spinner until the first frame
+        CtPoster(v.id, p, fit = true, image = false)
 
         // gestures: tap = play / pause, double tap on the edges = ∓5 s, double tap in the middle = like, long press = menu
         Box(
@@ -690,12 +731,12 @@ private fun ShortPage(
                     Modifier.size(36.dp).clip(CircleShape).background(Color(0x44FFFFFF))
                         .bouncyClickable(pressedScale = 0.92f) { ch?.let { nav.push(Route.Channel(it.id)) } }
                 ) {
-                    if (ch != null && ch.thumb.isNotEmpty()) {
-                        AsyncImage(ch.thumb, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    if (avatar.isNotEmpty()) {
+                        AsyncImage(avatar, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     }
                 }
                 val handle = ch?.handle?.takeIf { it.isNotEmpty() }
-                    ?: v.channelTitle.ifEmpty { ch?.title.orEmpty() }
+                    ?: v.channelTitle.ifEmpty { ch?.title.orEmpty() }.ifEmpty { meta?.author.orEmpty() }
                 Text(
                     handle, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,

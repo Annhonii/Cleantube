@@ -135,7 +135,7 @@ fun CtSpinner(modifier: Modifier = Modifier, size: Dp = 62.dp, disc: Boolean = t
 
 /** Thumbnail shown (still, no zooming) with the spinner until the first picture of the video is on screen. */
 @Composable
-fun CtPoster(videoId: String, player: CtPlayer, modifier: Modifier = Modifier, fit: Boolean = false) {
+fun CtPoster(videoId: String, player: CtPlayer, modifier: Modifier = Modifier, fit: Boolean = false, image: Boolean = true) {
     AnimatedVisibility(
         visible = !player.firstFrame,
         enter = fadeIn(tween(120)),
@@ -143,13 +143,15 @@ fun CtPoster(videoId: String, player: CtPlayer, modifier: Modifier = Modifier, f
         modifier = modifier.fillMaxSize()
     ) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
-            AsyncImage(
-                model = "https://i.ytimg.com/vi/$videoId/mqdefault.jpg",
-                contentDescription = null,
-                contentScale = if (fit) ContentScale.Fit else ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            Box(Modifier.fillMaxSize().background(Color(0x66000000)))
+            if (image) {
+                AsyncImage(
+                    model = "https://i.ytimg.com/vi/$videoId/mqdefault.jpg",
+                    contentDescription = null,
+                    contentScale = if (fit) ContentScale.Fit else ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(Modifier.fillMaxSize().background(Color(0x66000000)))
+            }
             if (player.error == null) CtSpinner(Modifier.align(Alignment.Center))
         }
     }
