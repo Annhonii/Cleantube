@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -61,6 +62,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -87,12 +89,23 @@ import java.util.Locale
 
 /** Plays [player]'s picture. Only the view with [active] = true is connected to the player. */
 @Composable
-fun CtVideoSurface(player: CtPlayer, modifier: Modifier = Modifier, active: Boolean = true) {
-    Box(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
+fun CtVideoSurface(player: CtPlayer, modifier: Modifier = Modifier, active: Boolean = true, fill: Boolean = false) {
+    androidx.compose.foundation.layout.BoxWithConstraints(
+        modifier.background(Color.Black).clipToBounds(),
+        contentAlignment = Alignment.Center
+    ) {
+        val r = player.videoRatio.coerceIn(0.2f, 5f)
+        val view = Modifier.let { m ->
+            // fill: scale the picture up until it covers the whole area (edges beyond it are cut off), no black left over
+            if (fill && r < 1f) {
+                val boxRatio = maxWidth / maxHeight
+                if (r > boxRatio) m.requiredSize(maxHeight * r, maxHeight) else m.requiredSize(maxWidth, maxWidth / r)
+            } else m.aspectRatio(r)
+        }
         AndroidView(
             factory = { c -> TextureView(c) },
             update = { tv -> if (active) player.exo.setVideoTextureView(tv) },
-            modifier = Modifier.aspectRatio(player.videoRatio.coerceIn(0.2f, 5f))
+            modifier = view
         )
     }
 }

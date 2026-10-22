@@ -669,7 +669,7 @@ private fun ShortPage(
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black).onSizeChanged { box = it }) {
-        CtVideoSurface(p, Modifier.fillMaxSize())
+        CtVideoSurface(p, Modifier.fillMaxSize(), fill = true)
         // no thumbnail for Shorts (it is a small 16:9 picture): just black with the spinner until the first frame
         CtPoster(v.id, p, fit = true, image = false)
 
