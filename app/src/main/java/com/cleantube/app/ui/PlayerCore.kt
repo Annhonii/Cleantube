@@ -194,6 +194,10 @@ class CtPlayer(
     internal var cues by mutableStateOf<List<CaptionCue>>(emptyList()); private set
     /** 0 = not asked yet, 1 = loading the sound tracks / captions, 2 = done (lists may be empty). */
     var extrasState by mutableIntStateOf(0); private set
+    /** True when loading the sound tracks / captions failed (the card then offers a retry). */
+    var extrasFailed by mutableStateOf(false); private set
+    /** 0 = nothing, 1 = loading the caption file, 2 = ready, 3 = the file could not be read. */
+    var cueState by mutableIntStateOf(0); private set
     private var cueJob: Job? = null
 
     private var info: StreamInfo? = null
@@ -350,6 +354,7 @@ class CtPlayer(
     fun ensureExtras() {
         if (extrasState != 0 || released) return
         extrasState = 1
+        extrasFailed = false
         scope.launch {
             try {
                 val e = Playback.extras(videoId)
@@ -363,7 +368,8 @@ class CtPlayer(
                 extrasState = 0
                 throw e
             } catch (e: Exception) {
-                extrasState = 2
+                extrasState = 0
+                extrasFailed = true
             }
         }
     }
@@ -386,6 +392,7 @@ class CtPlayer(
     private fun loadCues() {
         val t = subtitles.getOrNull(captionIndex) ?: run { cues = emptyList(); return }
         cueJob?.cancel()
+        cueState = 1
         cueJob = scope.launch {
             val parsed = try {
                 withContext(Dispatchers.IO) {
@@ -398,6 +405,7 @@ class CtPlayer(
                 emptyList()
             }
             cues = parsed
+            cueState = if (parsed.isEmpty()) 3 else 2
         }
     }
 

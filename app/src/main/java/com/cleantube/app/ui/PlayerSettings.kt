@@ -230,11 +230,16 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
                         .padding(start = 18.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(Modifier.weight(1f)) {
+                    Column(
+                        Modifier.weight(1f).then(if (p.extrasFailed) Modifier.clickable { p.ensureExtras() } else Modifier)
+                    ) {
                         Text("Captions", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                         val sub = when {
+                            p.extrasFailed -> "Couldn't load captions · tap to retry"
                             p.extrasState == 1 -> "Loading…"
                             none -> "Not available for this video"
+                            p.captionsOn && p.cueState == 1 -> "Loading captions…"
+                            p.captionsOn && p.cueState == 3 -> "Couldn't read this caption file"
                             p.captionsOn && p.subtitles.isNotEmpty() -> p.subtitles.getOrNull(p.captionIndex)?.label.orEmpty()
                             else -> "Off"
                         }
@@ -292,10 +297,21 @@ private fun RubberPicker(
     var committed by remember { mutableIntStateOf(index.coerceIn(0, last)) }
     var job by remember { mutableStateOf<Job?>(null) }
     val sel by remember { derivedStateOf { pos.roundToInt().coerceIn(0, last) } }
+    // true while the finger is down or the spring is still settling (outside changes must not fight it)
+    var busy by remember { mutableStateOf(false) }
+    var gen by remember { mutableIntStateOf(0) }
 
-    // a soft tick every time another value passes the middle
+    // The value you are "on". It only changes once the wheel is clearly closer to another value (a dead zone around
+    // the half-way point), so holding it between two values doesn't flip back and forth.
+    var held by remember { mutableIntStateOf(index.coerceIn(0, last)) }
+    fun updateHeld() {
+        val r = pos.roundToInt().coerceIn(0, last)
+        if (r != held && abs(pos - r) <= 0.3f) held = r
+    }
+
+    // a soft tick every time the value you are on changes
     var first by remember { mutableStateOf(true) }
-    LaunchedEffect(sel) {
+    LaunchedEffect(held) {
         if (first) first = false else haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
     }
 
@@ -308,18 +324,23 @@ private fun RubberPicker(
 
     fun settle(target: Int, velocity: Float = 0f) {
         job?.cancel()
+        busy = true
+        held = target
+        val g = ++gen
         job = scope.launch {
-            animate(pos, target.toFloat(), velocity, spring(dampingRatio = 0.5f, stiffness = 230f)) { v, _ ->
-                pos = v
-                if (live) commit(sel)
+            try {
+                animate(pos, target.toFloat(), velocity, spring(dampingRatio = 0.5f, stiffness = 230f)) { v, _ -> pos = v }
+            } finally {
+                // only the newest spring may clear the flag (an older one being cancelled must not)
+                if (g == gen) busy = false
             }
         }
     }
 
     // changed from outside (e.g. the 2x hold gesture): follow it
-    LaunchedEffect(index) {
+    LaunchedEffect(index, busy) {
         val t = index.coerceIn(0, last)
-        if (t != committed) {
+        if (!busy && t != committed) {
             committed = t
             settle(t)
         }
@@ -327,6 +348,8 @@ private fun RubberPicker(
 
     val drag = rememberDraggableState { d ->
         job?.cancel()
+        busy = true
+        gen++
         val move = -d / itemPx
         // past either end the finger has to pull harder and harder: that is the rubber
         val over = when {
@@ -335,7 +358,8 @@ private fun RubberPicker(
             else -> 0f
         }
         pos = (pos + move / (1f + over * 3.5f)).coerceIn(-0.8f, last + 0.8f)
-        if (live) commit(sel)
+        updateHeld()
+        if (live) commit(held)
     }
 
     BoxWithConstraints(
