@@ -789,11 +789,13 @@ private fun ShortPage(
         }
 
         // ---------------- bottom edge of the card: progress / scrub bar (always there, drag it to seek)
-        if (current) {
-            ShortScrubber(
-                p,
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 26.dp).padding(bottom = 10.dp)
-            )
+        // only while the Short is paused; it sits right on the card's bottom edge
+        AnimatedVisibility(
+            visible = current && !p.wantPlay,
+            enter = fadeIn(tween(120)), exit = fadeOut(tween(120)),
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+        ) {
+            ShortScrubber(p, Modifier.fillMaxWidth())
         }
 
         HeartsLayer(bursts) { id -> bursts.removeAll { it.id == id } }
@@ -857,12 +859,12 @@ private fun ShortScrubber(p: CtPlayer, modifier: Modifier = Modifier) {
                 }
                 .drawBehind {
                     val th = line.toPx()
-                    val top = size.height / 2f - th / 2f
+                    val top = size.height - th
                     val r = CornerRadius(th / 2f, th / 2f)
                     drawRoundRect(Color.White.copy(alpha = 0.28f), Offset(0f, top), Size(size.width, th), r)
                     drawRoundRect(Color.White.copy(alpha = 0.45f), Offset(0f, top), Size(size.width * buf, th), r)
                     drawRoundRect(Color.White, Offset(0f, top), Size(size.width * frac, th), r)
-                    if (dragging) drawCircle(Color.White, 8.dp.toPx(), Offset(size.width * frac, size.height / 2f))
+                    if (dragging) drawCircle(Color.White, 8.dp.toPx(), Offset(size.width * frac, size.height - th / 2f))
                 }
         )
     }
