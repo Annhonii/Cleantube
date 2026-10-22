@@ -9,6 +9,12 @@ import android.content.Intent
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -218,7 +224,18 @@ fun ShortsScreen() {
         onDispose { view.keepScreenOn = false }
     }
 
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    // The Shorts live in a card: it starts under the header and ends just above the floating tab pill, with soft
+    // rounded corners (the bottom ones bigger). The progress bar sits inside the card, on its bottom edge.
+    val headerH = collapsingHeaderHeight(Route.Shorts)
+    val navInset = androidx.compose.foundation.layout.WindowInsets.navigationBars
+        .asPaddingValues().calculateBottomPadding()
+    val card = Modifier
+        .fillMaxSize()
+        .padding(top = headerH + 2.dp, bottom = navInset + ShortsPillSpace + 6.dp, start = 8.dp, end = 8.dp)
+        .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 38.dp, bottomEnd = 38.dp))
+        .background(Color.Black)
+
+    Box(Modifier.fillMaxSize().background(Bg)) {
         // a new feed whenever the topic changes
         key(topic) {
             val t = topic
@@ -258,7 +275,7 @@ fun ShortsScreen() {
             }
 
             if (items.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(card, contentAlignment = Alignment.Center) {
                     val err = feed.error
                     if (err != null && !feed.loading) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -299,7 +316,7 @@ fun ShortsScreen() {
                         }
                     }
                 }
-                Box(Modifier.fillMaxSize().nestedScroll(connection)) {
+                Box(card.nestedScroll(connection)) {
                     VerticalPager(
                         state = pager,
                         modifier = Modifier.fillMaxSize(),
@@ -661,9 +678,7 @@ private fun ShortPage(
         Column(
             Modifier
                 .align(Alignment.BottomStart)
-                .navigationBarsPadding()
-                .padding(bottom = ShortsPillSpace)
-                .padding(start = 14.dp, end = 88.dp, bottom = 22.dp)
+                .padding(start = 16.dp, end = 88.dp, bottom = 44.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -712,7 +727,7 @@ private fun ShortPage(
 
         // ---------------- right: action bar (no background, sits low so it covers less of the video)
         Column(
-            Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(bottom = ShortsPillSpace).padding(end = 8.dp, bottom = 18.dp),
+            Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 42.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -727,20 +742,11 @@ private fun ShortPage(
             SideAction(Icons.Rounded.MoreVert, "More", onClick = onMenu)
         }
 
-        // ---------------- very bottom: slim progress / scrub bar
-        // Only while paused / scrubbing. The position is read inside this block, so the rest of the page
-        // doesn't recompose 4 times a second while the Short plays.
-        if (current && (!p.wantPlay || dragging)) {
-            val dur = p.duration.coerceAtLeast(1L)
-            val frac = if (dragging) dragFraction else (p.position.toFloat() / dur).coerceIn(0f, 1f)
-            CtSeekBar(
-                fraction = frac,
-                buffered = (p.buffered.toFloat() / dur).coerceIn(0f, 1f),
-                onDragStart = { dragging = true; dragFraction = frac },
-                onDrag = { dragFraction = it },
-                onDragEnd = { f -> p.seekTo((f * dur).toLong()); dragging = false },
-                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 4.dp).fillMaxWidth().padding(horizontal = 6.dp),
-                showThumb = false
+        // ---------------- bottom edge of the card: progress / scrub bar (always there, drag it to seek)
+        if (current) {
+            ShortScrubber(
+                p,
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 26.dp).padding(bottom = 10.dp)
             )
         }
 
@@ -749,6 +755,70 @@ private fun ShortPage(
         if (p.error != null) {
             CtErrorView(p.error.orEmpty(), onRetry = { p.retry() }, onOpen = { openInYouTube(ctx, v.id) })
         }
+    }
+}
+
+/**
+ * Rounded progress line along the bottom of the Short's card. It is inset so it stays clear of the curved corners;
+ * touch and drag anywhere on it to seek (it thickens, shows the time and a dot while you do). The position is read
+ * in here only, so the rest of the page doesn't recompose while the Short plays.
+ */
+@Composable
+private fun ShortScrubber(p: CtPlayer, modifier: Modifier = Modifier) {
+    var dragging by remember { mutableStateOf(false) }
+    var dragFrac by remember { mutableFloatStateOf(0f) }
+    val dur = p.duration.coerceAtLeast(1L)
+    val frac = if (dragging) dragFrac else (p.position.toFloat() / dur).coerceIn(0f, 1f)
+    val buf = (p.buffered.toFloat() / dur).coerceIn(0f, 1f)
+    val line by androidx.compose.animation.core.animateDpAsState(if (dragging) 7.dp else 3.dp, label = "scrubLine")
+    val durNow = androidx.compose.runtime.rememberUpdatedState(dur)
+
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        AnimatedVisibility(visible = dragging, enter = fadeIn(tween(100)), exit = fadeOut(tween(140))) {
+            Text(
+                com.cleantube.app.data.formatDuration((dragFrac * dur / 1000f).toLong()) + " / " +
+                    com.cleantube.app.data.formatDuration(dur / 1000),
+                color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .padding(bottom = 4.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x99000000))
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            )
+        }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(34.dp)
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        down.consume()
+                        var last = (down.position.x / size.width).coerceIn(0f, 1f)
+                        dragging = true
+                        dragFrac = last
+                        while (true) {
+                            val ev = awaitPointerEvent()
+                            val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                            ch.consume()
+                            if (!ch.pressed) break
+                            last = (ch.position.x / size.width).coerceIn(0f, 1f)
+                            dragFrac = last
+                        }
+                        p.seekTo((last * durNow.value).toLong())
+                        dragging = false
+                    }
+                }
+                .drawBehind {
+                    val th = line.toPx()
+                    val top = size.height / 2f - th / 2f
+                    val r = CornerRadius(th / 2f, th / 2f)
+                    drawRoundRect(Color.White.copy(alpha = 0.28f), Offset(0f, top), Size(size.width, th), r)
+                    drawRoundRect(Color.White.copy(alpha = 0.45f), Offset(0f, top), Size(size.width * buf, th), r)
+                    drawRoundRect(Color.White, Offset(0f, top), Size(size.width * frac, th), r)
+                    if (dragging) drawCircle(Color.White, 8.dp.toPx(), Offset(size.width * frac, size.height / 2f))
+                }
+        )
     }
 }
 
