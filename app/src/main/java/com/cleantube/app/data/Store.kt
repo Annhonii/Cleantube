@@ -102,6 +102,15 @@ class Store(context: Context) {
             sp.edit().putBoolean("video_color", value).apply()
         }
 
+    private val pureBlackState = mutableStateOf(sp.getBoolean("pure_black", false))
+    /** Dark mode uses pure black (AMOLED) instead of the default greyish black. */
+    var pureBlack: Boolean
+        get() = pureBlackState.value
+        set(value) {
+            pureBlackState.value = value
+            sp.edit().putBoolean("pure_black", value).apply()
+        }
+
     private val fontState = mutableStateOf(sp.getString("app_font", "poppins").orEmpty().ifEmpty { "poppins" })
     /** App font: "poppins" (default) or "system". */
     var appFont: String

@@ -75,7 +75,40 @@ private val LightScheme = lightColorScheme(
     inverseOnSurface = Color.White
 )
 
+/** Default dark: a soft greyish black instead of pure black. */
 private val DarkScheme = darkColorScheme(
+    primary = Color.White,
+    onPrimary = Color.Black,
+    primaryContainer = Color(0xFF262626),
+    onPrimaryContainer = Color.White,
+    secondary = Color(0xFFD0D0D0),
+    onSecondary = Color.Black,
+    secondaryContainer = Color(0xFF333333),
+    onSecondaryContainer = Color.White,
+    tertiary = Color(0xFFA8A8A8),
+    onTertiary = Color.Black,
+    tertiaryContainer = Color(0xFF404040),
+    onTertiaryContainer = Color.White,
+    background = Color(0xFF121212),
+    onBackground = Color.White,
+    surface = Color(0xFF121212),
+    onSurface = Color.White,
+    surfaceVariant = Color(0xFF1E1E1E),
+    onSurfaceVariant = Color(0xFFAAAAAA),
+    surfaceContainerLowest = Color(0xFF0E0E0E),
+    surfaceContainerLow = Color(0xFF171717),
+    surfaceContainer = Color(0xFF1C1C1C),
+    surfaceContainerHigh = Color(0xFF242424),
+    surfaceContainerHighest = Color(0xFF2E2E2E),
+    outline = Color(0xFF6E6E6E),
+    outlineVariant = Color(0xFF333333),
+    error = Color.White,
+    inverseSurface = Color.White,
+    inverseOnSurface = Color.Black
+)
+
+/** Pure black (AMOLED), turned on in Settings > Appearance. */
+private val PureBlackScheme = darkColorScheme(
     primary = Color.White,
     onPrimary = Color.Black,
     primaryContainer = Color(0xFF1F1F1F),
@@ -321,7 +354,7 @@ private fun animatedScheme(t: ColorScheme): ColorScheme {
 fun CleanTubeTheme(content: @Composable () -> Unit) {
     val dark = isSystemInDarkTheme()
     // Set before the content is composed, so the first frame already has the right colours.
-    val baseScheme = if (dark) DarkScheme else LightScheme
+    val baseScheme = if (!dark) LightScheme else if (Graph.store.pureBlack) PureBlackScheme else DarkScheme
 
     // colour of the video that is open (the old colour stays until the new thumbnail is read)
     val videoId = VideoHost.videoId
