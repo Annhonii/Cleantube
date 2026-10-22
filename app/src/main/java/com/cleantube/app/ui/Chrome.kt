@@ -360,26 +360,26 @@ fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifi
     val surface = NavBg
     val plain = TextMuted
     val shadowColor = Color.Black.copy(alpha = if (dark) 0.45f else 0.14f)
-    // 0 = full dock .. 1 = compact dock over a Short. Follows the pager like the header card does, so the dock
+    // 0 = full dock .. 1 = slightly slimmer dock over a Short (almost the same size, so it is easy to hit). Follows the pager like the header card does, so the dock
     // shrinks / grows in step with the page while you swipe, and glides with the pager's spring after a tap.
     val s = if (shortsIndex < 0) 0f else (1f - abs(position() - shortsIndex)).coerceIn(0f, 1f)
-    val shape = RoundedCornerShape((34f - 6f * s).dp)
+    val shape = RoundedCornerShape((34f - 3f * s).dp)
     Row(
         modifier
             .navigationBarsPadding()
-            .padding(horizontal = (18f + 26f * s).dp, vertical = (12f - 2f * s).dp)
+            .padding(horizontal = (18f + 8f * s).dp, vertical = 12.dp)
             .fillMaxWidth()
             .shadow(10.dp, shape, clip = false, ambientColor = shadowColor, spotColor = shadowColor)
             .clip(shape)
             .background(surface)
-            .padding((6f - 2f * s).dp),
-        horizontalArrangement = Arrangement.spacedBy((4f - s).dp),
+            .padding((6f - 1f * s).dp),
+        horizontalArrangement = Arrangement.spacedBy((4f - 1f * s).dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         tabs.forEachIndexed { i, t ->
             val sel = i == selected
             val w by androidx.compose.animation.core.animateFloatAsState(
-                if (sel) 2.2f - 0.3f * s else 1f - 0.45f * s,
+                if (sel) 2.2f - 0.1f * s else 1f - 0.15f * s,
                 androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 400f),
                 label = "dockW"
             )
@@ -388,15 +388,15 @@ fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifi
             Row(
                 Modifier
                     .weight(w.coerceAtLeast(0.05f))
-                    .height((52f - 10f * s).dp)
-                    .clip(RoundedCornerShape((26f - 5f * s).dp))
+                    .height((52f - 3f * s).dp)
+                    .clip(RoundedCornerShape((26f - 2f * s).dp))
                     .background(bg)
                     .bouncyClickable(pressedScale = 0.9f, onClick = { nav.selectTab(t.route) }),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (t.route == Route.Shorts) ShortsIcon({ fg }, Modifier.size((22f - 2f * s).dp))
-                else Icon(t.icon, contentDescription = t.label, tint = fg, modifier = Modifier.size((24f - 3f * s).dp))
+                if (t.route == Route.Shorts) ShortsIcon({ fg }, Modifier.size((22f - 1f * s).dp))
+                else Icon(t.icon, contentDescription = t.label, tint = fg, modifier = Modifier.size((24f - 1f * s).dp))
                 if (sel) {
                     Spacer(Modifier.width(6.dp))
                     Text(t.label, color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
