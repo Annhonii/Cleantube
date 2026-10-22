@@ -562,9 +562,22 @@ fun CtOverlay(
             enter = fadeIn(tween(160)),
             exit = fadeOut(tween(220))
         ) {
-            Column(Modifier.fillMaxWidth().padding(bottom = barInset)) {
+            // the seek bar is at the very bottom; the time and the fullscreen button sit just above it, on top of the
+            // bar's touch area (their own taps win, the rest of that area still seeks)
+            Box(Modifier.fillMaxWidth().padding(bottom = barInset)) {
+                CtSeekBar(
+                    fraction = frac,
+                    buffered = bufFrac,
+                    onDragStart = { dragging = true; dragFraction = frac },
+                    onDrag = { dragFraction = it },
+                    onDragEnd = { f -> p.seekTo((f * dur).toLong()); dragging = false },
+                    modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter)
+                )
                 if (!dragging) {
-                    Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(start = 14.dp, end = 10.dp, bottom = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         // tap the time: first tap = time left, next tap = time played again (like YouTube)
                         Row(
                             Modifier
@@ -582,14 +595,6 @@ fun CtOverlay(
                         )
                     }
                 }
-                CtSeekBar(
-                    fraction = frac,
-                    buffered = bufFrac,
-                    onDragStart = { dragging = true; dragFraction = frac },
-                    onDrag = { dragFraction = it },
-                    onDragEnd = { f -> p.seekTo((f * dur).toLong()); dragging = false },
-                    modifier = Modifier.fillMaxWidth()
-                )
             }
         }
 
