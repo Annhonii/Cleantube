@@ -36,6 +36,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.Layout
@@ -278,10 +279,22 @@ fun CollapsingHeader(
                     }
                 }
                 if (w > 0f) {
-                    drawRect(
-                        Brush.verticalGradient(listOf(Color(0x99000000), Color.Transparent), startY = 0f, endY = barH),
-                        size = Size(size.width, barH), alpha = w
-                    )
+                    // over a Short: the same red glow floats on the video, squashed so it fades out before the
+                    // bottom of the header (no hard edge on the picture)
+                    val vy = barH * 1.25f
+                    val f = vy / size.width
+                    scale(1f, f, pivot = Offset(size.width * 0.24f, 0f)) {
+                        drawRect(
+                            Brush.radialGradient(
+                                0f to HeaderRed,
+                                0.45f to HeaderRed.copy(alpha = 0.55f),
+                                1f to Color.Transparent,
+                                center = Offset(size.width * 0.24f, 0f),
+                                radius = size.width
+                            ),
+                            size = Size(size.width, barH / f), alpha = w
+                        )
+                    }
                 }
             }
     ) { measurables, c ->
