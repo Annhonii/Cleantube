@@ -40,6 +40,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -209,6 +210,7 @@ class CtPlayer(
 
     private var info: StreamInfo? = null
     private var job: Job? = null
+    private var stallJob: Job? = null
     private var retries = 0
     private var safe = false
     private var released = false
@@ -296,6 +298,27 @@ class CtPlayer(
         exo.setMediaSource(src, resumeMs)
         exo.prepare()
         exo.playWhenReady = wantPlay
+        watchForStall()
+    }
+
+    /**
+     * A fast link that neither plays nor fails (the server just doesn't answer) would keep the spinner turning until
+     * the network times out. If nothing at all is loaded 6 s after start, give up on it once and take the NewPipe
+     * engine's links instead.
+     */
+    private fun watchForStall() {
+        stallJob?.cancel()
+        if (retries > 0 || safe) return
+        stallJob = scope.launch {
+            delay(6_000)
+            if (!released && !firstFrame && error == null && retries == 0 && !safe &&
+                exo.bufferedPosition - exo.currentPosition < 500
+            ) {
+                retries = 1
+                safe = true
+                load(force = true, resumeMs = exo.currentPosition.coerceAtLeast(0L))
+            }
+        }
     }
 
     private fun fail(msg: String) {
@@ -435,6 +458,7 @@ class CtPlayer(
         if (released) return
         released = true
         job?.cancel()
+        stallJob?.cancel()
         cueJob?.cancel()
         scope.cancel()
         exo.removeListener(listener)

@@ -156,8 +156,8 @@ object Streams {
         val conn = URL("https://youtubei.googleapis.com/youtubei/v1/player?prettyPrint=false").openConnection() as HttpURLConnection
         try {
             conn.requestMethod = "POST"
-            conn.connectTimeout = 15_000
-            conn.readTimeout = 20_000
+            conn.connectTimeout = 6_000
+            conn.readTimeout = 8_000
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json")
             conn.setRequestProperty("User-Agent", c.ua)

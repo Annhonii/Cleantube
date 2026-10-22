@@ -110,7 +110,12 @@ object Playback {
 
     /** Loads the extractor and YouTube's player script once, so the first real video doesn't pay for it. */
     fun warmUp() {
-        scope.launch { runCatching { resolve("jNQXAC9IVRw") } }
+        scope.launch {
+            runCatching { resolve("jNQXAC9IVRw") }
+            // The NewPipe engine is what takes over when a fast link doesn't play. Load it (and YouTube's player
+            // script) now as well, otherwise the first video that needs it waits for all of that: 5-10 s of spinner.
+            if (System.currentTimeMillis() >= blockedUntil) runCatching { Streams.fetch("jNQXAC9IVRw") }
+        }
     }
 
     fun heightOf(o: StreamOption): Int = Regex("(\\d+)p").find(o.label)?.groupValues?.get(1)?.toIntOrNull() ?: 0
