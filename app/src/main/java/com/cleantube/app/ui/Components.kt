@@ -352,7 +352,7 @@ fun VideoRow(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .bouncyClickable(pressedScale = 0.98f, onClick = onClick)
+            .plainClickable(onClick)
             .padding(horizontal = 14.dp, vertical = 9.dp)
     ) {
         Box(
@@ -372,19 +372,19 @@ fun VideoRow(
                 )
             }
             if (v.live) {
-                Badge("LIVE", Color(0xFFE53935), Modifier.align(Alignment.TopEnd).padding(10.dp))
+                Badge("LIVE", Color(0xFFE53935), Modifier.align(Alignment.BottomEnd).padding(10.dp))
             } else if (v.durationSec > 0) {
                 Text(
                     formatDuration(v.durationSec),
                     color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontSize = 21.sp,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
+                        .align(Alignment.BottomEnd)
                         .padding(10.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0x99000000))
-                        .padding(horizontal = 9.dp, vertical = 5.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xB3000000))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 )
             }
             if (isNew) {

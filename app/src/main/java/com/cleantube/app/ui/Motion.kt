@@ -92,6 +92,11 @@ fun Modifier.bouncyClickable(
         .clickable(interactionSource = source, indication = null, enabled = enabled, onClick = onClick)
 }
 
+/** A plain tap: no squish, no bounce, no ripple (used on the video cards). */
+fun Modifier.plainClickable(onClick: () -> Unit): Modifier = composed {
+    clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
+}
+
 /**
  * Fade + rise + tiny zoom the FIRST time [key] shows up. Scrolling an item out and back in does not
  * replay it ([seen] remembers). [delayMs] staggers the first few items of a list.

@@ -70,7 +70,7 @@ fun CompactRow(v: VideoItem, onClick: () -> Unit, modifier: Modifier = Modifier,
     Row(
         modifier
             .fillMaxWidth()
-            .bouncyClickable(pressedScale = 0.98f, onClick = onClick)
+            .plainClickable(onClick)
             .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.Top
     ) {
