@@ -348,7 +348,8 @@ fun CtOverlay(
     val dur = p.duration.coerceAtLeast(1L)
     val frac = if (dragging) dragFraction else (p.position.toFloat() / dur).coerceIn(0f, 1f)
     val bufFrac = (p.buffered.toFloat() / dur).coerceIn(0f, 1f)
-    val showControls = visible || p.ended
+    // while the video is still loading, everything stays visible (the three buttons are replaced by the spinner)
+    val showControls = visible || p.ended || (!p.firstFrame && p.error == null)
     // in fullscreen the bar keeps a little distance from the screen edge (its dot would be cut off there)
     val barInset = if (fullscreen) 12.dp else 0.dp
     val prevItem = VideoHost.prevItem

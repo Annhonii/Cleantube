@@ -84,7 +84,10 @@ private fun ranged(upstream: DataSource.Factory): DataSource.Factory =
     })
 
 private fun progressive(url: String, ua: String): MediaSource =
-    ProgressiveMediaSource.Factory(ranged(httpFactory(ua))).createMediaSource(MediaItem.fromUri(url))
+    ProgressiveMediaSource.Factory(ranged(httpFactory(ua)))
+        // ask the player every 256 KB whether it still wants more (default 1 MB), so loading stops right at the limit
+        .setContinueLoadingCheckIntervalBytes(256 * 1024)
+        .createMediaSource(MediaItem.fromUri(url))
 
 /** Picture and sound come as two files for most qualities: ExoPlayer plays them together. */
 private fun buildSource(o: StreamOption, audio: AudioSource? = null): MediaSource {
@@ -150,10 +153,12 @@ class CtPlayer(
     val exo: ExoPlayer = ExoPlayer.Builder(app, DefaultRenderersFactory(app).setEnableDecoderFallback(true))
         .setLoadControl(
             DefaultLoadControl.Builder()
-                // start after half a second of data; after a stall resume after 1.5 s
+                // start after a fraction of a second of data; after a stall resume after about a second.
+                // Only a little is loaded ahead (loading starts again below 15 s, stops at 30 s) so no data is wasted
+                // on parts that are never watched and the video starts as soon as possible.
                 .setBufferDurationsMs(
-                    if (shorts) 3_000 else 10_000,
-                    if (shorts) 15_000 else 45_000,
+                    if (shorts) 3_000 else 15_000,
+                    if (shorts) 15_000 else 30_000,
                     if (shorts) 200 else 350,
                     if (shorts) 800 else 1_200
                 )
