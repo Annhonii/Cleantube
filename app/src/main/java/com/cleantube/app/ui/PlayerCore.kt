@@ -371,7 +371,6 @@ class CtPlayer(
 
     fun changeQuality(height: Int) {
         quality = height
-        preferredQuality = height
         val i = info ?: return
         prepare(i, exo.currentPosition.coerceAtLeast(0L))
     }
