@@ -148,8 +148,8 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
             // the video page / mini player: above the screens
             VideoSheet(tabRoot = nav.isTabRoot, hidden = nav.current == Route.Shorts)
 
-            // slide in from the left edge, then up / down: switches tabs (there is no bottom bar any more)
-            TabRailOverlay(
+            // round tab button in the bottom right: long press + slide left to switch tabs (no bottom bar)
+            TabFab(
                 nav, visible,
                 enabled = nav.isTabRoot && !VideoHost.expanded && fullscreen.view == null && !ShortsUi.overlayOpen
             )

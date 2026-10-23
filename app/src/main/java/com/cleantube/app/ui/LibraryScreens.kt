@@ -62,7 +62,7 @@ import com.cleantube.app.data.Paged
 import com.cleantube.app.data.VideoItem
 import kotlinx.coroutines.launch
 
-private val listPadding = PaddingValues(bottom = 56.dp)
+private val listPadding = PaddingValues(bottom = 120.dp)
 
 // -------------------------------------------------------------------- Feed
 
