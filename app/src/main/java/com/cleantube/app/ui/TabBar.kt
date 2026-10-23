@@ -24,6 +24,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -78,13 +81,13 @@ fun TabBar(nav: Nav, tabs: List<TabSpec>, visible: Boolean, modifier: Modifier =
                     Modifier.size(width = 38.dp, height = 28.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFFE53935)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(androidx.compose.material.icons.Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(20.dp))
                 }
                 Text(
                     "Search", color = TextMuted, fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f).padding(start = 16.dp)
                 )
-                Icon(androidx.compose.material.icons.Icons.Rounded.Search, contentDescription = "Search", tint = TextPrimary, modifier = Modifier.size(26.dp))
+                Icon(Icons.Rounded.Search, contentDescription = "Search", tint = TextPrimary, modifier = Modifier.size(26.dp))
             }
         }
     }
