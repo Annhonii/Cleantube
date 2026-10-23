@@ -11,6 +11,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
@@ -299,7 +300,17 @@ private fun GlassButton(
             .background(Color(0x59000000)),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = description, tint = Color.White, modifier = Modifier.size(iconSize))
+        androidx.compose.animation.AnimatedContent(
+            targetState = icon,
+            transitionSpec = {
+                (androidx.compose.animation.scaleIn(spring(dampingRatio = 0.5f, stiffness = 520f), initialScale = 0.3f) +
+                    fadeIn(tween(120))) togetherWith
+                    (androidx.compose.animation.scaleOut(tween(110), targetScale = 0.3f) + fadeOut(tween(90)))
+            },
+            label = "glassIcon"
+        ) { ic ->
+            Icon(ic, contentDescription = description, tint = Color.White, modifier = Modifier.size(iconSize))
+        }
     }
 }
 
@@ -422,8 +433,8 @@ fun CtOverlay(
         AnimatedVisibility(
             showControls && !dragging,
             modifier = Modifier.align(Alignment.TopCenter),
-            enter = fadeIn(tween(160)),
-            exit = fadeOut(tween(220))
+            enter = fadeIn(tween(160)) + androidx.compose.animation.slideInVertically(spring(dampingRatio = 0.7f, stiffness = 420f)) { -it / 2 },
+            exit = fadeOut(tween(200)) + androidx.compose.animation.slideOutVertically(tween(200)) { -it / 3 }
         ) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
@@ -484,13 +495,18 @@ fun CtOverlay(
         if (p.buffering && p.firstFrame) {
             CtSpinner(Modifier.align(Alignment.Center))
         } else {
-            AnimatedVisibility(
-                showControls && p.firstFrame && !dragging,
-                modifier = Modifier.align(Alignment.Center),
-                enter = fadeIn(tween(160)) + scaleIn(initialScale = 0.85f),
-                exit = fadeOut(tween(200)) + scaleOut(targetScale = 0.9f)
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.CenterVertically) {
+            val centreOn = showControls && p.firstFrame && !dragging
+            val pop by androidx.compose.animation.core.animateFloatAsState(
+                if (centreOn) 1f else 0f,
+                if (centreOn) spring(dampingRatio = 0.55f, stiffness = 380f) else tween(160),
+                label = "centrePop"
+            )
+            if (pop > 0.01f || centreOn) {
+                Row(
+                    Modifier.align(Alignment.Center),
+                    horizontalArrangement = Arrangement.spacedBy(28.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     // like YouTube: restarts the video when it already played a few seconds, else the video before this one
                     GlassButton(
                         Icons.Rounded.SkipPrevious, "Previous",
@@ -498,7 +514,13 @@ fun CtOverlay(
                             if (p.position > 3000L || prevItem == null) p.seekTo(0L) else openVideo(prevItem)
                         },
                         size = 56.dp, iconSize = 32.dp,
-                        enabled = prevItem != null || p.position > 3000L
+                        enabled = prevItem != null || p.position > 3000L,
+                        modifier = Modifier.graphicsLayer {
+                            val v = pop
+                            translationX = (1f - v) * 62.dp.toPx()
+                            scaleX = 0.4f + 0.6f * v; scaleY = scaleX
+                            alpha = (v * 1.5f).coerceIn(0f, 1f)
+                        }
                     )
                     GlassButton(
                         icon = when {
@@ -509,13 +531,24 @@ fun CtOverlay(
                         description = "Play / pause",
                         onClick = { p.togglePlay(); visible = true },
                         size = 68.dp,
-                        iconSize = 38.dp
+                        iconSize = 38.dp,
+                        modifier = Modifier.graphicsLayer {
+                            val v = pop
+                            scaleX = 0.55f + 0.45f * v; scaleY = scaleX
+                            alpha = (v * 1.8f).coerceIn(0f, 1f)
+                        }
                     )
                     GlassButton(
                         Icons.Rounded.SkipNext, "Next",
                         onClick = { nextItem?.let { openVideo(it) } },
                         size = 56.dp, iconSize = 32.dp,
-                        enabled = nextItem != null
+                        enabled = nextItem != null,
+                        modifier = Modifier.graphicsLayer {
+                            val v = pop
+                            translationX = -(1f - v) * 62.dp.toPx()
+                            scaleX = 0.4f + 0.6f * v; scaleY = scaleX
+                            alpha = (v * 1.5f).coerceIn(0f, 1f)
+                        }
                     )
                 }
             }
@@ -538,8 +571,8 @@ fun CtOverlay(
         AnimatedVisibility(
             showControls,
             modifier = Modifier.align(Alignment.BottomCenter),
-            enter = fadeIn(tween(160)),
-            exit = fadeOut(tween(220))
+            enter = fadeIn(tween(160)) + androidx.compose.animation.slideInVertically(spring(dampingRatio = 0.7f, stiffness = 420f)) { it / 3 },
+            exit = fadeOut(tween(200)) + androidx.compose.animation.slideOutVertically(tween(200)) { it / 4 }
         ) {
             // the seek bar is at the very bottom; the time and the fullscreen button sit just above it, on top of the
             // bar's touch area (their own taps win, the rest of that area still seeks)

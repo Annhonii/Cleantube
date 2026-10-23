@@ -397,9 +397,7 @@ fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifi
             val wPx = constraints.maxWidth.toFloat()
             val gap = with(density) { (4f - 1f * s).dp.toPx() }
             val p = if (dragging) dragPos else blob.value
-            val base = 1f - 0.15f * s
-            val peak = 1.2f + 0.05f * s
-            val ws = FloatArray(n) { i -> base + peak * (1f - abs(p - i)).coerceIn(0f, 1f) }
+            val ws = FloatArray(n) { 1f }
             val unit = (wPx - gap * (n - 1)) / ws.sum()
             val xs = FloatArray(n)
             var acc = 0f
@@ -415,7 +413,7 @@ fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifi
             left += (p - p.coerceIn(0f, (n - 1).toFloat())) * unit
             val target = if (dragging) p else selected.toFloat()
             val d = target - p
-            val stretch = abs(d).coerceAtMost(1.6f) * 0.55f * unit
+            val stretch = abs(d).coerceAtMost(1.6f) * 0.45f * unit
             if (d > 0f) dropW += stretch else { left -= stretch; dropW += stretch }
             val squash = 1f - 0.12f * abs(d).coerceAtMost(1f)
 
@@ -434,7 +432,6 @@ fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifi
             tabs.forEachIndexed { i, t ->
                 val near = (1f - abs(p - i) * 1.5f).coerceIn(0f, 1f)
                 val fg = lerp(plain, OnAccent, near)
-                val extra = ws[i] - base
                 Box(
                     Modifier
                         .offset { androidx.compose.ui.unit.IntOffset(xs[i].roundToInt(), 0) }
@@ -444,13 +441,6 @@ fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifi
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                         if (t.route == Route.Shorts) ShortsIcon({ fg }, Modifier.size((22f - 1f * s).dp))
                         else Icon(t.icon, contentDescription = t.label, tint = fg, modifier = Modifier.size((24f - 1f * s).dp))
-                        if (extra > 0.45f) {
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                t.label, color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false,
-                                modifier = Modifier.graphicsLayer { alpha = ((extra - 0.45f) / 0.5f).coerceIn(0f, 1f) }
-                            )
-                        }
                     }
                 }
             }
