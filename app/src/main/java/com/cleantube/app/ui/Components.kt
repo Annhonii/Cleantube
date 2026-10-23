@@ -11,6 +11,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -266,13 +268,18 @@ fun PullRefresh(
     ) { content() }
 }
 
+/** Room under a list: a little air plus the system navigation bar (there is no floating bar any more). */
+@Composable
+fun listBottomPad(): androidx.compose.ui.unit.Dp =
+    androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp
+
 @Composable
 fun <T> PagedColumn(
     paged: Paged<T>,
     modifier: Modifier = Modifier,
     state: LazyListState = paged.listState,
     emptyText: String = "Nothing here yet",
-    contentPadding: PaddingValues = PaddingValues(bottom = 120.dp),
+    contentPadding: PaddingValues = PaddingValues(bottom = listBottomPad()),
     /** Where the pull-to-refresh spinner appears (below a header that floats over the list). */
     refreshIndicatorTop: androidx.compose.ui.unit.Dp = 0.dp,
     header: (LazyListScope.() -> Unit)? = null,

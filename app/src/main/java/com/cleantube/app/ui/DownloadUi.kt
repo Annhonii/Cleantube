@@ -166,7 +166,7 @@ fun DownloadsScreen() {
 
     Column(Modifier.fillMaxSize()) {
         ScreenTitle("Downloads", onBack = { nav.back() })
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 120.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = listBottomPad())) {
             item {
                 Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
                     Pill("Paste YouTube link", icon = Icons.Rounded.ContentPaste, onClick = {

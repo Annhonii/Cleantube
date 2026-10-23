@@ -234,15 +234,11 @@ fun ShortsScreen() {
         onDispose { view.keepScreenOn = false }
     }
 
-    // The Shorts live in a card: it starts under the header and ends just above the floating tab pill, with soft
-    // rounded corners (the bottom ones bigger). The progress bar sits inside the card, on its bottom edge.
+    // Full screen: the Short fills the screen edge to edge (sides and bottom); only the header bar stays above it.
     val headerH = collapsingHeaderHeight(Route.Shorts)
-    val navInset = androidx.compose.foundation.layout.WindowInsets.navigationBars
-        .asPaddingValues().calculateBottomPadding()
     val card = Modifier
         .fillMaxSize()
-        .padding(top = headerH + 2.dp, bottom = navInset + ShortsPillSpace + 6.dp, start = 8.dp, end = 8.dp)
-        .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 38.dp, bottomEnd = 38.dp))
+        .padding(top = headerH)
         .background(Color.Black)
 
     Box(Modifier.fillMaxSize().background(Bg)) {
@@ -728,7 +724,8 @@ private fun ShortPage(
         Column(
             Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 16.dp, end = 88.dp, bottom = 44.dp)
+                .navigationBarsPadding()
+                .padding(start = 16.dp, end = 88.dp, bottom = 40.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -777,7 +774,7 @@ private fun ShortPage(
 
         // ---------------- right: action bar (no background, sits low so it covers less of the video)
         Column(
-            Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 42.dp),
+            Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 8.dp, bottom = 38.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {

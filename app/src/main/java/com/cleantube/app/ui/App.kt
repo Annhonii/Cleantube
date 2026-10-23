@@ -145,19 +145,14 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                 if (headerOn) CollapsingHeader(headerPos, homeIdx, shortsIdx, visibleRoutes)
             }
 
-            // the search bar floats up when a tab opens and drops away when a screen is pushed
-            AnimatedVisibility(
-                // on the Shorts tab it floats over the Short, shrunk (see BottomNavPill); hides under a Shorts sheet / menu
-                visible = nav.isTabRoot && !(nav.current == Route.Shorts && ShortsUi.overlayOpen),
-                modifier = Modifier.align(Alignment.BottomCenter),
-                enter = slideInVertically(spring(dampingRatio = 0.72f, stiffness = 420f)) { it } + fadeIn(tween(220)),
-                exit = slideOutVertically(tween(240, easing = Motion.EmphasizedAccelerate)) { it } + fadeOut(tween(160))
-            ) {
-                BottomNavPill(position = chipPosition, shortsIndex = shortsIdx)
-            }
-
-            // the video page / mini player: above the screens and the bottom bar
+            // the video page / mini player: above the screens
             VideoSheet(tabRoot = nav.isTabRoot, hidden = nav.current == Route.Shorts)
+
+            // slide in from the left edge, then up / down: switches tabs (there is no bottom bar any more)
+            TabRailOverlay(
+                nav, visible,
+                enabled = nav.isTabRoot && !VideoHost.expanded && fullscreen.view == null && !ShortsUi.overlayOpen
+            )
 
             // Fullscreen video from the YouTube player, drawn above everything.
             val fsView = fullscreen.view
