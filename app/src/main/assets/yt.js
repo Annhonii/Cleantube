@@ -400,6 +400,7 @@
     var items = [];
     var token = null;
     var debug = '';
+    var likeDebug = '';
 
     /** Compact picture of an object's keys (values cut short), to see where YouTube keeps the reply button's data. */
     function shape(o, d) {
@@ -436,6 +437,41 @@
         });
       }
       scan(p, 'comment', 0);
+      // Second pass: when the path names didn't tell "do" from "undo", the first action of a button is the do and the
+      // second one the undo (YouTube lists a toggle button's default state before its toggled state).
+      var likeList = [], disList = [];
+      function collect(o, path, depth) {
+        if (!o || typeof o !== 'object' || depth > 14) return;
+        if (o.performCommentActionEndpoint && typeof o.performCommentActionEndpoint.action === 'string') {
+          var a = o.performCommentActionEndpoint.action, pl = path.toLowerCase();
+          var list = pl.indexOf('dislike') >= 0 ? disList : (pl.indexOf('like') >= 0 ? likeList : null);
+          if (list && list.indexOf(a) < 0) list.push(a);
+        }
+        Object.keys(o).forEach(function (k) { collect(o[k], path + '.' + k, depth + 1); });
+      }
+      collect(ctxObj, '', 0);
+      if (vm) {
+        ['toolbarSurfaceKey', 'commentSurfaceKey', 'sharedKey', 'sharedSurfaceKey', 'toolbarStateKey'].forEach(function (k) {
+          var e = vm[k] && others[vm[k]];
+          if (e && e.kind !== 'commentEntityPayload') collect(e.obj, e.kind, 0);
+        });
+      }
+      collect(p, 'comment', 0);
+      if (!out.like && likeList.length) out.like = likeList[0];
+      if (!out.unlike && likeList.length > 1) out.unlike = likeList[1];
+      if (!out.dislike && disList.length) out.dislike = disList[0];
+      if (!out.undislike && disList.length > 1) out.undislike = disList[1];
+      // still nothing for "like": keep a picture of where YouTube keeps the buttons (the app copies it on the failed tap)
+      if (!out.like && !likeDebug) {
+        try {
+          var rel = {};
+          ['toolbarSurfaceKey', 'commentSurfaceKey', 'sharedKey', 'sharedSurfaceKey', 'toolbarStateKey'].forEach(function (k) {
+            var e = vm && vm[k] && others[vm[k]];
+            if (e && e.kind !== 'commentEntityPayload') rel[k + ':' + e.kind] = shape(e.obj, 1);
+          });
+          likeDebug = 'LIKE ' + JSON.stringify({ kinds: kinds, related: rel, vm: shape(vm, 2) }).slice(0, 3600);
+        } catch (e2) { /* ignore */ }
+      }
       return out;
     }
 
@@ -513,7 +549,7 @@
       if (typeof x.createCommentParams === 'string') { create = x.createCommentParams; return true; }
       return false;
     });
-    return { items: items, next: token, disabled: disabled, create: create, debug: debug };
+    return { items: items, next: token, disabled: disabled, create: create, debug: debug || likeDebug };
   }
 
   /** Channel page (browse with browseId, optionally followed by continuation). */
@@ -578,6 +614,58 @@
       items: list.items,
       next: list.next
     };
+  }
+
+
+  /** Channel "Posts" (community) tab: text, pictures, a shared video, like / comment counts. */
+  function parsePosts(j) {
+    var items = [], token = null, seen = {};
+    walk(j, function (x) {
+      var post = x.backstagePostRenderer || x.postRenderer;
+      if (post) {
+        var id = post.postId || '';
+        if (!id || seen[id]) return true;
+        seen[id] = 1;
+        var att = post.backstageAttachment || post.attachment || null;
+        var image = '', vid = '', vtitle = '', poll = '';
+        if (att) {
+          var img = findFirst(att, 'backstageImageRenderer');
+          if (img) image = lastThumb(img.image);
+          if (!image) {
+            var th = findFirst(att, 'thumbnail');
+            if (th && th.thumbnails) image = lastThumb(th);
+          }
+          var vr = att.videoRenderer || findFirst(att, 'videoRenderer');
+          if (vr && vr.videoId) { vid = vr.videoId; vtitle = txt(vr.title); if (!image) image = lastThumb(vr.thumbnail); }
+          var pr = att.pollRenderer || findFirst(att, 'pollRenderer');
+          if (pr) {
+            var ch = (pr.choices || []).map(function (c) { return txt(c.text); }).filter(function (t) { return t; });
+            poll = ch.join(' | ');
+          }
+        }
+        var rb = findFirst(post, 'replyButton');
+        var comments = rb ? txt(findFirst(rb, 'text') || rb) : '';
+        items.push({
+          t: 'p', id: id,
+          author: txt(post.authorText),
+          avatar: lastThumb(post.authorThumbnail),
+          text: txt(post.contentText),
+          age: txt(post.publishedTimeText),
+          likes: txt(post.voteCount) || (post.voteStatus ? '' : ''),
+          comments: comments,
+          image: image, video: vid, videoTitle: vtitle, poll: poll
+        });
+        return true;
+      }
+      if (x.continuationItemRenderer) {
+        var c = x.continuationItemRenderer;
+        var t = c.continuationEndpoint && c.continuationEndpoint.continuationCommand && c.continuationEndpoint.continuationCommand.token;
+        if (t) token = t;
+        return true;
+      }
+      return false;
+    });
+    return { items: items, next: token };
   }
 
   /** Playlist page: header title + videos. */
@@ -765,6 +853,17 @@
                       : await call('browse', { browseId: a.id, params: CHANNEL_VIDEOS });
       var r = parseChannel(j);
       return a.token ? { items: r.items, next: r.next } : r;
+    },
+    /** Channel posts. a.id = channel, a.token = continuation of the next page. */
+    posts: async function (a) {
+      if (a.token) return parsePosts(await browse(null, a.token));
+      var params = 'EgVwb3N0c_IBBAoCSgA=';
+      try {
+        var main = parseChannel(await call('browse', { browseId: a.id }));
+        var tab = (main.tabs || []).filter(function (t) { return /^(posts|community)$/i.test(t.title) && t.params; })[0];
+        if (tab) params = tab.params;
+      } catch (e) { /* use the default */ }
+      return parsePosts(await call('browse', { browseId: a.id, params: params }));
     },
     handle: async function (a) {
       var j = await call('navigation/resolve_url', { url: 'https://www.youtube.com/' + a.handle });

@@ -46,6 +46,7 @@ import com.cleantube.app.data.ChannelItem
 import com.cleantube.app.data.Graph
 import com.cleantube.app.data.Paged
 import com.cleantube.app.data.PlaylistItem
+import com.cleantube.app.data.Post
 import com.cleantube.app.data.VideoItem
 import com.cleantube.app.data.Api
 import com.cleantube.app.data.formatCount
@@ -83,13 +84,24 @@ fun ChannelScreen(route: Route.Channel) {
             val paged = remember(ch.id) {
                 Paged<VideoItem>(scope) { token -> Api.channelVideos(ch.id, token) }
             }
+            val posts = remember(ch.id) {
+                Paged<Post>(scope) { token -> Api.channelPosts(ch.id, token) }
+            }
             var tab by remember(ch.id) { mutableStateOf(0) }
-            PagedColumn(
-                paged,
-                emptyText = "No public videos.",
-                header = { item { ChannelHeader(ch, tab, onTab = { tab = it }) } }
-            ) { v ->
-                if (tab == 0) CompactRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
+            if (tab == 1) {
+                PagedColumn(
+                    posts,
+                    emptyText = "No posts on this channel.",
+                    header = { item { ChannelHeader(ch, tab, onTab = { tab = it }) } }
+                ) { post -> PostCard(post) }
+            } else {
+                PagedColumn(
+                    paged,
+                    emptyText = "No public videos.",
+                    header = { item { ChannelHeader(ch, tab, onTab = { tab = it }) } }
+                ) { v ->
+                    if (tab == 0) CompactRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
+                }
             }
             // back button floats over the banner
             Box(
@@ -164,7 +176,7 @@ private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit) {
 
         // chips
         Row(Modifier.padding(start = 16.dp, top = 16.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Videos", "About").forEachIndexed { i, label ->
+            listOf("Videos", "Posts", "About").forEachIndexed { i, label ->
                 val sel = tab == i
                 Box(
                     Modifier
@@ -178,7 +190,7 @@ private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit) {
             }
         }
 
-        if (tab == 1) {
+        if (tab == 2) {
             Text(
                 ch.description.ifBlank { "No description." },
                 color = TextPrimary, fontSize = 14.sp, lineHeight = 20.sp,
@@ -189,7 +201,7 @@ private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit) {
                     .background(Card)
                     .padding(14.dp)
             )
-        } else {
+        } else if (tab == 0) {
             Text(
                 "Videos", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp,
                 modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 4.dp)
@@ -221,5 +233,63 @@ fun PlaylistScreen(route: Route.Playlist) {
         PagedColumn(paged, emptyText = "This playlist is empty or private.") { v ->
             VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
         }
+    }
+}
+
+/** One post of a channel: author line, text, picture / shared video / poll options, counts. */
+@Composable
+private fun PostCard(post: Post) {
+    val nav = LocalNav.current
+    var open by remember(post.id) { mutableStateOf(false) }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Card)
+            .padding(14.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (post.avatar.isNotEmpty()) {
+                AppImage(post.avatar, Modifier.size(36.dp), CircleShape)
+                Spacer(Modifier.width(10.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(post.author, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (post.age.isNotEmpty()) Text(post.age, color = TextMuted, fontSize = 12.sp)
+            }
+        }
+        if (post.text.isNotBlank()) {
+            Text(
+                post.text, color = TextPrimary, fontSize = 14.sp, lineHeight = 20.sp,
+                maxLines = if (open) Int.MAX_VALUE else 8, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp)
+                    .animateContentSize(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow))
+                    .clickable { open = !open }
+            )
+        }
+        if (post.image.isNotEmpty()) {
+            val modifier = Modifier.fillMaxWidth().padding(top = 10.dp).aspectRatio(16f / 9f)
+            Box(
+                if (post.video.isNotEmpty()) modifier.clickable { nav.push(Route.Video(post.video)) } else modifier
+            ) {
+                AppImage(post.image, Modifier.matchParentSize(), RoundedCornerShape(12.dp))
+            }
+        }
+        if (post.video.isNotEmpty() && post.videoTitle.isNotEmpty()) {
+            Text(
+                post.videoTitle, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 6.dp).clickable { nav.push(Route.Video(post.video)) }
+            )
+        }
+        if (post.poll.isNotEmpty()) {
+            Text("Poll: ${post.poll}", color = TextMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+        }
+        val counts = listOf(post.likes.takeIf { it.isNotEmpty() }?.let { "$it likes" }, post.comments.takeIf { it.isNotEmpty() }?.let { "$it comments" })
+            .filterNotNull().joinToString("  •  ")
+        if (counts.isNotEmpty()) Text(counts, color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
     }
 }

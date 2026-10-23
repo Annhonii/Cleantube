@@ -367,6 +367,27 @@ object Api {
         return Page(vids, j.nextToken())
     }
 
+    /** A channel's Posts tab (empty list when the channel has none). */
+    suspend fun channelPosts(id: String, token: String?): Page<Post> {
+        val j = Yt.run("posts", args("id" to id, "token" to (token ?: "")))
+        val list = (j.optJSONArray("items") ?: JSONArray()).mapObjects {
+            Post(
+                id = it.optString("id"),
+                author = it.optString("author"),
+                avatar = it.optString("avatar"),
+                text = it.optString("text"),
+                age = it.optString("age"),
+                likes = it.optString("likes"),
+                comments = it.optString("comments"),
+                image = it.optString("image"),
+                video = it.optString("video"),
+                videoTitle = it.optString("videoTitle"),
+                poll = it.optString("poll")
+            )
+        }
+        return Page(list, j.nextToken())
+    }
+
     // ---------------------------------------------------------------- playlist
 
     private val playlistTitles = ConcurrentHashMap<String, String>()
