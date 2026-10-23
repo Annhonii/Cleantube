@@ -70,6 +70,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import com.cleantube.app.data.Graph
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
