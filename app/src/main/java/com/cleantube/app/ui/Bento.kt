@@ -26,6 +26,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -67,14 +69,15 @@ fun VideoMenuButton(v: VideoItem, modifier: Modifier = Modifier, onRemove: (() -
 /** Small thumbnail left, text right. Flat: no card behind it. */
 @Composable
 fun CompactRow(v: VideoItem, onClick: () -> Unit, modifier: Modifier = Modifier, onRemove: (() -> Unit)? = null) {
+    val thumbC = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     Row(
         modifier
             .fillMaxWidth()
-            .plainClickable(onClick)
+            .plainClickable { thumbC[0]?.takeIf { it.isAttached }?.let { VideoHost.rememberOrigin(it.boundsInWindow()) }; onClick() }
             .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.Top
     ) {
-        Box(Modifier.width(150.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)).background(Hairline)) {
+        Box(Modifier.width(150.dp).aspectRatio(16f / 9f).onGloballyPositioned { thumbC[0] = it }.clip(RoundedCornerShape(12.dp)).background(Hairline)) {
             VideoThumb(v.id, Modifier.matchParentSize())
             if (v.live) {
                 Badge("LIVE", Color.Black, Modifier.align(Alignment.BottomEnd).padding(6.dp))

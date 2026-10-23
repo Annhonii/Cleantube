@@ -121,6 +121,23 @@ object VideoHost {
     /** 1 = full page, 0 = mini player card, below 0 = the card is being swiped away. */
     val p = Animatable(0f)
 
+    /**
+     * Where the tapped thumbnail was (window pixels). The page grows out of that very spot, like a shared-element
+     * transition, instead of out of the mini player. [om] = 1 while the start point is the thumbnail, 0 = the mini card.
+     */
+    var origin by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
+    private var originAt = 0L
+    val om = Animatable(0f)
+
+    fun rememberOrigin(r: androidx.compose.ui.geometry.Rect) {
+        if (r.width < 8f || r.height < 8f) return
+        origin = r
+        originAt = android.os.SystemClock.uptimeMillis()
+    }
+
+    /** A thumbnail tap counts only for the open that follows it right away. */
+    fun originFresh(): Boolean = origin != null && android.os.SystemClock.uptimeMillis() - originAt < 1500L
+
     /** True while the page is (mostly) open; drives the Back button. */
     var expanded by mutableStateOf(false)
     var openTick by mutableIntStateOf(0)
@@ -302,11 +319,15 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
 
     // ---- open / collapse requests
     LaunchedEffect(VideoHost.openTick) {
-        if (VideoHost.fresh) {
+        val fromThumb = VideoHost.originFresh()
+        if (VideoHost.fresh || fromThumb) {
             VideoHost.fresh = false
             pA.snapTo(0f)
         }
-        pA.animateTo(1f, spring(dampingRatio = 1f, stiffness = 340f))
+        if (fromThumb) VideoHost.om.snapTo(1f) else VideoHost.origin = null
+        pA.animateTo(1f, spring(dampingRatio = 0.92f, stiffness = 300f))
+        VideoHost.om.snapTo(0f)
+        VideoHost.origin = null
     }
     val collapseStart = remember { VideoHost.collapseTick }
     LaunchedEffect(VideoHost.collapseTick) {
@@ -385,6 +406,12 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
         val cardH = cardW * 9f / 16f
         val miniX = w - margin - cardW
         val cornerPx = with(density) { 18.dp.toPx() }
+        val thumbCornerPx = with(density) { 12.dp.toPx() }
+        // the start point of the open / close morph: the mini card, or (right after a thumbnail tap) the thumbnail
+        fun anchorX(): Float = VideoHost.origin?.let { lerpF(w - margin - cardW, it.left, VideoHost.om.value) } ?: (w - margin - cardW)
+        fun anchorW(): Float = VideoHost.origin?.let { lerpF(cardW, it.width, VideoHost.om.value) } ?: cardW
+        fun anchorH(): Float = anchorW() * 9f / 16f
+        fun anchorCorner(): Float = VideoHost.origin?.let { lerpF(cornerPx, thumbCornerPx, VideoHost.om.value) } ?: cornerPx
         val dockSpace by animateFloatAsState(
             with(density) { (if (tabRoot) 88.dp else 12.dp).toPx() }, tween(260), label = "miniDock"
         )
@@ -459,19 +486,21 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                 .layout { measurable, constraints ->
                     val pv = if (inPip) 1f else pA.value
                     val pc = pv.coerceIn(0f, 1f)
-                    val x = lerpF(miniX, 0f, pc)
-                    val sw = lerpF(cardW, w, pc).roundToInt()
-                    val sh = lerpF(cardH, h, pc).roundToInt()
-                    val top = lerpF(h - collapsedBottom - cardH, 0f, pc) + (if (pv < 0f) -pv * travel else 0f)
+                    val x = lerpF(anchorX(), 0f, pc)
+                    val sw = lerpF(anchorW(), w, pc).roundToInt()
+                    val sh = lerpF(anchorH(), h, pc).roundToInt()
+                    val anchorTop = VideoHost.origin?.let { lerpF(h - collapsedBottom - cardH, it.top, VideoHost.om.value) }
+                        ?: (h - collapsedBottom - cardH)
+                    val top = lerpF(anchorTop, 0f, pc) + (if (pv < 0f) -pv * travel else 0f)
                     val pl = measurable.measure(Constraints.fixed(sw, sh))
                     layout(constraints.maxWidth, constraints.maxHeight) { pl.place(x.roundToInt(), top.roundToInt()) }
                 }
                 .graphicsLayer {
                     val pv = if (inPip) 1f else pA.value
                     val pc = pv.coerceIn(0f, 1f)
-                    shape = RoundedCornerShape(lerpF(cornerPx, 0f, pc))
+                    shape = RoundedCornerShape(lerpF(anchorCorner(), 0f, pc))
                     clip = true
-                    shadowElevation = (1f - pc) * 12.dp.toPx()
+                    shadowElevation = (1f - pc) * 12.dp.toPx() * (1f - VideoHost.om.value * 0.6f)
                     alpha = if (pv < 0f) (1f + pv * 1.5f).coerceIn(0f, 1f) else 1f
                 }
                 .drawBehind {
@@ -493,7 +522,13 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                             layout(constraints.maxWidth, constraints.maxHeight) { pl.place(0, area.roundToInt()) }
                         }
                     }
-                    .graphicsLayer { alpha = ((pA.value - 0.3f) / 0.7f).coerceIn(0f, 1f) }
+                    .graphicsLayer {
+                        val pc = pA.value.coerceIn(0f, 1f)
+                        // the page content rises into place a beat after the picture has started to grow
+                        val k = ((pc - 0.25f) / 0.75f).coerceIn(0f, 1f)
+                        alpha = k
+                        translationY = (1f - k) * 56.dp.toPx()
+                    }
             ) {
                 VideoScreen(route)
             }
@@ -515,12 +550,12 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                             clip = false
                         } else {
                             val pc = pA.value.coerceIn(0f, 1f)
-                            val sc = lerpF(miniScale, 1f, pc)
+                            val sc = lerpF(anchorW() / vW, 1f, pc)
                             scaleX = sc
                             scaleY = sc
                             translationX = lerpF(0f, sideX, pc)
                             translationY = lerpF(0f, vTop, pc)
-                            shape = RoundedCornerShape(lerpF(cornerPx, 0f, pc) / sc)
+                            shape = RoundedCornerShape(lerpF(anchorCorner(), 0f, pc) / sc)
                             // fully open the picture is square anyway: no clipping, so the seek bar's dot can reach below its edge
                             clip = pc < 0.995f
                         }

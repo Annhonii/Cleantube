@@ -59,6 +59,8 @@ import kotlinx.coroutines.sync.withPermit
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -346,6 +348,7 @@ fun VideoRow(
 
     // YouTube style card: thumbnail with the channel pill (logo + name) top left, duration top right and a
     // NEW badge bottom left; below it the title and "views • time" with the menu button on the right.
+    val thumbC = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     val isNew = remember(v.id, v.ageText) {
         !v.live && com.cleantube.app.data.Api.ageMinutes(v.ageText) <= 2 * 1440L &&
             com.cleantube.app.data.Graph.store.history.none { it.id == v.id }
@@ -353,13 +356,14 @@ fun VideoRow(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .plainClickable(onClick)
+            .plainClickable { thumbC[0]?.takeIf { it.isAttached }?.let { VideoHost.rememberOrigin(it.boundsInWindow()) }; onClick() }
             .padding(horizontal = 14.dp, vertical = 9.dp)
     ) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
+                .onGloballyPositioned { thumbC[0] = it }
                 .clip(RoundedCornerShape(12.dp))
                 .background(Hairline)
         ) {
