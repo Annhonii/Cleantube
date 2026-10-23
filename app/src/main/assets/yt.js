@@ -413,9 +413,36 @@
       return r;
     }
 
-    function toItem(p, replyToken, replyParams) {
+    /** The like / dislike (and take-back) actions of one comment: base64 strings inside performCommentActionEndpoint. */
+    function actionsOf(ctxObj, vm, p) {
+      var out = { like: '', dislike: '', unlike: '', undislike: '' };
+      function scan(o, path, depth) {
+        if (!o || typeof o !== 'object' || depth > 14) return;
+        if (o.performCommentActionEndpoint && typeof o.performCommentActionEndpoint.action === 'string') {
+          var a = o.performCommentActionEndpoint.action;
+          var pl = path.toLowerCase();
+          var undo = /(^|[^n])toggled|unlike|undislike|remove|undo/.test(path.replace(/untoggled/gi, 'x'));
+          var dis = pl.indexOf('dislike') >= 0;
+          if (dis) { if (undo) { if (!out.undislike) out.undislike = a; } else if (!out.dislike) out.dislike = a; }
+          else if (pl.indexOf('like') >= 0) { if (undo) { if (!out.unlike) out.unlike = a; } else if (!out.like) out.like = a; }
+        }
+        Object.keys(o).forEach(function (k) { scan(o[k], path + '.' + k, depth + 1); });
+      }
+      scan(ctxObj, '', 0);
+      if (vm) {
+        ['toolbarSurfaceKey', 'commentSurfaceKey', 'sharedKey', 'sharedSurfaceKey', 'toolbarStateKey'].forEach(function (k) {
+          var e = vm[k] && others[vm[k]];
+          if (e && e.kind !== 'commentEntityPayload') scan(e.obj, e.kind, 0);
+        });
+      }
+      scan(p, 'comment', 0);
+      return out;
+    }
+
+    function toItem(p, replyToken, replyParams, acts) {
       return {
         replyParams: replyParams || '',
+        acts: acts || {},
         t: 'm',
         author: (p.author && p.author.displayName) || '',
         avatar: fixUrl(p.author && p.author.avatarThumbnailUrl),
@@ -459,7 +486,7 @@
               debug = JSON.stringify(dd).slice(0, 3800);
             } catch (e) { /* ignore */ }
           }
-          items.push(toItem(p, replyTokenOf(thread.replies), rpar));
+          items.push(toItem(p, replyTokenOf(thread.replies), rpar, actionsOf(thread, vm, p)));
         }
         return true;
       }
@@ -467,7 +494,7 @@
       if (x.commentViewModel) {
         var rv = x.commentViewModel.commentViewModel || x.commentViewModel;
         var rp = rv && payloads[rv.commentKey];
-        if (rp) items.push(toItem(rp, null, replyParamsOf(x, rv, rp)));
+        if (rp) items.push(toItem(rp, null, replyParamsOf(x, rv, rp), actionsOf(x, rv, rp)));
         return true;
       }
       if (x.continuationItemRenderer) {
@@ -791,6 +818,14 @@
       var st = r && r.actionResult && r.actionResult.status;
       if (st && st !== 'STATUS_SUCCEEDED') throw new Error('comment refused (' + st + ')');
       if (r && r.errors && r.errors.length) throw new Error('comment refused');
+      return { ok: true };
+    },
+    /** Likes / dislikes a comment (or takes it back). a.action = the base64 action YouTube gave for that button. */
+    commentAction: async function (a) {
+      var r = await call('comment/perform_comment_action', { actions: [a.action] });
+      if (r && r.errors && r.errors.length) throw new Error('refused');
+      var res = r && r.actionResults;
+      if (res && res.length && res[0].status && res[0].status !== 'STATUS_SUCCEEDED') throw new Error('refused (' + res[0].status + ')');
       return { ok: true };
     },
     /** Posts a reply to a comment (signed-in only). a.params = createReplyParams of that comment, a.text = the reply. */

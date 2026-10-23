@@ -54,7 +54,12 @@ data class Comment(
     /** Continuation that loads this comment's replies; empty when it has none. */
     val repliesToken: String = "",
     /** Token YouTube wants when replying to this comment; empty when YouTube didn't give one. */
-    val replyParams: String = ""
+    val replyParams: String = "",
+    /** The actions YouTube gave for this comment's like / dislike buttons (and for taking them back). */
+    val likeAction: String = "",
+    val dislikeAction: String = "",
+    val unlikeAction: String = "",
+    val undislikeAction: String = ""
 )
 
 data class VideoDetails(

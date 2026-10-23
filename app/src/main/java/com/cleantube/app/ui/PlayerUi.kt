@@ -304,9 +304,8 @@ private fun GlassButton(
         androidx.compose.animation.AnimatedContent(
             targetState = icon,
             transitionSpec = {
-                (androidx.compose.animation.scaleIn(spring(dampingRatio = 0.5f, stiffness = 520f), initialScale = 0.3f) +
-                    fadeIn(tween(120))) togetherWith
-                    (androidx.compose.animation.scaleOut(tween(110), targetScale = 0.3f) + fadeOut(tween(90)))
+                (androidx.compose.animation.scaleIn(tween(150), initialScale = 0.85f) + fadeIn(tween(150))) togetherWith
+                    (androidx.compose.animation.scaleOut(tween(100), targetScale = 0.85f) + fadeOut(tween(100)))
             },
             label = "glassIcon"
         ) { ic ->
@@ -419,7 +418,7 @@ fun CtOverlay(
             }
     ) {
         // soft shading over the whole picture behind the controls
-        AnimatedVisibility(showControls, enter = fadeIn(tween(160)), exit = fadeOut(tween(220))) {
+        AnimatedVisibility(showControls, enter = fadeIn(tween(150)), exit = fadeOut(tween(200))) {
             Box(
                 Modifier.fillMaxSize().background(
                     Brush.verticalGradient(
@@ -434,8 +433,8 @@ fun CtOverlay(
         AnimatedVisibility(
             showControls && !dragging,
             modifier = Modifier.align(Alignment.TopCenter),
-            enter = fadeIn(tween(160)) + androidx.compose.animation.slideInVertically(spring(dampingRatio = 0.7f, stiffness = 420f)) { -it / 2 },
-            exit = fadeOut(tween(200)) + androidx.compose.animation.slideOutVertically(tween(200)) { -it / 3 }
+            enter = fadeIn(tween(150)),
+            exit = fadeOut(tween(200))
         ) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
@@ -499,7 +498,7 @@ fun CtOverlay(
             val centreOn = showControls && p.firstFrame && !dragging
             val pop by androidx.compose.animation.core.animateFloatAsState(
                 if (centreOn) 1f else 0f,
-                if (centreOn) spring<Float>(dampingRatio = 0.55f, stiffness = 380f) else tween<Float>(160),
+                tween<Float>(if (centreOn) 150 else 200, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
                 label = "centrePop"
             )
             if (pop > 0.01f || centreOn) {
@@ -516,12 +515,7 @@ fun CtOverlay(
                         },
                         size = 56.dp, iconSize = 32.dp,
                         enabled = prevItem != null || p.position > 3000L,
-                        modifier = Modifier.graphicsLayer {
-                            val v = pop
-                            translationX = (1f - v) * 62.dp.toPx()
-                            scaleX = 0.4f + 0.6f * v; scaleY = scaleX
-                            alpha = (v * 1.5f).coerceIn(0f, 1f)
-                        }
+                        modifier = Modifier.graphicsLayer { alpha = pop }
                     )
                     GlassButton(
                         icon = when {
@@ -533,23 +527,14 @@ fun CtOverlay(
                         onClick = { p.togglePlay(); visible = true },
                         size = 68.dp,
                         iconSize = 38.dp,
-                        modifier = Modifier.graphicsLayer {
-                            val v = pop
-                            scaleX = 0.55f + 0.45f * v; scaleY = scaleX
-                            alpha = (v * 1.8f).coerceIn(0f, 1f)
-                        }
+                        modifier = Modifier.graphicsLayer { alpha = pop }
                     )
                     GlassButton(
                         Icons.Rounded.SkipNext, "Next",
                         onClick = { nextItem?.let { openVideo(it) } },
                         size = 56.dp, iconSize = 32.dp,
                         enabled = nextItem != null,
-                        modifier = Modifier.graphicsLayer {
-                            val v = pop
-                            translationX = -(1f - v) * 62.dp.toPx()
-                            scaleX = 0.4f + 0.6f * v; scaleY = scaleX
-                            alpha = (v * 1.5f).coerceIn(0f, 1f)
-                        }
+                        modifier = Modifier.graphicsLayer { alpha = pop }
                     )
                 }
             }
@@ -572,8 +557,8 @@ fun CtOverlay(
         AnimatedVisibility(
             showControls,
             modifier = Modifier.align(Alignment.BottomCenter),
-            enter = fadeIn(tween(160)) + androidx.compose.animation.slideInVertically(spring(dampingRatio = 0.7f, stiffness = 420f)) { it / 3 },
-            exit = fadeOut(tween(200)) + androidx.compose.animation.slideOutVertically(tween(200)) { it / 4 }
+            enter = fadeIn(tween(150)),
+            exit = fadeOut(tween(200))
         ) {
             // the seek bar is at the very bottom; the time and the fullscreen button sit just above it, on top of the
             // bar's touch area (their own taps win, the rest of that area still seeks)

@@ -1049,6 +1049,49 @@ private fun CommentRow(
     onReply: (() -> Unit)? = null,
     onToggleReplies: (() -> Unit)? = null
 ) {
+    val ctx = LocalContext.current
+    val voteScope = rememberCoroutineScope()
+    // 1 = liked, -1 = disliked, 0 = nothing (this phone's view of it; YouTube holds the real one)
+    var vote by remember(c) { mutableIntStateOf(0) }
+    fun doVote(target: Int) {
+        if (!Session.loggedIn) {
+            Toast.makeText(ctx, "Sign in to like or dislike comments.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val action = when {
+            target == 1 && vote == 1 -> c.unlikeAction
+            target == 1 -> c.likeAction
+            target == -1 && vote == -1 -> c.undislikeAction
+            else -> c.dislikeAction
+        }
+        if (action.isEmpty()) {
+            val dbg = Api.replyDebug
+            if (dbg.isNotEmpty()) {
+                try {
+                    val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("voidstream comment debug", dbg))
+                } catch (e: Exception) { /* ignore */ }
+            }
+            Toast.makeText(
+                ctx,
+                if (dbg.isNotEmpty()) "Comment likes aren't available yet. Debug info copied: paste it to Claude." else "YouTube didn't allow this from here.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        val before = vote
+        vote = if (before == target) 0 else target
+        voteScope.launch {
+            try {
+                Api.commentAction(action)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                vote = before
+                Toast.makeText(ctx, "Couldn't update: ${e.message ?: "try again"}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     val arrow by androidx.compose.animation.core.animateFloatAsState(
         if (repliesOpen) 180f else 0f,
         androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 380f),
@@ -1066,12 +1109,19 @@ private fun CommentRow(
                 overflow = TextOverflow.Ellipsis
             )
             TimestampText(c.text, Modifier.padding(top = 2.dp))
-            if ((c.likesText.isNotEmpty() && c.likesText != "0") || onReply != null) {
+            run {
                 Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (c.likesText.isNotEmpty() && c.likesText != "0") {
-                        Text("${c.likesText} likes", color = TextMuted, fontSize = 12.sp)
-                        Spacer(Modifier.width(16.dp))
+                    Box(Modifier.size(32.dp).clip(CircleShape).clickable { doVote(1) }, contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.ThumbUp, "Like", tint = if (vote == 1) Accent else TextMuted, modifier = Modifier.size(16.dp))
                     }
+                    if (c.likesText.isNotEmpty() && c.likesText != "0") {
+                        Text(c.likesText, color = if (vote == 1) Accent else TextMuted, fontSize = 12.sp)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Box(Modifier.size(32.dp).clip(CircleShape).clickable { doVote(-1) }, contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.ThumbDown, "Dislike", tint = if (vote == -1) Accent else TextMuted, modifier = Modifier.size(16.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
                     if (onReply != null) {
                         Text(
                             "Reply", color = TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium,

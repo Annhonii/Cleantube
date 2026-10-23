@@ -269,7 +269,11 @@ object Api {
                 replies = it.optString("replies").toIntOrNull() ?: 0,
                 likesText = it.optString("likes"),
                 repliesToken = it.optString("replyToken"),
-                replyParams = it.optString("replyParams")
+                replyParams = it.optString("replyParams"),
+                likeAction = it.optJSONObject("acts")?.optString("like").orEmpty(),
+                dislikeAction = it.optJSONObject("acts")?.optString("dislike").orEmpty(),
+                unlikeAction = it.optJSONObject("acts")?.optString("unlike").orEmpty(),
+                undislikeAction = it.optJSONObject("acts")?.optString("undislike").orEmpty()
             )
         }
         return Page(list, j.nextToken())
@@ -290,6 +294,12 @@ object Api {
 
     /** What YouTube's comment data looks like when it carried no reply token (to find where it keeps it). */
     @Volatile var replyDebug: String = ""
+
+    /** Likes / dislikes a comment (or takes the vote back) with the action YouTube supplied for that button. */
+    suspend fun commentAction(action: String) {
+        if (action.isEmpty()) throw ApiException(ApiException.Kind.OTHER, "YouTube didn't allow this from here.")
+        Yt.run("commentAction", args("action" to action))
+    }
 
     /** Posts a reply to a comment on the signed-in account. */
     suspend fun postReply(replyParams: String, text: String) {
