@@ -300,7 +300,7 @@ fun <T> PagedColumn(
     LaunchedEffect(state, paged) {
         snapshotFlow { state.firstVisibleItemIndex }.collectLatest { first ->
             kotlinx.coroutines.delay(350)
-            paged.items.drop(first).take(4).filter { !it.short && !it.live && it.durationSec !in 1..62 }
+            paged.items.drop(first).take(4).filterIsInstance<VideoItem>().filter { !it.short && !it.live && it.durationSec !in 1..62 }
                 .forEach { com.cleantube.app.data.Playback.prefetch(it.id) }
         }
     }
