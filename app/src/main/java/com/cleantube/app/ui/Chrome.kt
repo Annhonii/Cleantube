@@ -379,7 +379,7 @@ fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifi
     var dragging by remember { androidx.compose.runtime.mutableStateOf(false) }
     var dragPos by remember { androidx.compose.runtime.mutableFloatStateOf(selected.toFloat()) }
     LaunchedEffect(selected, dragging) {
-        if (!dragging) blob.animateTo(selected.toFloat(), spring(dampingRatio = 0.46f, stiffness = 240f))
+        if (!dragging) blob.animateTo(selected.toFloat(), spring(dampingRatio = 1f, stiffness = 420f))
     }
 
     Box(
@@ -413,9 +413,9 @@ fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifi
             left += (p - p.coerceIn(0f, (n - 1).toFloat())) * unit
             val target = if (dragging) p else selected.toFloat()
             val d = target - p
-            val stretch = abs(d).coerceAtMost(1.6f) * 0.45f * unit
+            val stretch = 0f
             if (d > 0f) dropW += stretch else { left -= stretch; dropW += stretch }
-            val squash = 1f - 0.12f * abs(d).coerceAtMost(1f)
+            val squash = 1f
 
             Box(
                 Modifier
@@ -478,13 +478,15 @@ fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifi
                                 val r = np.roundToInt().coerceIn(0, n - 1)
                                 if (r != lastRound) {
                                     lastRound = r
+                                    // only a soft tick while sliding; the screen changes once, when you let go (no lag)
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    nav.selectTab(tabs[r].route)
                                 }
                             }
                         }
                         if (started) {
                             val end = dragPos
+                            val r = end.roundToInt().coerceIn(0, n - 1)
+                            if (r != selNow.value) nav.selectTab(tabs[r].route)
                             scope.launch {
                                 blob.snapTo(end)
                                 dragging = false
@@ -498,11 +500,6 @@ fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifi
                             }
                             if (hit != selNow.value) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             nav.selectTab(tabs[hit].route)
-                            // a tap on the tab you are already on gives the drop a little kick
-                            if (hit == selNow.value) scope.launch {
-                                blob.snapTo(hit + 0.22f)
-                                blob.animateTo(hit.toFloat(), spring(dampingRatio = 0.4f, stiffness = 300f))
-                            }
                         }
                     }
                 }
