@@ -212,7 +212,7 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
             }
 
             // ---- loop
-            ToggleCard("Loop video", if (p.looping) "On" else "Off", p.looping, enabled = true, onClick = null) { p.setLooping(it) }
+            ToggleCard("Loop video", if (p.loopOn) "On" else "Off", p.loopOn, enabled = true, onClick = null) { p.setLooping(it) }
         }
     }
 }

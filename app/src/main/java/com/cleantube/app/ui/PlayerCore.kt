@@ -443,7 +443,7 @@ class CtPlayer(
     }
 
     /** Play this video again when it ends (the toggle in the playback settings). */
-    var looping by mutableStateOf(false); private set
+    var loopOn by mutableStateOf(false); private set
 
     /** Picks a caption language and turns captions on in one go. */
     fun pickCaption(index: Int) {
@@ -455,7 +455,7 @@ class CtPlayer(
     }
 
     fun setLooping(on: Boolean) {
-        looping = on
+        loopOn = on
         exo.repeatMode = if (on) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
     }
 
