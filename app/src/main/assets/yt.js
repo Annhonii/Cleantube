@@ -356,12 +356,21 @@
   function parseComments(j) {
     var payloads = {};
     var surfaces = {};
+    var others = {};      // every other entity of the response, by key (and its payload type)
+    var kinds = {};
     var muts = (j.frameworkUpdates && j.frameworkUpdates.entityBatchUpdate && j.frameworkUpdates.entityBatchUpdate.mutations) || [];
     muts.forEach(function (m) {
       var p = m.payload && m.payload.commentEntityPayload;
       if (p && p.key) payloads[p.key] = p;
       var sp = m.payload && m.payload.commentSurfaceEntityPayload;
       if (sp && sp.key) surfaces[sp.key] = sp;
+      if (m.payload) {
+        Object.keys(m.payload).forEach(function (kind) {
+          var o = m.payload[kind];
+          kinds[kind] = (kinds[kind] || 0) + 1;
+          if (o && typeof o === 'object' && o.key) others[o.key] = { kind: kind, obj: o };
+        });
+      }
     });
 
     /** The token YouTube wants for a reply to one comment (found wherever the reply button's data is kept). */
@@ -379,7 +388,12 @@
         });
       }
       scan(ctxObj);
-      if (!r && vm && vm.toolbarSurfaceKey) scan(surfaces[vm.toolbarSurfaceKey]);
+      if (!r && vm) {
+        ['toolbarSurfaceKey', 'commentSurfaceKey', 'sharedKey', 'sharedSurfaceKey', 'toolbarStateKey', 'inlineRepliesKey'].forEach(function (k) {
+          var e = vm[k] && others[vm[k]];
+          if (!r && e && e.kind !== 'commentEntityPayload') scan(e.obj);
+        });
+      }
       if (!r) scan(p);
       return r;
     }
@@ -434,7 +448,14 @@
           var rpar = replyParamsOf(thread, vm, p);
           if (!rpar && !debug) {
             try {
-              var dd = { vm: shape(vm, 0), surface: shape(vm && surfaces[vm.toolbarSurfaceKey], 0), toolbar: shape(p.toolbar, 0) };
+              var rel = {};
+              ['toolbarSurfaceKey', 'commentSurfaceKey', 'sharedKey', 'sharedSurfaceKey', 'toolbarStateKey', 'inlineRepliesKey'].forEach(function (k) {
+                var e = vm && vm[k] && others[vm[k]];
+                if (e && e.kind !== 'commentEntityPayload') rel[k + ':' + e.kind] = shape(e.obj, 1);
+              });
+              var tr = {};
+              Object.keys(thread).forEach(function (k) { if (k !== 'replies' && k !== 'commentViewModel') tr[k] = shape(thread[k], 3); });
+              var dd = { kinds: kinds, related: rel, thread: tr };
               debug = JSON.stringify(dd).slice(0, 3800);
             } catch (e) { /* ignore */ }
           }
