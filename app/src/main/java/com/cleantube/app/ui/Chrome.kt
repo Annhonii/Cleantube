@@ -1,5 +1,8 @@
 package com.cleantube.app.ui
 
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -348,60 +351,171 @@ private fun ShortsIcon(color: () -> Color, modifier: Modifier = Modifier) {
 }
 
 /**
- * Bottom dock: a floating rounded bar of icon buttons. The open tab grows into a mint capsule that also shows
- * its name; the others stay plain icons. Tabs and their order still come from Settings.
+ * Bottom dock: a floating rounded bar of icon buttons with ONE capsule (the open tab) that behaves like a water
+ * drop: it stretches towards the tab it is travelling to, squashes a little, overshoots and wobbles into place.
+ * Tap a tab, or hold the capsule and slide it: the tabs switch as it passes over them.
+ * Tabs and their order still come from Settings.
  */
 @Composable
 fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifier = Modifier) {
     val nav = LocalNav.current
     val tabs = visibleTabs(Graph.store)
+    val n = tabs.size
+    if (n == 0) return
     val dark = isSystemInDarkTheme()
-    val selected by remember { androidx.compose.runtime.derivedStateOf { position().roundToInt() } }
-    val surface = NavBg
+    val haptic = LocalHapticFeedback.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val selected by remember(n) { androidx.compose.runtime.derivedStateOf { position().roundToInt().coerceIn(0, n - 1) } }
     val plain = TextMuted
     val shadowColor = Color.Black.copy(alpha = if (dark) 0.45f else 0.14f)
-    // 0 = full dock .. 1 = slightly slimmer dock over a Short (almost the same size, so it is easy to hit). Follows the pager like the header card does, so the dock
-    // shrinks / grows in step with the page while you swipe, and glides with the pager's spring after a tap.
+    // 0 = full dock .. 1 = slightly slimmer dock over a Short. Follows the pager so it shrinks / grows with the swipe.
     val s = if (shortsIndex < 0) 0f else (1f - abs(position() - shortsIndex)).coerceIn(0f, 1f)
     val shape = RoundedCornerShape((34f - 3f * s).dp)
-    Row(
+    val itemH = (52f - 3f * s).dp
+
+    // where the capsule is, in tab units (0 = first tab). While a finger moves it, dragPos is used instead.
+    val blob = remember { Animatable(selected.toFloat()) }
+    var dragging by remember { androidx.compose.runtime.mutableStateOf(false) }
+    var dragPos by remember { androidx.compose.runtime.mutableFloatStateOf(selected.toFloat()) }
+    LaunchedEffect(selected, dragging) {
+        if (!dragging) blob.animateTo(selected.toFloat(), spring(dampingRatio = 0.46f, stiffness = 240f))
+    }
+
+    Box(
         modifier
             .navigationBarsPadding()
             .padding(horizontal = (18f + 8f * s).dp, vertical = (12f - 4f * s).dp)
             .fillMaxWidth()
             .shadow(10.dp, shape, clip = false, ambientColor = shadowColor, spotColor = shadowColor)
             .clip(shape)
-            .background(surface)
-            .padding((6f - 1f * s).dp),
-        horizontalArrangement = Arrangement.spacedBy((4f - 1f * s).dp),
-        verticalAlignment = Alignment.CenterVertically
+            .background(NavBg)
+            .padding((6f - 1f * s).dp)
     ) {
-        tabs.forEachIndexed { i, t ->
-            val sel = i == selected
-            val w by androidx.compose.animation.core.animateFloatAsState(
-                if (sel) 2.2f - 0.1f * s else 1f - 0.15f * s,
-                androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 400f),
-                label = "dockW"
-            )
-            val bg by androidx.compose.animation.animateColorAsState(if (sel) Accent else Color.Transparent, androidx.compose.animation.core.tween(220), label = "dockBg")
-            val fg by androidx.compose.animation.animateColorAsState(if (sel) OnAccent else plain, androidx.compose.animation.core.tween(220), label = "dockFg")
-            Row(
+        BoxWithConstraints(Modifier.fillMaxWidth().height(itemH)) {
+            val density = LocalDensity.current
+            val wPx = constraints.maxWidth.toFloat()
+            val gap = with(density) { (4f - 1f * s).dp.toPx() }
+            val p = if (dragging) dragPos else blob.value
+            val base = 1f - 0.15f * s
+            val peak = 1.2f + 0.05f * s
+            val ws = FloatArray(n) { i -> base + peak * (1f - abs(p - i)).coerceIn(0f, 1f) }
+            val unit = (wPx - gap * (n - 1)) / ws.sum()
+            val xs = FloatArray(n)
+            var acc = 0f
+            for (i in 0 until n) { xs[i] = acc; acc += ws[i] * unit + gap }
+
+            // the drop: between the two tabs it is over, stretched towards where it is heading
+            val i0 = floor(p).toInt().coerceIn(0, n - 1)
+            val i1 = (i0 + 1).coerceAtMost(n - 1)
+            val f = (p - i0).coerceIn(0f, 1f)
+            var left = xs[i0] + (xs[i1] - xs[i0]) * f
+            var width = ws[i0] * unit + (ws[i1] * unit - ws[i0] * unit) * f
+            // past either end (overshoot) it just keeps going a little
+            left += (p - p.coerceIn(0f, (n - 1).toFloat())) * unit
+            val target = if (dragging) p else selected.toFloat()
+            val d = target - p
+            val stretch = abs(d).coerceAtMost(1.6f) * 0.55f * unit
+            if (d > 0f) width += stretch else { left -= stretch; width += stretch }
+            val squash = 1f - 0.12f * abs(d).coerceAtMost(1f)
+
+            Box(
                 Modifier
-                    .weight(w.coerceAtLeast(0.05f))
-                    .height((52f - 3f * s).dp)
+                    .offset { androidx.compose.ui.unit.IntOffset(left.roundToInt(), 0) }
+                    .size(with(density) { width.toDp() }, itemH)
+                    .graphicsLayer {
+                        scaleY = squash * (if (dragging) 1.06f else 1f)
+                        scaleX = if (dragging) 1.04f else 1f
+                    }
                     .clip(RoundedCornerShape((26f - 2f * s).dp))
-                    .background(bg)
-                    .bouncyClickable(pressedScale = 0.9f, onClick = { nav.selectTab(t.route) }),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (t.route == Route.Shorts) ShortsIcon({ fg }, Modifier.size((22f - 1f * s).dp))
-                else Icon(t.icon, contentDescription = t.label, tint = fg, modifier = Modifier.size((24f - 1f * s).dp))
-                if (sel) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(t.label, color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                    .background(Accent)
+            )
+
+            tabs.forEachIndexed { i, t ->
+                val near = (1f - abs(p - i) * 1.5f).coerceIn(0f, 1f)
+                val fg = lerp(plain, OnAccent, near)
+                val extra = ws[i] - base
+                Box(
+                    Modifier
+                        .offset { androidx.compose.ui.unit.IntOffset(xs[i].roundToInt(), 0) }
+                        .size(with(density) { (ws[i] * unit).toDp() }, itemH),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                        if (t.route == Route.Shorts) ShortsIcon({ fg }, Modifier.size((22f - 1f * s).dp))
+                        else Icon(t.icon, contentDescription = t.label, tint = fg, modifier = Modifier.size((24f - 1f * s).dp))
+                        if (extra > 0.45f) {
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                t.label, color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false,
+                                modifier = Modifier.graphicsLayer { alpha = ((extra - 0.45f) / 0.5f).coerceIn(0f, 1f) }
+                            )
+                        }
+                    }
                 }
             }
+
+            // touch layer: tap a tab, or grab the capsule and slide
+            val layoutNow = rememberUpdatedState(Triple(xs, ws, unit))
+            val gapNow = rememberUpdatedState(gap)
+            val blobNow = rememberUpdatedState(blob.value)
+            val selNow = rememberUpdatedState(selected)
+            Box(
+                Modifier.matchParentSize().pointerInput(n) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val x0 = down.position.x
+                        val slop = viewConfiguration.touchSlop
+                        var started = false
+                        var pos0 = 0f
+                        var lastRound = -1
+                        while (true) {
+                            val ev = awaitPointerEvent()
+                            val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!ch.pressed) break
+                            val dx = ch.position.x - x0
+                            if (!started && abs(dx) > slop) {
+                                started = true
+                                pos0 = blobNow.value
+                                dragPos = pos0
+                                dragging = true
+                                lastRound = pos0.roundToInt().coerceIn(0, n - 1)
+                            }
+                            if (started) {
+                                ch.consume()
+                                val np = (pos0 + dx / (size.width / n.toFloat())).coerceIn(-0.2f, n - 1 + 0.2f)
+                                dragPos = np
+                                val r = np.roundToInt().coerceIn(0, n - 1)
+                                if (r != lastRound) {
+                                    lastRound = r
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    nav.selectTab(tabs[r].route)
+                                }
+                            }
+                        }
+                        if (started) {
+                            val end = dragPos
+                            scope.launch {
+                                blob.snapTo(end)
+                                dragging = false
+                            }
+                        } else {
+                            // a tap: the tab under the finger
+                            val (xsNow, wsNow, unitNow) = layoutNow.value
+                            var hit = n - 1
+                            for (i in 0 until n) {
+                                if (x0 < xsNow[i] + wsNow[i] * unitNow + gapNow.value / 2f) { hit = i; break }
+                            }
+                            if (hit != selNow.value) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            nav.selectTab(tabs[hit].route)
+                            // a tap on the tab you are already on gives the drop a little kick
+                            if (hit == selNow.value) scope.launch {
+                                blob.snapTo(hit + 0.22f)
+                                blob.animateTo(hit.toFloat(), spring(dampingRatio = 0.4f, stiffness = 300f))
+                            }
+                        }
+                    }
+                }
+            )
         }
     }
 }
