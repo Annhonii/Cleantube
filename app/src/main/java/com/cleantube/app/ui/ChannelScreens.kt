@@ -5,6 +5,17 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -92,120 +103,184 @@ fun ChannelScreen(route: Route.Channel) {
                 PagedColumn(
                     posts,
                     emptyText = "No posts on this channel.",
-                    header = { item { ChannelHeader(ch, tab, onTab = { tab = it }) } }
+                    header = { item { ChannelHeader(ch, tab, onTab = { tab = it }, onBack = { nav.back() }) } }
                 ) { post -> PostCard(post) }
             } else {
                 PagedColumn(
                     paged,
                     emptyText = "No public videos.",
-                    header = { item { ChannelHeader(ch, tab, onTab = { tab = it }) } }
+                    header = { item { ChannelHeader(ch, tab, onTab = { tab = it }, onBack = { nav.back() }) } }
                 ) { v ->
                     if (tab == 0) CompactRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
                 }
-            }
-            // back button floats over the banner
-            Box(
-                Modifier
-                    .statusBarsPadding()
-                    .padding(start = 12.dp, top = 8.dp)
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(Color(0x66000000))
-                    .bouncyClickable(pressedScale = 0.88f, onClick = { nav.back() }),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(22.dp))
             }
         }
     }
 }
 
+private val M3Standard = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f)
+
+/** "1.2M subscribers" -> ("1.2M", "subscribers") */
+private fun statParts(t: String): Pair<String, String> {
+    val i = t.indexOf(' ')
+    return if (i < 0) t to "" else t.substring(0, i) to t.substring(i + 1)
+}
+
 @Composable
-private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit) {
+private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit, onBack: () -> Unit) {
     val store = Graph.store
     val subscribed = store.isSubscribed(ch.id)
     val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+    var menu by remember { mutableStateOf(false) }
+    var about by remember(ch.id) { mutableStateOf(false) }
+    val avatarSize = 104.dp
 
     Column(Modifier.fillMaxWidth()) {
-        // banner edge to edge, Subscribe on its lower right corner
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Hairline)) {
-            if (ch.banner.isNotEmpty()) AppImage(ch.banner, Modifier.matchParentSize(), RoundedCornerShape(0.dp))
-            else if (ch.thumb.isNotEmpty()) AppImage(ch.thumb, Modifier.matchParentSize(), RoundedCornerShape(0.dp))
-            Box(
-                Modifier.matchParentSize().background(
-                    Brush.verticalGradient(0.55f to Color.Transparent, 1f to Bg)
-                )
-            )
+        // ---- banner (rounded, inset) with back and the 3-dot menu on it; the channel photo overlaps its lower left
+        Box(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 16.dp, end = 16.dp, top = 8.dp)) {
             Box(
                 Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = 12.dp)
-                    .clip(CircleShape)
-                    .background(if (subscribed) Card else Accent)
-                    .bouncyClickable(pressedScale = 0.94f, onClick = { toggleSubscription(scope, ch) })
-                    .padding(horizontal = 18.dp, vertical = 8.dp)
+                    .fillMaxWidth()
+                    .aspectRatio(2.6f)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Brush.linearGradient(listOf(Accent.copy(alpha = 0.55f), Card)))
             ) {
-                Text(
-                    if (subscribed) "Subscribed" else "Subscribe",
-                    color = if (subscribed) TextPrimary else OnAccent,
-                    fontWeight = FontWeight.SemiBold, fontSize = 14.sp
-                )
-            }
-        }
-
-        // name, handle, stats
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                ch.title, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 22.sp,
-                textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis
-            )
-            if (ch.handle.isNotEmpty()) {
-                Text(ch.handle, color = TextMuted, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
-            }
-            val subs = ch.subsText.ifEmpty { ch.subs.takeIf { it >= 0 }?.let { "${formatCount(it)} subscribers" }.orEmpty() }
-            if (subs.isNotEmpty() || ch.videosText.isNotEmpty()) {
-                Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (subs.isNotEmpty()) Text(subs, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    if (subs.isNotEmpty() && ch.videosText.isNotEmpty()) {
-                        Box(Modifier.padding(horizontal = 16.dp).width(1.dp).height(28.dp).background(Hairline))
-                    }
-                    if (ch.videosText.isNotEmpty()) Text(ch.videosText, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                }
-            }
-        }
-
-        // chips
-        Row(Modifier.padding(start = 16.dp, top = 16.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Videos", "Posts", "About").forEachIndexed { i, label ->
-                val sel = tab == i
+                if (ch.banner.isNotEmpty()) AppImage(ch.banner, Modifier.matchParentSize(), RoundedCornerShape(24.dp))
                 Box(
                     Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
-                        .background(if (sel) Accent else Card)
-                        .bouncyClickable(pressedScale = 0.94f, onClick = { onTab(i) })
-                        .padding(horizontal = 18.dp, vertical = 8.dp)
+                        .background(Color(0x66000000))
+                        .bouncyClickable(pressedScale = 0.88f, onClick = onBack),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(label, color = if (sel) OnAccent else TextPrimary, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(22.dp))
+                }
+                Box(Modifier.align(Alignment.TopEnd).padding(8.dp)) {
+                    Box(
+                        Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x66000000))
+                            .bouncyClickable(pressedScale = 0.88f, onClick = { menu = true }),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = Color.White, modifier = Modifier.size(22.dp))
+                    }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Share") },
+                            leadingIcon = { Icon(Icons.Rounded.Share, contentDescription = null) },
+                            onClick = {
+                                menu = false
+                                shareText(ctx, "https://www.youtube.com/channel/${ch.id}")
+                            }
+                        )
+                    }
+                }
+            }
+            AppImage(
+                ch.thumb,
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .offset(y = avatarSize / 2)
+                    .size(avatarSize)
+                    .border(4.dp, Bg, CircleShape),
+                CircleShape
+            )
+        }
+
+        // ---- Subscribe next to the photo
+        val subBg by animateColorAsState(if (subscribed) Card else TextPrimary, tween(300, easing = M3Standard), label = "subBg")
+        val subFg by animateColorAsState(if (subscribed) TextPrimary else Bg, tween(300, easing = M3Standard), label = "subFg")
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp).height(52.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier
+                    .height(48.dp)
+                    .clip(CircleShape)
+                    .background(subBg)
+                    .bouncyClickable(pressedScale = 0.95f, onClick = { toggleSubscription(scope, ch) })
+                    .padding(horizontal = 28.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(if (subscribed) "Subscribed" else "Subscribe", color = subFg, fontWeight = FontWeight.Medium, fontSize = 16.sp)
+            }
+        }
+
+        // ---- name and handle
+        Text(
+            ch.title, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 34.sp,
+            maxLines = 2, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)
+        )
+        if (ch.handle.isNotEmpty()) Text(ch.handle, color = TextMuted, fontSize = 16.sp, modifier = Modifier.padding(start = 16.dp, top = 2.dp))
+
+        // ---- info card: numbers, line, description
+        val subs = ch.subsText.ifEmpty { ch.subs.takeIf { it >= 0 }?.let { "${formatCount(it)} subscribers" }.orEmpty() }
+        val stats = listOf(subs, ch.videosText).filter { it.isNotEmpty() }
+        if (stats.isNotEmpty() || ch.description.isNotBlank()) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 18.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Card)
+                    .clickable { about = !about }
+                    .animateContentSize(spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow))
+                    .padding(horizontal = 20.dp, vertical = 18.dp)
+            ) {
+                if (stats.isNotEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        stats.forEachIndexed { i, t ->
+                            val (n, l) = statParts(t)
+                            if (i > 0) Text("  \u00B7  ", color = TextMuted, fontSize = 15.sp)
+                            Text(n, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            if (l.isNotEmpty()) Text(" ${l.replaceFirstChar { it.uppercase() }}", color = TextMuted, fontSize = 16.sp)
+                        }
+                    }
+                }
+                if (stats.isNotEmpty() && ch.description.isNotBlank()) {
+                    Box(Modifier.fillMaxWidth().padding(vertical = 14.dp).height(1.dp).background(Hairline))
+                }
+                if (ch.description.isNotBlank()) {
+                    Text(
+                        ch.description, color = TextPrimary, fontSize = 15.sp, lineHeight = 24.sp,
+                        maxLines = if (about) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
 
-        if (tab == 2) {
-            Text(
-                ch.description.ifBlank { "No description." },
-                color = TextPrimary, fontSize = 14.sp, lineHeight = 20.sp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 10.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Card)
-                    .padding(14.dp)
-            )
-        } else if (tab == 0) {
-            Text(
-                "Videos", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp,
-                modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 4.dp)
-            )
+        // ---- chips
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            listOf("Videos", "Posts").forEachIndexed { i, label ->
+                val sel = tab == i
+                val bg by animateColorAsState(if (sel) Accent else Color.Transparent, tween(300, easing = M3Standard), label = "chipBg")
+                val fg by animateColorAsState(if (sel) OnAccent else TextPrimary, tween(300, easing = M3Standard), label = "chipFg")
+                val line by animateColorAsState(if (sel) Accent else Hairline, tween(300, easing = M3Standard), label = "chipLine")
+                Box(
+                    Modifier
+                        .height(44.dp)
+                        .clip(CircleShape)
+                        .border(1.5.dp, line, CircleShape)
+                        .background(bg)
+                        .bouncyClickable(pressedScale = 0.94f, onClick = { onTab(i) })
+                        .padding(horizontal = 24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(label, color = fg, fontWeight = FontWeight.Medium, fontSize = 16.sp)
+                }
+            }
         }
     }
 }
