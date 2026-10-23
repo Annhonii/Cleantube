@@ -52,7 +52,9 @@ data class Comment(
     val replies: Int,
     val likesText: String = "",
     /** Continuation that loads this comment's replies; empty when it has none. */
-    val repliesToken: String = ""
+    val repliesToken: String = "",
+    /** Token YouTube wants when replying to this comment; empty when YouTube didn't give one. */
+    val replyParams: String = ""
 )
 
 data class VideoDetails(

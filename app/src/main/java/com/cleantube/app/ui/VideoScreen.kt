@@ -644,6 +644,24 @@ fun CommentsPanel(videoId: String, comments: Paged<Comment>, count: String, onCl
     LoadMoreEffect(state, comments)
     // opened replies, by the comment's replies token: each one is its own paged list
     val expanded = remember { mutableStateMapOf<String, Paged<Comment>>() }
+    // replies that are folding away (kept in the list until their exit animation is done)
+    val closing = remember { androidx.compose.runtime.mutableStateListOf<String>() }
+    // writing a reply: the comment it answers (and which opened list to add it to)
+    var replyTo by remember { mutableStateOf<Comment?>(null) }
+    var replyToken by remember { mutableStateOf("") }
+    var replyDraft by remember { mutableStateOf("") }
+    var replySending by remember { mutableStateOf(false) }
+    fun startReply(c: Comment, listToken: String = "") {
+        if (!Session.loggedIn) {
+            Toast.makeText(ctx, "Sign in to reply.", Toast.LENGTH_SHORT).show()
+        } else if (c.replyParams.isEmpty()) {
+            Toast.makeText(ctx, "YouTube didn't allow replying to this comment from here.", Toast.LENGTH_SHORT).show()
+        } else {
+            replyDraft = ""
+            replyToken = listToken
+            replyTo = c
+        }
+    }
 
     // ---- drag down to close
     var dragY by remember { mutableFloatStateOf(0f) }
@@ -742,11 +760,19 @@ fun CommentsPanel(videoId: String, comments: Paged<Comment>, count: String, onCl
                     item {
                         CommentRow(
                             c,
-                            repliesOpen = rp != null,
+                            repliesOpen = rp != null && token !in closing,
+                            onReply = { startReply(c, token) },
                             onToggleReplies = if (token.isNotEmpty()) {
                                 {
                                     if (rp != null) {
-                                        expanded.remove(token)
+                                        if (token !in closing) {
+                                            closing.add(token)
+                                            scope.launch {
+                                                kotlinx.coroutines.delay(280)
+                                                expanded.remove(token)
+                                                closing.remove(token)
+                                            }
+                                        }
                                     } else {
                                         // first page uses the thread's token, later pages the one the previous page returned
                                         val p = Paged<Comment>(scope) { t -> Api.comments(videoId, t ?: token) }
@@ -759,8 +785,25 @@ fun CommentsPanel(videoId: String, comments: Paged<Comment>, count: String, onCl
                     }
                     if (rp != null) {
                         val replies = rp.items
-                        items(replies.size) { i -> CommentRow(replies[i], reply = true) }
-                        item { RepliesFooter(rp, onHide = { expanded.remove(token) }) }
+                        items(replies.size) { i ->
+                            ReplyReveal(shown = token !in closing, index = i) {
+                                CommentRow(replies[i], reply = true, onReply = { startReply(replies[i], token) })
+                            }
+                        }
+                        item {
+                            ReplyReveal(shown = token !in closing, index = replies.size.coerceAtMost(6)) {
+                                RepliesFooter(rp, onHide = {
+                                    if (token !in closing) {
+                                        closing.add(token)
+                                        scope.launch {
+                                            kotlinx.coroutines.delay(280)
+                                            expanded.remove(token)
+                                            closing.remove(token)
+                                        }
+                                    }
+                                })
+                            }
+                        }
                     }
                 }
                 item {
@@ -785,6 +828,52 @@ fun CommentsPanel(videoId: String, comments: Paged<Comment>, count: String, onCl
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp)
+        )
+    }
+
+    val target = replyTo
+    if (target != null) {
+        AlertDialog(
+            onDismissRequest = { if (!replySending) replyTo = null },
+            containerColor = Card,
+            title = { Text("Reply to ${target.author}") },
+            text = { PillTextField(replyDraft, { replyDraft = it }, "Add a reply…", Modifier.fillMaxWidth()) },
+            confirmButton = {
+                TextButton(
+                    enabled = replyDraft.isNotBlank() && !replySending,
+                    onClick = {
+                        replySending = true
+                        val sent = replyDraft.trim()
+                        scope.launch {
+                            try {
+                                Api.postReply(target.replyParams, sent)
+                                Toast.makeText(ctx, "Reply posted.", Toast.LENGTH_SHORT).show()
+                                // shown right away at the top of that comment's opened replies
+                                expanded[replyToken]?.prepend(
+                                    Comment(
+                                        author = Session.name.ifEmpty { "You" },
+                                        avatar = Session.thumb,
+                                        text = sent,
+                                        likes = 0,
+                                        publishedAt = "just now",
+                                        replies = 0
+                                    )
+                                )
+                                replyTo = null
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Toast.makeText(ctx, "Couldn't reply: ${e.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
+                            } finally {
+                                replySending = false
+                            }
+                        }
+                    }
+                ) { Text(if (replySending) "Posting…" else "Reply", color = TextPrimary) }
+            },
+            dismissButton = {
+                TextButton(onClick = { if (!replySending) replyTo = null }) { Text("Cancel", color = TextMuted) }
+            }
         )
     }
 
@@ -945,8 +1034,14 @@ private fun CommentRow(
     c: Comment,
     reply: Boolean = false,
     repliesOpen: Boolean = false,
+    onReply: (() -> Unit)? = null,
     onToggleReplies: (() -> Unit)? = null
 ) {
+    val arrow by androidx.compose.animation.core.animateFloatAsState(
+        if (repliesOpen) 180f else 0f,
+        androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 380f),
+        label = "replyArrow"
+    )
     Row(Modifier.fillMaxWidth().padding(start = if (reply) 56.dp else 20.dp, end = 20.dp, top = 9.dp, bottom = 9.dp)) {
         AppImage(c.avatar, Modifier.size(if (reply) 24.dp else 34.dp), CircleShape)
         Spacer(Modifier.width(12.dp))
@@ -958,9 +1053,20 @@ private fun CommentRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(c.text, color = TextPrimary, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
-            if (c.likesText.isNotEmpty() && c.likesText != "0") {
-                Text("${c.likesText} likes", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            TimestampText(c.text, Modifier.padding(top = 2.dp))
+            if ((c.likesText.isNotEmpty() && c.likesText != "0") || onReply != null) {
+                Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (c.likesText.isNotEmpty() && c.likesText != "0") {
+                        Text("${c.likesText} likes", color = TextMuted, fontSize = 12.sp)
+                        Spacer(Modifier.width(16.dp))
+                    }
+                    if (onReply != null) {
+                        Text(
+                            "Reply", color = TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                            modifier = Modifier.clip(CircleShape).clickable(onClick = onReply).padding(horizontal = 6.dp, vertical = 3.dp)
+                        )
+                    }
+                }
             }
             if (onToggleReplies != null) {
                 val n = c.replies
@@ -976,7 +1082,7 @@ private fun CommentRow(
                         Icons.Rounded.KeyboardArrowDown,
                         contentDescription = if (repliesOpen) "Hide replies" else "Show replies",
                         tint = TextPrimary,
-                        modifier = Modifier.size(18.dp).rotate(if (repliesOpen) 180f else 0f)
+                        modifier = Modifier.size(18.dp).rotate(arrow)
                     )
                     Spacer(Modifier.width(4.dp))
                     Text(
@@ -993,3 +1099,64 @@ private fun CommentRow(
 
 /** A Short: flagged by YouTube, or a clip of a minute or so (the same rule the Shorts tab uses). */
 private fun VideoItem.isShortLike(): Boolean = short || durationSec in 1..62
+
+
+/** One piece of the replies list that slides open (and folds shut) like YouTube's: a little later for each row. */
+@Composable
+private fun ReplyReveal(shown: Boolean, index: Int, content: @Composable () -> Unit) {
+    val state = remember { androidx.compose.animation.core.MutableTransitionState(false) }
+    LaunchedEffect(shown) {
+        if (shown) kotlinx.coroutines.delay((index.coerceAtMost(6) * 45).toLong())
+        state.targetState = shown
+    }
+    androidx.compose.animation.AnimatedVisibility(
+        visibleState = state,
+        enter = androidx.compose.animation.expandVertically(
+            androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 300f),
+            expandFrom = Alignment.Top
+        ) + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220)) +
+            androidx.compose.animation.slideInVertically(androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 300f)) { -it / 3 },
+        exit = androidx.compose.animation.shrinkVertically(androidx.compose.animation.core.tween(240), shrinkTowards = Alignment.Top) +
+            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160))
+    ) { content() }
+}
+
+private val TimestampRegex = Regex("""(?<![\d:])(?:(\d{1,2}):)?(\d{1,2}):(\d{2})(?![\d:])""")
+
+/** Comment text where a time like 1:23 or 1:02:03 is a link: tapping it jumps the video to that moment. */
+@Composable
+private fun TimestampText(text: String, modifier: Modifier = Modifier) {
+    val link = Accent
+    val annotated = remember(text, link) {
+        androidx.compose.ui.text.buildAnnotatedString {
+            append(text)
+            TimestampRegex.findAll(text).forEach { m ->
+                val h = m.groupValues[1].toIntOrNull() ?: 0
+                val min = m.groupValues[2].toInt()
+                val sec = m.groupValues[3].toInt()
+                if (sec < 60 && (m.groupValues[1].isEmpty() || min < 60)) {
+                    val total = h * 3600 + min * 60 + sec
+                    addStyle(
+                        androidx.compose.ui.text.SpanStyle(color = link, fontWeight = FontWeight.Medium),
+                        m.range.first, m.range.last + 1
+                    )
+                    addStringAnnotation("ts", total.toString(), m.range.first, m.range.last + 1)
+                }
+            }
+        }
+    }
+    androidx.compose.foundation.text.ClickableText(
+        text = annotated,
+        modifier = modifier,
+        style = androidx.compose.ui.text.TextStyle(color = TextPrimary, fontSize = 14.sp, fontFamily = AppFont),
+        onClick = { off ->
+            annotated.getStringAnnotations("ts", off, off).firstOrNull()?.let { a ->
+                val p = PlayerControl.owner as? CtPlayer
+                if (p != null) {
+                    p.seekTo(a.item.toLong() * 1000L)
+                    p.playWhen(true)
+                }
+            }
+        }
+    )
+}

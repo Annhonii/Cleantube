@@ -355,16 +355,37 @@
   /** Comments page (a "next" call with a continuation token). */
   function parseComments(j) {
     var payloads = {};
+    var surfaces = {};
     var muts = (j.frameworkUpdates && j.frameworkUpdates.entityBatchUpdate && j.frameworkUpdates.entityBatchUpdate.mutations) || [];
     muts.forEach(function (m) {
       var p = m.payload && m.payload.commentEntityPayload;
       if (p && p.key) payloads[p.key] = p;
+      var sp = m.payload && m.payload.commentSurfaceEntityPayload;
+      if (sp && sp.key) surfaces[sp.key] = sp;
     });
+
+    /** The token YouTube wants for a reply to one comment (found wherever the reply button's data is kept). */
+    function replyParamsOf(ctxObj, vm, p) {
+      var r = '';
+      function scan(o) {
+        if (r || !o) return;
+        walk(o, function (x) {
+          if (r) return true;
+          if (typeof x.createReplyParams === 'string') { r = x.createReplyParams; return true; }
+          return false;
+        });
+      }
+      scan(ctxObj);
+      if (!r && vm && vm.toolbarSurfaceKey) scan(surfaces[vm.toolbarSurfaceKey]);
+      if (!r) scan(p);
+      return r;
+    }
     var items = [];
     var token = null;
 
-    function toItem(p, replyToken) {
+    function toItem(p, replyToken, replyParams) {
       return {
+        replyParams: replyParams || '',
         t: 'm',
         author: (p.author && p.author.displayName) || '',
         avatar: fixUrl(p.author && p.author.avatarThumbnailUrl),
@@ -393,14 +414,14 @@
         var thread = x.commentThreadRenderer;
         var vm = thread.commentViewModel && thread.commentViewModel.commentViewModel;
         var p = vm && payloads[vm.commentKey];
-        if (p) items.push(toItem(p, replyTokenOf(thread.replies)));
+        if (p) items.push(toItem(p, replyTokenOf(thread.replies), replyParamsOf(thread, vm, p)));
         return true;
       }
       // Replies come without the thread wrapper: a plain commentViewModel per reply.
       if (x.commentViewModel) {
         var rv = x.commentViewModel.commentViewModel || x.commentViewModel;
         var rp = rv && payloads[rv.commentKey];
-        if (rp) items.push(toItem(rp, null));
+        if (rp) items.push(toItem(rp, null, replyParamsOf(x, rv, rp)));
         return true;
       }
       if (x.continuationItemRenderer) {
@@ -724,6 +745,14 @@
       var st = r && r.actionResult && r.actionResult.status;
       if (st && st !== 'STATUS_SUCCEEDED') throw new Error('comment refused (' + st + ')');
       if (r && r.errors && r.errors.length) throw new Error('comment refused');
+      return { ok: true };
+    },
+    /** Posts a reply to a comment (signed-in only). a.params = createReplyParams of that comment, a.text = the reply. */
+    postReply: async function (a) {
+      var r = await call('comment/create_comment_reply', { commentText: a.text, createReplyParams: a.params });
+      var st = r && r.actionResult && r.actionResult.status;
+      if (st && st !== 'STATUS_SUCCEEDED') throw new Error('reply refused (' + st + ')');
+      if (r && r.errors && r.errors.length) throw new Error('reply refused');
       return { ok: true };
     },
     /** YouTube's notification bell (signed-in only). a.token = continuation of the next page. */

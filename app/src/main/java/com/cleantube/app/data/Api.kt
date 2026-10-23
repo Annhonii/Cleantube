@@ -267,7 +267,8 @@ object Api {
                 publishedAt = it.optString("age"),
                 replies = it.optString("replies").toIntOrNull() ?: 0,
                 likesText = it.optString("likes"),
-                repliesToken = it.optString("replyToken")
+                repliesToken = it.optString("replyToken"),
+                replyParams = it.optString("replyParams")
             )
         }
         return Page(list, j.nextToken())
@@ -284,6 +285,14 @@ object Api {
             val again = loadCreateParams(videoId) ?: throw e
             Yt.run("postComment", args("params" to again, "text" to text))
         }
+    }
+
+    /** Posts a reply to a comment on the signed-in account. */
+    suspend fun postReply(replyParams: String, text: String) {
+        if (replyParams.isEmpty()) {
+            throw ApiException(ApiException.Kind.OTHER, "YouTube didn't allow replying to this comment from here.")
+        }
+        Yt.run("postReply", args("params" to replyParams, "text" to text))
     }
 
     /** Reads the first comments page again, only to get the token YouTube wants for a new comment. */
