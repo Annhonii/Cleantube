@@ -145,14 +145,15 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                 if (headerOn) CollapsingHeader(headerPos, homeIdx, shortsIdx, visibleRoutes)
             }
 
+            // ArchiveTune-style floating bottom bar (under the video page, over the tabs)
+            TabBar(
+                nav, visible,
+                visible = nav.isTabRoot && !VideoHost.expanded && fullscreen.view == null && !ShortsUi.overlayOpen,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+
             // the video page / mini player: above the screens
             VideoSheet(tabRoot = nav.isTabRoot, hidden = nav.current == Route.Shorts)
-
-            // round tab button in the bottom right: long press + slide left to switch tabs (no bottom bar)
-            TabFab(
-                nav, visible,
-                enabled = nav.isTabRoot && !VideoHost.expanded && fullscreen.view == null && !ShortsUi.overlayOpen
-            )
 
             // Fullscreen video from the YouTube player, drawn above everything.
             val fsView = fullscreen.view

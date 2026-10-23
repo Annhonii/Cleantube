@@ -271,7 +271,7 @@ fun PullRefresh(
 /** Room under a list: a little air plus the system navigation bar (there is no floating bar any more). */
 @Composable
 fun listBottomPad(): androidx.compose.ui.unit.Dp =
-    androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 88.dp
+    androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 100.dp
 
 @Composable
 fun <T> PagedColumn(

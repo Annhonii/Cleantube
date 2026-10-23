@@ -725,7 +725,7 @@ private fun ShortPage(
             Modifier
                 .align(Alignment.BottomStart)
                 .navigationBarsPadding()
-                .padding(start = 16.dp, end = 88.dp, bottom = 40.dp)
+                .padding(start = 16.dp, end = 88.dp, bottom = 96.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -774,7 +774,7 @@ private fun ShortPage(
 
         // ---------------- right: action bar (no background, sits low so it covers less of the video)
         Column(
-            Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 8.dp, bottom = 100.dp),
+            Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 8.dp, bottom = 104.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -794,7 +794,7 @@ private fun ShortPage(
         AnimatedVisibility(
             visible = current && !p.wantPlay,
             enter = fadeIn(tween(120)), exit = fadeOut(tween(120)),
-            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(bottom = 88.dp)
         ) {
             ShortScrubber(p, Modifier.fillMaxWidth())
         }
