@@ -215,9 +215,8 @@ fun CollapsingHeader(
             // 2: search bar: "search" on the left, round search button on the right (opens the search page)
             Row(
                 Modifier
-                    .clip(CircleShape)
-                    .background(Card)
                     .bouncyClickable(pressedScale = 0.98f, onClick = { nav.push(Route.Search()) })
+                    .glass(CircleShape, 0.55f)
                     .padding(start = 22.dp, end = 5.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

@@ -98,9 +98,24 @@ fun Modifier.plainClickable(onClick: () -> Unit): Modifier = composed {
 }
 
 /**
- * Switched off: list items appear without any fade / slide / zoom (kept so callers still compile).
+ * List items glide up with a soft spring and fade in, one after another. Only the first time an item shows:
+ * [seen] remembers it, so scrolling back or recomposing never replays it. No zoom.
  */
-fun Modifier.entrance(seen: MutableSet<Any>, key: Any, delayMs: Int = 0): Modifier = this
+fun Modifier.entrance(seen: MutableSet<Any>, key: Any, delayMs: Int = 0): Modifier = composed {
+    val first = remember(key) { seen.add(key) }
+    val p = remember(key) { Animatable(if (first) 0f else 1f) }
+    LaunchedEffect(key) {
+        if (first) {
+            delay(delayMs.toLong())
+            p.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = 260f))
+        }
+    }
+    graphicsLayer {
+        val v = p.value
+        alpha = (v * 1.6f).coerceIn(0f, 1f)
+        translationY = (1f - v) * 42.dp.toPx()
+    }
+}
 
 /** Moving light over a placeholder while something loads. */
 fun Modifier.shimmer(): Modifier = composed {
