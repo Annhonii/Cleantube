@@ -30,6 +30,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
@@ -77,7 +80,7 @@ object PlayerSettingsHost {
 private val SpeedSteps = listOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
 
 private fun speedLabel(s: Float): String =
-    if (s % 1f == 0f) "${s.toInt()}×" else "${s.toString().trimEnd('0')}×"
+    if (s % 1f == 0f) "${s.toInt()}x" else "${s.toString().trimEnd('0')}x"
 
 /**
  * The playback settings card: speed (wheel) and quality (stepper) as rubbery horizontal sliders, then the sound
@@ -99,7 +102,7 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
         modifier
             .offset { IntOffset(0, dragY.roundToInt()) }
             .fillMaxWidth()
-            .heightIn(max = 600.dp)
+            .heightIn(max = 680.dp)
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(Card)
             // swallow taps so the page underneath doesn't react
@@ -124,7 +127,9 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
                 Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Playback", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                Text("Playback", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Icon(Icons.Outlined.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.padding(start = 10.dp).size(22.dp))
+                Spacer(Modifier.weight(1f))
                 IconButton(onClick = onClose) {
                     Icon(Icons.Rounded.Close, contentDescription = "Close", tint = TextPrimary)
                 }
@@ -144,7 +149,7 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
                 val idx = SpeedSteps.indexOfFirst { abs(it - p.speed) < 0.01f }.coerceAtLeast(0)
                 TickSlider(
                     labels = SpeedSteps.map { speedLabel(it) }, index = idx, live = true,
-                    resetIndex = SpeedSteps.indexOf(1f),
+                    resetIndex = SpeedSteps.indexOf(1f), pixel = true, bubble = true,
                     onPick = { p.changeSpeed(SpeedSteps[it]) }
                 )
             }
@@ -158,7 +163,7 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
                 TickSlider(
                     labels = opts.map { if (it == 0) "Auto" else "${it}p" },
                     index = opts.indexOf(p.quality).coerceAtLeast(0), live = false,
-                    resetIndex = 0,
+                    resetIndex = 0, pixel = true,
                     onPick = { p.changeQuality(opts[it]) }
                 )
             }
@@ -167,7 +172,13 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
             SettingsBlock("Audio source", null) {
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     p.audioSources.forEachIndexed { i, a ->
-                        Pill(a.label, onClick = { p.changeAudio(i) }, active = p.audioIndex == i)
+                        val l = a.label.lowercase()
+                        val ic = when {
+                            "original" in l -> Icons.Rounded.GraphicEq
+                            "enhanc" in l -> Icons.Rounded.AutoAwesome
+                            else -> null
+                        }
+                        SheetChip(a.label, ic, p.audioIndex == i) { p.changeAudio(i) }
                     }
                     if (p.extrasState == 1) {
                         Text("loading…", color = TextMuted, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterVertically).padding(start = 4.dp))
@@ -175,40 +186,87 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
                 }
             }
 
-            // ---- captions
+            // ---- captions: switch + the language to read
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val none = p.extrasState == 2 && p.subtitles.isEmpty()
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(SurfaceHighest)
-                        .padding(start = 18.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(
-                        Modifier.weight(1f).then(if (p.extrasFailed) Modifier.clickable { p.ensureExtras() } else Modifier)
-                    ) {
-                        Text("Captions", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                        val sub = when {
-                            p.extrasFailed -> "Couldn't load captions · tap to retry"
-                            p.extrasState == 1 -> "Loading…"
-                            none -> "Not available for this video"
-                            p.captionsOn && p.cueState == 1 -> "Loading captions…"
-                            p.captionsOn && p.cueState == 3 -> "Couldn't read this caption file"
-                            p.captionsOn && p.subtitles.isNotEmpty() -> p.subtitles.getOrNull(p.captionIndex)?.label.orEmpty()
-                            else -> "Off"
-                        }
-                        Text(sub, color = TextMuted, fontSize = 12.sp)
-                    }
-                    Switch(checked = p.captionsOn && !none, onCheckedChange = { p.setCaptions(it) }, enabled = !none)
+                val sub = when {
+                    p.extrasFailed -> "Couldn't load captions · tap to retry"
+                    p.extrasState == 1 -> "Loading…"
+                    none -> "Not available for this video"
+                    p.captionsOn && p.cueState == 1 -> "Loading captions…"
+                    p.captionsOn && p.cueState == 3 -> "Couldn't read this caption file"
+                    p.captionsOn && p.subtitles.isNotEmpty() -> p.subtitles.getOrNull(p.captionIndex)?.label.orEmpty()
+                    else -> "Off"
                 }
-                if (p.captionsOn && p.subtitles.size > 1) {
+                ToggleCard(
+                    "Captions", sub, p.captionsOn && !none, enabled = !none,
+                    onClick = if (p.extrasFailed) ({ p.ensureExtras() }) else null
+                ) { p.setCaptions(it) }
+                if (p.subtitles.isNotEmpty()) {
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         p.subtitles.forEachIndexed { i, t ->
-                            Pill(t.label, onClick = { p.selectCaption(i) }, active = p.captionIndex == i)
+                            SheetChip(t.label, null, p.captionsOn && p.captionIndex == i) { p.pickCaption(i) }
                         }
                     }
                 }
             }
+
+            // ---- loop
+            ToggleCard("Loop video", if (p.looping) "On" else "Off", p.looping, enabled = true, onClick = null) { p.setLooping(it) }
         }
+    }
+}
+
+/** A tonal chip: the chosen one is filled, the others are flat; the colours glide when the choice changes. */
+@Composable
+private fun SheetChip(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector?, selected: Boolean, onClick: () -> Unit) {
+    val bg by androidx.compose.animation.animateColorAsState(
+        if (selected) SecondaryContainer else SurfaceHighest, androidx.compose.animation.core.tween(280), label = "chipBg"
+    )
+    val fg by androidx.compose.animation.animateColorAsState(
+        if (selected) OnSecondaryContainer else TextPrimary, androidx.compose.animation.core.tween(280), label = "chipFg"
+    )
+    Row(
+        Modifier
+            .height(52.dp)
+            .bouncyClickable(pressedScale = 0.95f, onClick = onClick)
+            .clip(CircleShape)
+            .background(bg)
+            .padding(horizontal = 24.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (icon != null) {
+            Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.width(10.dp))
+        }
+        Text(text, color = fg, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+    }
+}
+
+/** A rounded card with a title, a status line and a switch. */
+@Composable
+private fun ToggleCard(
+    title: String,
+    status: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onClick: (() -> Unit)?,
+    onChange: (Boolean) -> Unit
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(SurfaceHighest)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(start = 22.dp, end = 18.dp, top = 18.dp, bottom = 18.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Medium)
+            Text(status, color = TextMuted, fontSize = 16.sp, modifier = Modifier.padding(top = 2.dp))
+        }
+        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
     }
 }
 

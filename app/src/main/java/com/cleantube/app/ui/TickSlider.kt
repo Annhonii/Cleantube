@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -66,7 +67,10 @@ fun TickSlider(
     live: Boolean = true,
     dark: Boolean = false,
     compact: Boolean = false,
-    resetIndex: Int? = null
+    resetIndex: Int? = null,
+    /** Pixel look: grey ticks, a fat white needle, [bubble] puts the value in a round chip at the left. */
+    pixel: Boolean = false,
+    bubble: Boolean = false
 ) {
     if (labels.isEmpty()) return
     val scope = rememberCoroutineScope()
@@ -80,6 +84,7 @@ fun TickSlider(
     val accent = if (dark) Color.White else Accent
     val idle = if (dark) Color(0x80FFFFFF) else TextMuted
     val textColor = if (dark) Color.White else Accent
+    val needleColor = TextPrimary
 
     var pos by remember { mutableFloatStateOf(index.coerceIn(0, last).toFloat()) }
     var committed by remember { mutableIntStateOf(index.coerceIn(0, last)) }
@@ -144,14 +149,24 @@ fun TickSlider(
             .padding(horizontal = if (compact) 14.dp else 22.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            labels[held.coerceIn(0, last)],
-            color = textColor,
-            fontSize = if (compact) 14.sp else 20.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            modifier = Modifier.width(if (compact) 54.dp else 84.dp)
-        )
+        if (pixel && bubble) {
+            Box(
+                Modifier.padding(start = 0.dp).size(barH - 12.dp).clip(CircleShape).background(TextPrimary),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(labels[held.coerceIn(0, last)], color = Bg, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+            Spacer(Modifier.width(8.dp))
+        } else {
+            Text(
+                labels[held.coerceIn(0, last)],
+                color = if (pixel) TextMuted else textColor,
+                fontSize = if (compact) 14.sp else if (pixel) 26.sp else 20.sp,
+                fontWeight = if (pixel) FontWeight.Bold else FontWeight.Medium,
+                maxLines = 1,
+                modifier = Modifier.width(if (compact) 54.dp else if (pixel) 100.dp else 84.dp)
+            )
+        }
         Box(
             Modifier
                 .weight(1f)
@@ -184,14 +199,19 @@ fun TickSlider(
                     val edge = (1f - (abs(x - cx) / (size.width / 2f)).coerceIn(0f, 1f)).coerceIn(0f, 1f)
                     val a = (edge * 2.2f).coerceIn(0f, 1f)
                     val passed = x <= cx + 0.5f
-                    val c = if (passed) accent else idle
+                    val c = if (passed && !pixel) accent else idle
                     drawLine(
                         c.copy(alpha = c.alpha * a * (if (major) 1f else 0.7f)),
                         Offset(x, cy - h / 2f), Offset(x, cy + h / 2f), w, StrokeCap.Round
                     )
                 }
                 // the needle
-                drawLine(accent, Offset(cx, 0f), Offset(cx, size.height), 2.dp.toPx(), StrokeCap.Round)
+                if (pixel) {
+                    val nh = size.height * 0.56f
+                    drawLine(needleColor, Offset(cx, cy - nh / 2f), Offset(cx, cy + nh / 2f), 8.dp.toPx(), StrokeCap.Round)
+                } else {
+                    drawLine(accent, Offset(cx, 0f), Offset(cx, size.height), 2.dp.toPx(), StrokeCap.Round)
+                }
             }
         }
         if (resetIndex != null) {
