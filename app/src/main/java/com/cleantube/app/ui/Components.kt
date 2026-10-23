@@ -122,7 +122,7 @@ fun Pill(
         modifier = modifier
             .bouncyClickable(pressedScale = 0.92f, onClick = onClick)
             .clip(CircleShape)
-            .then(if (active) Modifier.background(bg) else Modifier.glass(CircleShape, 0.45f))
+            .background(bg)
             .padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center

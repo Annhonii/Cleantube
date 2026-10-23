@@ -100,7 +100,8 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
             .offset { IntOffset(0, dragY.roundToInt()) }
             .fillMaxWidth()
             .heightIn(max = 600.dp)
-            .glassSurface(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), 0.9f)
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(Card)
             // swallow taps so the page underneath doesn't react
             .pointerInput(Unit) { detectTapGestures { } }
     ) {

@@ -139,7 +139,8 @@ fun TickSlider(
         modifier
             .fillMaxWidth()
             .height(barH)
-            .then(if (dark) Modifier.glass(CircleShape, 0.35f) else Modifier.glass(CircleShape, 0.6f))
+            .clip(CircleShape)
+            .background(bg)
             .padding(horizontal = if (compact) 14.dp else 22.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

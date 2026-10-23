@@ -369,8 +369,9 @@ fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifi
             .navigationBarsPadding()
             .padding(horizontal = (18f + 8f * s).dp, vertical = (12f - 4f * s).dp)
             .fillMaxWidth()
-            .shadow(14.dp, shape, clip = false, ambientColor = shadowColor, spotColor = shadowColor)
-            .glassSurface(shape, alpha = if (dark) 0.80f else 0.82f)
+            .shadow(10.dp, shape, clip = false, ambientColor = shadowColor, spotColor = shadowColor)
+            .clip(shape)
+            .background(surface)
             .padding((6f - 1f * s).dp),
         horizontalArrangement = Arrangement.spacedBy((4f - 1f * s).dp),
         verticalAlignment = Alignment.CenterVertically
@@ -382,14 +383,15 @@ fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifi
                 androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 400f),
                 label = "dockW"
             )
-            val bgA by androidx.compose.animation.core.animateFloatAsState(if (sel) 1f else 0f, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 380f), label = "dockBg")
-            val fg by androidx.compose.animation.animateColorAsState(if (sel) TextPrimary else plain, androidx.compose.animation.core.tween(220), label = "dockFg")
+            val bg by androidx.compose.animation.animateColorAsState(if (sel) Accent else Color.Transparent, androidx.compose.animation.core.tween(220), label = "dockBg")
+            val fg by androidx.compose.animation.animateColorAsState(if (sel) OnAccent else plain, androidx.compose.animation.core.tween(220), label = "dockFg")
             Row(
                 Modifier
                     .weight(w.coerceAtLeast(0.05f))
                     .height((52f - 3f * s).dp)
-                    .bouncyClickable(pressedScale = 0.9f, onClick = { nav.selectTab(t.route) })
-                    .glassItem(RoundedCornerShape((26f - 2f * s).dp), bgA),
+                    .clip(RoundedCornerShape((26f - 2f * s).dp))
+                    .background(bg)
+                    .bouncyClickable(pressedScale = 0.9f, onClick = { nav.selectTab(t.route) }),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -403,16 +405,3 @@ fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifi
         }
     }
 }
-
-/** The selected tab of the dock: a lighter piece of glass that fades / springs in behind the icon. */
-private fun Modifier.glassItem(shape: RoundedCornerShape, amount: Float): Modifier =
-    if (amount < 0.01f) this.clip(shape)
-    else this
-        .clip(shape)
-        .background(Color.White.copy(alpha = 0.16f * amount))
-        .background(
-            androidx.compose.ui.graphics.Brush.verticalGradient(
-                listOf(Color.White.copy(alpha = 0.14f * amount), Color.Transparent)
-            )
-        )
-        .border(1.dp, Color.White.copy(alpha = 0.30f * amount), shape)

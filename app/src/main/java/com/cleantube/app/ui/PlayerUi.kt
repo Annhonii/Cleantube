@@ -309,7 +309,7 @@ internal fun CtChip(text: String, selected: Boolean, onClick: () -> Unit) {
         Modifier
             .bouncyClickable(pressedScale = 0.93f, onClick = onClick)
             .clip(CircleShape)
-            .then(if (selected) Modifier.background(Color.White) else Modifier.glass(CircleShape, 0.3f))
+            .background(if (selected) Color.White else Color(0x26FFFFFF))
             .padding(horizontal = 11.dp, vertical = 5.dp)
     ) {
         Text(text, color = if (selected) Color.Black else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
