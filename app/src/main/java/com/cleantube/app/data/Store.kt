@@ -78,6 +78,15 @@ class Store(context: Context) {
             sp.edit().putFloat("default_speed", value).apply()
         }
 
+    private val fastStartState = mutableStateOf(sp.getBoolean("fast_start", true))
+    /** Look up stream links ahead of time (videos on screen, the one under your finger, the next Shorts) so playback starts fast. */
+    var fastStart: Boolean
+        get() = fastStartState.value
+        set(value) {
+            fastStartState.value = value
+            sp.edit().putBoolean("fast_start", value).apply()
+        }
+
     private val autoPopupState = mutableStateOf(sp.getBoolean("auto_popup", true))
     /** Leaving the app while a video plays opens the floating popup window by itself. */
     var autoPopup: Boolean

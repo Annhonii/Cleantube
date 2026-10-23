@@ -47,6 +47,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
@@ -90,6 +91,15 @@ fun Modifier.bouncyClickable(
             scaleY = scale
         }
         .clickable(interactionSource = source, indication = null, enabled = enabled, onClick = onClick)
+}
+
+
+/** While a finger touches this, the video's stream link is looked up already (the tap that follows then starts at once). */
+fun Modifier.prefetchOnPress(id: String): Modifier = pointerInput(id) {
+    androidx.compose.foundation.gestures.awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false, pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+        com.cleantube.app.data.Playback.prefetch(id)
+    }
 }
 
 /** A plain tap: no squish, no bounce, no ripple (used on the video cards). */

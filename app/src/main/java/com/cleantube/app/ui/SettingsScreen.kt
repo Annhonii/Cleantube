@@ -535,6 +535,21 @@ fun SettingsScreen() {
                 }
 
                 SettingsPage.Player -> {
+                    SectionTitle("STREAM START")
+                    Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Card)
+                                .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text("Fast start", color = TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                            Switch(checked = store.fastStart, onCheckedChange = { store.fastStart = it })
+                        }
+                        Text(
+                            "Videos start almost instantly: the app prepares the videos on your screen (and the one you are touching) before you open them. Fast start consumes slightly more battery and data. Turn it off to save them; videos then take a moment longer to start.",
+                            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
                     SectionTitle("VIDEO QUALITY ON WI-FI")
                     QualityPills(store.wifiQuality) { store.wifiQuality = it }
                     SectionTitle("VIDEO QUALITY ON MOBILE DATA")
