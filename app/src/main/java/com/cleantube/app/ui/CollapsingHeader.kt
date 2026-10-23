@@ -94,10 +94,8 @@ private val HeaderSpring = spring<Float>(dampingRatio = 0.9f, stiffness = 380f)
  */
 @Composable
 fun collapsingHeaderHeight(route: Route = Route.Home): Dp {
-    val p by animateFloatAsState(HeaderScroll.get(route), HeaderSpring, label = "headerPadding")
-    val t = p.coerceIn(0f, 1f)
-    return WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + CardTop +
-        androidx.compose.ui.unit.lerp(CardBig, CardSmall, t) + BelowCard
+    // the top is now a fixed row of tabs (see TopTabBar), so every screen starts the same distance below the status bar
+    return WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + TopTabsHeight
 }
 
 private fun li(a: Int, b: Int, t: Float) = (a + (b - a) * t).roundToInt()

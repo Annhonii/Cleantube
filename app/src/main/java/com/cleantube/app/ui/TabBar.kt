@@ -58,22 +58,33 @@ fun TabBar(nav: Nav, tabs: List<TabSpec>, visible: Boolean, modifier: Modifier =
             Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 12.dp, end = 12.dp, bottom = 10.dp),
             contentAlignment = Alignment.BottomCenter
         ) {
-            val shape = RoundedCornerShape(32.dp)
+            val shape = RoundedCornerShape(30.dp)
             Row(
                 Modifier
-                    .widthIn(max = 420.dp)
+                    .widthIn(max = 460.dp)
                     .fillMaxWidth()
-                    .height(78.dp)
-                    .shadow(6.dp, shape)
+                    .height(60.dp)
+                    .shadow(10.dp, shape, ambientColor = Color.Black.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.18f))
                     .clip(shape)
                     .background(SurfaceHighest)
-                    .padding(vertical = 8.dp),
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                        if (nav.current != Route.Search()) nav.push(Route.Search())
+                    }
+                    .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                tabs.forEach { t ->
-                    val selected = t.route == nav.current
-                    TabBarItem(t, selected, Modifier.weight(1f)) { if (!selected) nav.selectTab(t.route) }
+                // the little red YouTube-style logo
+                Box(
+                    Modifier.size(width = 38.dp, height = 28.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFFE53935)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(androidx.compose.material.icons.Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(20.dp))
                 }
+                Text(
+                    "Search", color = TextMuted, fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f).padding(start = 16.dp)
+                )
+                Icon(androidx.compose.material.icons.Icons.Rounded.Search, contentDescription = "Search", tint = TextPrimary, modifier = Modifier.size(26.dp))
             }
         }
     }
