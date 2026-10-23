@@ -97,7 +97,7 @@ fun Modifier.bouncyClickable(
 /** While a finger touches this, the video's stream link is looked up already (the tap that follows then starts at once). */
 fun Modifier.prefetchOnPress(id: String): Modifier = pointerInput(id) {
     androidx.compose.foundation.gestures.awaitEachGesture {
-        awaitFirstDown(requireUnconsumed = false, pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+        androidx.compose.foundation.gestures.awaitFirstDown(requireUnconsumed = false, pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial)
         com.cleantube.app.data.Playback.prefetch(id)
     }
 }
