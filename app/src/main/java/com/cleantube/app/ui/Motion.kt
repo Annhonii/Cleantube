@@ -47,6 +47,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
@@ -96,8 +98,8 @@ fun Modifier.bouncyClickable(
 
 /** While a finger touches this, the video's stream link is looked up already (the tap that follows then starts at once). */
 fun Modifier.prefetchOnPress(id: String): Modifier = pointerInput(id) {
-    androidx.compose.foundation.gestures.awaitEachGesture {
-        androidx.compose.foundation.gestures.awaitFirstDown(requireUnconsumed = false, pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false, pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial)
         com.cleantube.app.data.Playback.prefetch(id)
     }
 }
