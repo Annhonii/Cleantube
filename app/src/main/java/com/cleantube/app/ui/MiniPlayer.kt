@@ -481,6 +481,18 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
             }
         )
 
+        // the status bar area: black once the page is (nearly) open, like the official app; it fades away with the page
+        if (!inPip) {
+            Box(
+                Modifier
+                    .align(Alignment.TopStart)
+                    .fillMaxWidth()
+                    .height(with(density) { statusPx.toDp() })
+                    .graphicsLayer { alpha = ((pA.value - 0.5f) * 2f).coerceIn(0f, 1f) }
+                    .background(Color.Black)
+            )
+        }
+
         Box(
             Modifier
                 .layout { measurable, constraints ->
@@ -488,10 +500,13 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                     val pc = pv.coerceIn(0f, 1f)
                     val x = lerpF(anchorX(), 0f, pc)
                     val sw = lerpF(anchorW(), w, pc).roundToInt()
-                    val sh = lerpF(anchorH(), h, pc).roundToInt()
+                    // the card ends right under the status bar (the bar itself is a black strip drawn separately), so
+                    // there is never a patch of page background above the video while it grows
+                    val endTop = if (inPip) 0f else vTop
+                    val sh = lerpF(anchorH(), h - endTop, pc).roundToInt()
                     val anchorTop = VideoHost.origin?.let { lerpF(h - collapsedBottom - cardH, it.top, VideoHost.om.value) }
                         ?: (h - collapsedBottom - cardH)
-                    val top = lerpF(anchorTop, 0f, pc) + (if (pv < 0f) -pv * travel else 0f)
+                    val top = lerpF(anchorTop, endTop, pc) + (if (pv < 0f) -pv * travel else 0f)
                     val pl = measurable.measure(Constraints.fixed(sw, sh))
                     layout(constraints.maxWidth, constraints.maxHeight) { pl.place(x.roundToInt(), top.roundToInt()) }
                 }
@@ -506,9 +521,6 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                 .drawBehind {
                     val dark = inPip || (PipHost.transitioning && PipHost.autoEnter)
                     drawRect(if (dark) Color.Black else lerp(Card, Bg, pA.value.coerceIn(0f, 1f)))
-                    if (!dark) {
-                        drawRect(Color.Black, size = androidx.compose.ui.geometry.Size(size.width, statusPx), alpha = ((pA.value - 0.5f) * 2f).coerceIn(0f, 1f))
-                    }
                 }
         ) {
             // ---- the rest of the page (title, buttons, comments, up next); fades in while opening
@@ -519,7 +531,7 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                             layout(0, 0) {}
                         } else {
                             val pl = measurable.measure(Constraints.fixed(w.roundToInt(), (h - area).roundToInt().coerceAtLeast(0)))
-                            layout(constraints.maxWidth, constraints.maxHeight) { pl.place(0, area.roundToInt()) }
+                            layout(constraints.maxWidth, constraints.maxHeight) { pl.place(0, vH.roundToInt()) }
                         }
                     }
                     .graphicsLayer {
@@ -554,7 +566,6 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                             scaleX = sc
                             scaleY = sc
                             translationX = lerpF(0f, sideX, pc)
-                            translationY = lerpF(0f, vTop, pc)
                             shape = RoundedCornerShape(lerpF(anchorCorner(), 0f, pc) / sc)
                             // fully open the picture is square anyway: no clipping, so the seek bar's dot can reach below its edge
                             clip = pc < 0.995f
