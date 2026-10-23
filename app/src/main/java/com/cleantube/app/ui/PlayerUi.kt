@@ -9,6 +9,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.togetherWith
@@ -498,7 +499,7 @@ fun CtOverlay(
             val centreOn = showControls && p.firstFrame && !dragging
             val pop by androidx.compose.animation.core.animateFloatAsState(
                 if (centreOn) 1f else 0f,
-                if (centreOn) spring(dampingRatio = 0.55f, stiffness = 380f) else tween(160),
+                if (centreOn) spring<Float>(dampingRatio = 0.55f, stiffness = 380f) else tween<Float>(160),
                 label = "centrePop"
             )
             if (pop > 0.01f || centreOn) {
