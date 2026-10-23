@@ -31,7 +31,7 @@ object Playback {
     @Volatile private var blockedUntil = 0L
     private const val BLOCK_PAUSE_MS = 3L * 60 * 1000
     // Prefetches run one at a time, with a short gap between them.
-    private val prefetchGate = Semaphore(1)
+    private val prefetchGate = Semaphore(2)
 
     private fun noteBlock(e: Throwable) {
         if (Streams.isBlock(e.message)) blockedUntil = System.currentTimeMillis() + BLOCK_PAUSE_MS
@@ -104,7 +104,7 @@ object Playback {
             prefetchGate.withPermit {
                 if (cached(id) != null || System.currentTimeMillis() < blockedUntil) return@withPermit
                 runCatching { resolve(id) }
-                delay(500)
+                delay(150)
             }
         }
     }

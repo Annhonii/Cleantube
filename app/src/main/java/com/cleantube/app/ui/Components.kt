@@ -299,8 +299,8 @@ fun <T> PagedColumn(
     // fast start: once the list rests for a moment, prepare the links of the videos that are on screen
     LaunchedEffect(state, paged) {
         snapshotFlow { state.firstVisibleItemIndex }.collectLatest { first ->
-            kotlinx.coroutines.delay(350)
-            paged.items.drop(first).take(4).filterIsInstance<VideoItem>().filter { !it.short && !it.live && it.durationSec !in 1..62 }
+            kotlinx.coroutines.delay(200)
+            paged.items.drop(first).take(7).filterIsInstance<VideoItem>().filter { !it.short && !it.live && it.durationSec !in 1..62 }
                 .forEach { com.cleantube.app.data.Playback.prefetch(it.id) }
         }
     }
@@ -702,7 +702,7 @@ object ChannelAvatars {
  * without waiting for that lookup (links only, no video data is loaded). Shorts and live streams are skipped.
  */
 @Composable
-fun PrefetchTop(items: List<VideoItem>, count: Int = 3) {
+fun PrefetchTop(items: List<VideoItem>, count: Int = 5) {
     val ids = items.asSequence().filter { !it.short && !it.live && it.durationSec !in 1..62 }.take(count).map { it.id }.toList()
     LaunchedEffect(ids) { ids.forEach { Playback.prefetch(it) } }
 }
