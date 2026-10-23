@@ -17,6 +17,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
@@ -95,23 +96,29 @@ fun ChannelScreen(route: Route.Channel) {
             val paged = remember(ch.id) {
                 Paged<VideoItem>(scope) { token -> Api.channelVideos(ch.id, token) }
             }
-            val posts = remember(ch.id) {
-                Paged<Post>(scope) { token -> Api.channelPosts(ch.id, token) }
-            }
+            val posts = remember(ch.id) { Paged<Post>(scope) { token -> Api.channelPosts(ch.id, token) } }
+            val live = remember(ch.id) { Paged<VideoItem>(scope) { token -> Api.channelVideosTab(ch.id, "live", token) } }
+            val shorts = remember(ch.id) { Paged<VideoItem>(scope) { token -> Api.channelVideosTab(ch.id, "shorts", token) } }
+            val lists = remember(ch.id) { Paged<PlaylistItem>(scope) { token -> Api.channelPlaylists(ch.id, token) } }
             var tab by remember(ch.id) { mutableStateOf(0) }
-            if (tab == 1) {
-                PagedColumn(
-                    posts,
-                    emptyText = "No posts on this channel.",
-                    header = { item { ChannelHeader(ch, tab, onTab = { tab = it }, onBack = { nav.back() }) } }
-                ) { post -> PostCard(post) }
-            } else {
-                PagedColumn(
-                    paged,
-                    emptyText = "No public videos.",
-                    header = { item { ChannelHeader(ch, tab, onTab = { tab = it }, onBack = { nav.back() }) } }
-                ) { v ->
-                    if (tab == 0) CompactRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
+            val head: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
+                item(key = "channel-header") {
+                    ChannelHeader(ch, tab, onTab = { tab = it }, onBack = { nav.back() }, onAbout = { nav.push(Route.ChannelAbout(ch)) })
+                }
+            }
+            when (tab) {
+                0 -> PagedColumn(paged, emptyText = "No public videos.", header = head) { v ->
+                    VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
+                }
+                1 -> PagedColumn(live, emptyText = "No live streams.", header = head) { v ->
+                    VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
+                }
+                2 -> PagedColumn(posts, emptyText = "No posts on this channel.", header = head) { post -> PostCard(post) }
+                3 -> PagedColumn(lists, emptyText = "No playlists.", header = head) { pl ->
+                    PlaylistRow(pl, onClick = { nav.push(Route.Playlist(pl.id, pl.title)) })
+                }
+                else -> PagedColumn(shorts, emptyText = "No Shorts.", header = head) { v ->
+                    VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
                 }
             }
         }
@@ -127,13 +134,12 @@ private fun statParts(t: String): Pair<String, String> {
 }
 
 @Composable
-private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit, onBack: () -> Unit) {
+private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit, onBack: () -> Unit, onAbout: () -> Unit) {
     val store = Graph.store
     val subscribed = store.isSubscribed(ch.id)
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
-    var about by remember(ch.id) { mutableStateOf(false) }
     val avatarSize = 104.dp
 
     Column(Modifier.fillMaxWidth()) {
@@ -230,10 +236,9 @@ private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit, onBac
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 18.dp)
-                    .clip(RoundedCornerShape(28.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .background(Card)
-                    .clickable { about = !about }
-                    .animateContentSize(spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow))
+                    .clickable(onClick = onAbout)
                     .padding(horizontal = 20.dp, vertical = 18.dp)
             ) {
                 if (stats.isNotEmpty()) {
@@ -252,7 +257,7 @@ private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit, onBac
                 if (ch.description.isNotBlank()) {
                     Text(
                         ch.description, color = TextPrimary, fontSize = 15.sp, lineHeight = 24.sp,
-                        maxLines = if (about) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis
+                        maxLines = 3, overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -263,7 +268,7 @@ private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit, onBac
             Modifier.horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            listOf("Videos", "Posts").forEachIndexed { i, label ->
+            listOf("Videos", "Live", "Posts", "Playlists", "Shorts").forEachIndexed { i, label ->
                 val sel = tab == i
                 val bg by animateColorAsState(if (sel) Accent else Color.Transparent, tween(300, easing = M3Standard), label = "chipBg")
                 val fg by animateColorAsState(if (sel) OnAccent else TextPrimary, tween(300, easing = M3Standard), label = "chipFg")
@@ -366,5 +371,59 @@ private fun PostCard(post: Post) {
         val counts = listOf(post.likes.takeIf { it.isNotEmpty() }?.let { "$it likes" }, post.comments.takeIf { it.isNotEmpty() }?.let { "$it comments" })
             .filterNotNull().joinToString("  •  ")
         if (counts.isNotEmpty()) Text(counts, color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+    }
+}
+
+/** The channel's About page, full screen: photo, name, numbers, the whole description, links. */
+@Composable
+fun ChannelAboutScreen(ch: ChannelItem) {
+    val nav = LocalNav.current
+    val ctx = LocalContext.current
+    Column(Modifier.fillMaxSize()) {
+        ScreenTitle("About", onBack = { nav.back() })
+        Column(
+            Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = listBottomPad()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AppImage(ch.thumb, Modifier.size(72.dp), CircleShape)
+                Column(Modifier.padding(start = 16.dp)) {
+                    Text(ch.title, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                    if (ch.handle.isNotEmpty()) Text(ch.handle, color = TextMuted, fontSize = 15.sp)
+                }
+            }
+            val subs = ch.subsText.ifEmpty { ch.subs.takeIf { it >= 0 }?.let { "${formatCount(it)} subscribers" }.orEmpty() }
+            val stats = listOf(subs, ch.videosText).filter { it.isNotEmpty() }
+            if (stats.isNotEmpty()) {
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Card).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    stats.forEach { t ->
+                        val (n, l) = statParts(t)
+                        Row {
+                            Text(n, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            if (l.isNotEmpty()) Text(" ${l.replaceFirstChar { it.uppercase() }}", color = TextMuted, fontSize = 16.sp)
+                        }
+                    }
+                }
+            }
+            if (ch.description.isNotBlank()) {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Card).padding(16.dp)) {
+                    Text("Description", color = TextMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    androidx.compose.foundation.text.selection.SelectionContainer {
+                        Text(ch.description, color = TextPrimary, fontSize = 15.sp, lineHeight = 23.sp, modifier = Modifier.padding(top = 8.dp))
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Pill("Share", onClick = { shareText(ctx, "https://www.youtube.com/channel/${ch.id}") })
+                Pill("Open in YouTube", onClick = { openUrl(ctx, "https://www.youtube.com/channel/${ch.id}") })
+            }
+        }
     }
 }

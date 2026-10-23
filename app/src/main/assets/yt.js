@@ -594,7 +594,7 @@
     var tabsRoot = j.contents && j.contents.twoColumnBrowseResultsRenderer && j.contents.twoColumnBrowseResultsRenderer.tabs;
     (tabsRoot || []).forEach(function (t) {
       var r = t.tabRenderer;
-      if (r) tabs.push({ title: r.title || '', selected: !!r.selected, params: r.endpoint && r.endpoint.browseEndpoint && r.endpoint.browseEndpoint.params || '' });
+      if (r) tabs.push({ title: r.title || '', url: (r.endpoint && r.endpoint.commandMetadata && r.endpoint.commandMetadata.webCommandMetadata && r.endpoint.commandMetadata.webCommandMetadata.url) || '', selected: !!r.selected, params: r.endpoint && r.endpoint.browseEndpoint && r.endpoint.browseEndpoint.params || '' });
     });
 
     var list = parseItems(j, j.contents);
@@ -864,6 +864,20 @@
         if (tab) params = tab.params;
       } catch (e) { /* use the default */ }
       return parsePosts(await call('browse', { browseId: a.id, params: params }));
+    },
+    /** A channel's Shorts / Live / Playlists tab. a.tab = shorts | live | playlists, a.token = next page. */
+    channelTab: async function (a) {
+      if (a.token) { var r0 = parseItems(await browse(null, a.token)); return { items: r0.items, next: r0.next }; }
+      var def = { shorts: 'EgZzaG9ydHPyBgUKA5oBAA==', live: 'EgdzdHJlYW1z8gYECgJ6AA==', playlists: 'EglwbGF5bGlzdHPyBgQKAkIA' };
+      var url = { shorts: /\/shorts$/, live: /\/streams$/, playlists: /\/playlists$/ }[a.tab];
+      var params = def[a.tab];
+      try {
+        var main = parseChannel(await call('browse', { browseId: a.id }));
+        var tab = (main.tabs || []).filter(function (t) { return t.params && url && url.test(t.url || ''); })[0];
+        if (tab) params = tab.params;
+      } catch (e) { /* use the default */ }
+      var r = parseItems(await call('browse', { browseId: a.id, params: params }));
+      return { items: r.items, next: r.next };
     },
     handle: async function (a) {
       var j = await call('navigation/resolve_url', { url: 'https://www.youtube.com/' + a.handle });

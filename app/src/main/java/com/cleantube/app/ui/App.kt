@@ -240,6 +240,7 @@ private fun OtherScreen(route: Route) {
         is Route.Search -> SearchScreen(route)
         is Route.Video -> Unit   // videos are drawn by VideoSheet
         is Route.Channel -> ChannelScreen(route)
+        is Route.ChannelAbout -> ChannelAboutScreen(route.channel)
         is Route.Playlist -> PlaylistScreen(route)
         is Route.LocalList -> LocalListScreen(route)
     }

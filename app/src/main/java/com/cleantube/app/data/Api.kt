@@ -388,6 +388,25 @@ object Api {
         return Page(list, j.nextToken())
     }
 
+    /** A channel's Shorts or Live tab. */
+    suspend fun channelVideosTab(id: String, tab: String, token: String?): Page<VideoItem> {
+        val j = Yt.run("channelTab", args("id" to id, "tab" to tab, "token" to token))
+        val ch = channelCache[id]?.first
+        val vids = j.pick("v") { it.video() }.map {
+            it.copy(
+                channelId = id, channelTitle = it.channelTitle.ifEmpty { ch?.title.orEmpty() },
+                short = it.short || tab == "shorts"
+            )
+        }
+        return Page(vids, j.nextToken())
+    }
+
+    /** A channel's Playlists tab. */
+    suspend fun channelPlaylists(id: String, token: String?): Page<PlaylistItem> {
+        val j = Yt.run("channelTab", args("id" to id, "tab" to "playlists", "token" to token))
+        return Page(j.pick("p") { it.playlistItem() }, j.nextToken())
+    }
+
     // ---------------------------------------------------------------- playlist
 
     private val playlistTitles = ConcurrentHashMap<String, String>()
