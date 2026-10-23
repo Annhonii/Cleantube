@@ -73,6 +73,7 @@ fun CompactRow(v: VideoItem, onClick: () -> Unit, modifier: Modifier = Modifier,
     Row(
         modifier
             .fillMaxWidth()
+            .prefetchOnPress(v.id)
             .plainClickable { thumbC[0]?.takeIf { it.isAttached }?.let { VideoHost.rememberOrigin(it.boundsInWindow()) }; onClick() }
             .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.Top

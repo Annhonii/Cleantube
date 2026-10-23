@@ -51,6 +51,8 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -294,6 +296,14 @@ fun <T> PagedColumn(
     LoadMoreEffect(state, paged)
     // rows that were already shown don't animate again when scrolled back into view
     val seen = paged.seen
+    // fast start: once the list rests for a moment, prepare the links of the videos that are on screen
+    LaunchedEffect(state, paged) {
+        snapshotFlow { state.firstVisibleItemIndex }.collectLatest { first ->
+            kotlinx.coroutines.delay(350)
+            paged.items.drop(first).take(4).filter { !it.short && !it.live && it.durationSec !in 1..62 }
+                .forEach { com.cleantube.app.data.Playback.prefetch(it.id) }
+        }
+    }
 
     PullRefresh(
         refreshing = paged.refreshing,
@@ -363,6 +373,7 @@ fun VideoRow(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .prefetchOnPress(v.id)
             .plainClickable { thumbC[0]?.takeIf { it.isAttached }?.let { VideoHost.rememberOrigin(it.boundsInWindow()) }; onClick() }
             .padding(horizontal = 14.dp, vertical = 9.dp)
     ) {
