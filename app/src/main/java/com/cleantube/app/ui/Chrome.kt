@@ -5,6 +5,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 
 import androidx.compose.runtime.remember
@@ -409,19 +410,19 @@ fun BottomNavPill(position: () -> Float, shortsIndex: Int = -1, modifier: Modifi
             val i1 = (i0 + 1).coerceAtMost(n - 1)
             val f = (p - i0).coerceIn(0f, 1f)
             var left = xs[i0] + (xs[i1] - xs[i0]) * f
-            var width = ws[i0] * unit + (ws[i1] * unit - ws[i0] * unit) * f
+            var dropW = ws[i0] * unit + (ws[i1] * unit - ws[i0] * unit) * f
             // past either end (overshoot) it just keeps going a little
             left += (p - p.coerceIn(0f, (n - 1).toFloat())) * unit
             val target = if (dragging) p else selected.toFloat()
             val d = target - p
             val stretch = abs(d).coerceAtMost(1.6f) * 0.55f * unit
-            if (d > 0f) width += stretch else { left -= stretch; width += stretch }
+            if (d > 0f) dropW += stretch else { left -= stretch; dropW += stretch }
             val squash = 1f - 0.12f * abs(d).coerceAtMost(1f)
 
             Box(
                 Modifier
                     .offset { androidx.compose.ui.unit.IntOffset(left.roundToInt(), 0) }
-                    .size(with(density) { width.toDp() }, itemH)
+                    .size(with(density) { dropW.toDp() }, itemH)
                     .graphicsLayer {
                         scaleY = squash * (if (dragging) 1.06f else 1f)
                         scaleX = if (dragging) 1.04f else 1f
