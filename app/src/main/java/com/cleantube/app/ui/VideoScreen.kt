@@ -655,7 +655,19 @@ fun CommentsPanel(videoId: String, comments: Paged<Comment>, count: String, onCl
         if (!Session.loggedIn) {
             Toast.makeText(ctx, "Sign in to reply.", Toast.LENGTH_SHORT).show()
         } else if (c.replyParams.isEmpty()) {
-            Toast.makeText(ctx, "YouTube didn't allow replying to this comment from here.", Toast.LENGTH_SHORT).show()
+            val dbg = Api.replyDebug
+            if (dbg.isNotEmpty()) {
+                try {
+                    val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("voidstream reply debug", dbg))
+                } catch (e: Exception) { /* ignore */ }
+            }
+            Toast.makeText(
+                ctx,
+                if (dbg.isNotEmpty()) "Reply isn't available yet. Debug info copied: paste it to Claude so it can be fixed."
+                else "YouTube didn't allow replying to this comment from here.",
+                Toast.LENGTH_LONG
+            ).show()
         } else {
             replyDraft = ""
             replyToken = listToken

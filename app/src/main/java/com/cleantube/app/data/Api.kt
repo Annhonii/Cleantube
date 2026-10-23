@@ -257,6 +257,7 @@ object Api {
         ?: throw ApiException(ApiException.Kind.COMMENTS_OFF, "Comments are turned off for this video.")
         val j = Yt.run("comments", args("token" to token))
         if (j.optBoolean("disabled")) throw ApiException(ApiException.Kind.COMMENTS_OFF, "Comments are turned off for this video.")
+        j.optString("debug").takeIf { it.isNotEmpty() }?.let { replyDebug = it }
         if (page == null) j.optString("create").takeIf { it.isNotEmpty() }?.let { createParams[videoId] = it }
         val list = (j.optJSONArray("items") ?: JSONArray()).mapObjects {
             Comment(
@@ -286,6 +287,9 @@ object Api {
             Yt.run("postComment", args("params" to again, "text" to text))
         }
     }
+
+    /** What YouTube's comment data looks like when it carried no reply token (to find where it keeps it). */
+    @Volatile var replyDebug: String = ""
 
     /** Posts a reply to a comment on the signed-in account. */
     suspend fun postReply(replyParams: String, text: String) {

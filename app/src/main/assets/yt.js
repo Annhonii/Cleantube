@@ -372,6 +372,9 @@
         walk(o, function (x) {
           if (r) return true;
           if (typeof x.createReplyParams === 'string') { r = x.createReplyParams; return true; }
+          for (var k in x) {
+            if (/reply.*params|params.*reply/i.test(k) && typeof x[k] === 'string' && x[k].length > 20) { r = x[k]; return true; }
+          }
           return false;
         });
       }
@@ -382,6 +385,19 @@
     }
     var items = [];
     var token = null;
+    var debug = '';
+
+    /** Compact picture of an object's keys (values cut short), to see where YouTube keeps the reply button's data. */
+    function shape(o, d) {
+      if (o === null || o === undefined) return o;
+      if (typeof o === 'string') return o.length > 28 ? o.slice(0, 28) + '~' + o.length : o;
+      if (typeof o !== 'object') return o;
+      if (d > 6) return '{..}';
+      if (Array.isArray(o)) return o.length ? [shape(o[0], d + 1)] : [];
+      var r = {};
+      Object.keys(o).slice(0, 24).forEach(function (k) { r[k] = shape(o[k], d + 1); });
+      return r;
+    }
 
     function toItem(p, replyToken, replyParams) {
       return {
@@ -414,7 +430,16 @@
         var thread = x.commentThreadRenderer;
         var vm = thread.commentViewModel && thread.commentViewModel.commentViewModel;
         var p = vm && payloads[vm.commentKey];
-        if (p) items.push(toItem(p, replyTokenOf(thread.replies), replyParamsOf(thread, vm, p)));
+        if (p) {
+          var rpar = replyParamsOf(thread, vm, p);
+          if (!rpar && !debug) {
+            try {
+              var dd = { vm: shape(vm, 0), surface: shape(vm && surfaces[vm.toolbarSurfaceKey], 0), toolbar: shape(p.toolbar, 0) };
+              debug = JSON.stringify(dd).slice(0, 3800);
+            } catch (e) { /* ignore */ }
+          }
+          items.push(toItem(p, replyTokenOf(thread.replies), rpar));
+        }
         return true;
       }
       // Replies come without the thread wrapper: a plain commentViewModel per reply.
@@ -440,7 +465,7 @@
       if (typeof x.createCommentParams === 'string') { create = x.createCommentParams; return true; }
       return false;
     });
-    return { items: items, next: token, disabled: disabled, create: create };
+    return { items: items, next: token, disabled: disabled, create: create, debug: debug };
   }
 
   /** Channel page (browse with browseId, optionally followed by continuation). */
