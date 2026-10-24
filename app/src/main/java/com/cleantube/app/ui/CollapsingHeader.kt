@@ -101,7 +101,7 @@ private val CardSmall = NavTopSmall + NavH + BottomSmall
 // Rounded top corners of the feed (every tab page): the page's content is cut with rounded top-left / top-right corners
 // right under the header bar, so a video that scrolls up under the header looks rounded there. It is part of the page
 // (see [feedTopCorners]), so it moves with the page when tabs are switched or swiped.
-val FeedCorner = 36.dp
+val FeedCorner = 0.dp   // 0 = straight corners; raise it (e.g. 36.dp) to round the feed under the header again
 
 private val SearchIconSize = 24.dp
 private val SearchIconLeft = 16.dp    // icon's place inside the wide search bar
