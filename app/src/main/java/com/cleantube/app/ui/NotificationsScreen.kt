@@ -17,6 +17,27 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material3.Text
+import androidx.compose.material3.Card as M3Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Arrangement as Arr
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,10 +53,20 @@ import com.cleantube.app.data.NotificationItem
 import com.cleantube.app.data.Session
 import com.cleantube.app.data.TabCache
 
+private enum class NotifFilter(val label: String) { All("All"), Videos("Videos"), Mentions("Mentions") }
+
+/** Uploads, live streams and premieres. */
+private fun NotificationItem.isVideo() = kind == "upload" || kind == "live" || kind == "premiere"
+
+/** Comments, replies and mentions: what other people did with you / your comments. */
+private fun NotificationItem.isMention() = kind == "comment" || kind == "reply" || kind == "mention"
+
 /**
- * The Notification tab: YouTube's own notification bell (new uploads, live streams, comments, replies,
+ * The Notification screen: YouTube's own notification bell (new uploads, live streams, comments, replies,
  * mentions...). It needs a signed-in account, because YouTube only keeps notifications per account.
+ * Filter chips (All / Videos / Mentions) sit under the title; "All" shows the two kinds as separate sections.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsScreen() {
     val nav = LocalNav.current
@@ -51,7 +82,7 @@ fun NotificationsScreen() {
                 Text(
                     "Sign in with your Google account to see your YouTube notifications: new uploads, live streams, comments, replies and mentions.",
                     color = TextMuted,
-                    fontSize = 15.sp,
+                    style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.size(16.dp))
@@ -59,20 +90,102 @@ fun NotificationsScreen() {
             }
         } else {
             val paged = TabCache.paged("notifications:${Session.handle}") { token -> Api.notifications(token) }
-            PagedColumn(
-                paged = paged,
-                emptyText = "No notifications yet."
-            ) { n ->
-                NotificationRow(n, onClick = {
-                    when {
-                        n.videoId.isNotEmpty() -> nav.push(Route.Video(n.videoId))
-                        n.channelId.isNotEmpty() -> nav.push(Route.Channel(n.channelId))
-                        n.handle.isNotEmpty() -> nav.push(Route.Channel(id = "", handle = n.handle))
+            var filter by rememberSaveable { mutableStateOf(NotifFilter.All) }
+            val open: (NotificationItem) -> Unit = { n ->
+                when {
+                    n.videoId.isNotEmpty() -> nav.push(Route.Video(n.videoId))
+                    n.channelId.isNotEmpty() -> nav.push(Route.Channel(n.channelId))
+                    n.handle.isNotEmpty() -> nav.push(Route.Channel(id = "", handle = n.handle))
+                }
+            }
+
+            // filter chips
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arr.spacedBy(8.dp)
+            ) {
+                NotifFilter.values().forEach { f ->
+                    FilterChip(
+                        selected = filter == f,
+                        onClick = { filter = f },
+                        label = { Text(f.label, style = MaterialTheme.typography.labelLarge) },
+                        shape = CircleShape,
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = Color.Transparent,
+                            labelColor = TextMuted,
+                            selectedContainerColor = Accent,
+                            selectedLabelColor = OnAccent
+                        )
+                    )
+                }
+            }
+
+            val all = paged.items
+            val shown = when (filter) {
+                NotifFilter.All -> all
+                NotifFilter.Videos -> all.filter { it.isVideo() }
+                NotifFilter.Mentions -> all.filter { it.isMention() }
+            }
+            val state = paged.listState
+            LoadMoreEffect(state, paged)
+            // a filter can leave only a few rows on screen: keep loading older notifications until the list is filled
+            LaunchedEffect(filter, all.size, paged.loading, paged.finished) {
+                if (filter != NotifFilter.All && shown.size < 6 && !paged.loading && !paged.finished && paged.error == null && all.isNotEmpty()) {
+                    paged.loadMore()
+                }
+            }
+
+            PullRefresh(refreshing = paged.refreshing, onRefresh = { paged.pullRefresh() }, modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    Modifier.fillMaxSize(), state = state,
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = listBottomPad()),
+                    verticalArrangement = Arr.spacedBy(8.dp)
+                ) {
+                    if (filter == NotifFilter.All) {
+                        val videos = shown.filter { it.isVideo() }
+                        val mentions = shown.filter { it.isMention() }
+                        val other = shown.filter { !it.isVideo() && !it.isMention() }
+                        if (videos.isNotEmpty()) {
+                            item(key = "h-videos") { SectionTitle("Video uploads") }
+                            items(videos) { n -> NotificationCard(n, onClick = { open(n) }) }
+                        }
+                        if (mentions.isNotEmpty()) {
+                            item(key = "h-mentions") { SectionTitle("Mentions & comments") }
+                            items(mentions) { n -> NotificationCard(n, onClick = { open(n) }) }
+                        }
+                        if (other.isNotEmpty()) {
+                            item(key = "h-other") { SectionTitle("Other") }
+                            items(other) { n -> NotificationCard(n, onClick = { open(n) }) }
+                        }
+                    } else {
+                        items(shown) { n -> NotificationCard(n, onClick = { open(n) }) }
                     }
-                })
+                    item(key = "footer") {
+                        val err = paged.error
+                        when {
+                            err != null -> ErrorBox(err, onRetry = { paged.loadMore() })
+                            paged.loading -> Loading()
+                            shown.isEmpty() && paged.finished -> EmptyState(
+                                when (filter) {
+                                    NotifFilter.All -> "No notifications yet."
+                                    NotifFilter.Videos -> "No new videos from your channels."
+                                    NotifFilter.Mentions -> "No mentions or comments yet."
+                                }
+                            )
+                        }
+                    }
+                }
             }
         }
     }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text, color = TextMuted, style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier.padding(start = 8.dp, top = 12.dp, bottom = 2.dp)
+    )
 }
 
 private fun kindLabel(kind: String): String = when (kind) {
@@ -85,50 +198,58 @@ private fun kindLabel(kind: String): String = when (kind) {
     else -> ""
 }
 
+/**
+ * One notification as a Material 3 card: tonal container, 16dp corners, ripple on tap. Left the channel's / person's
+ * picture, in the middle the text (Title Medium) with the kind and time under it (Body Small), right the rounded
+ * thumbnail of the video. An unread notification has a stronger container, bold text and a small dot on its thumbnail.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NotificationRow(n: NotificationItem, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .bouncyClickable(pressedScale = 0.975f, onClick = onClick)
-            .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(if (n.read) Color.Transparent else Card)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+private fun NotificationCard(n: NotificationItem, onClick: () -> Unit) {
+    M3Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = if (n.read) Card else SurfaceHighest),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Box(Modifier.size(46.dp)) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             if (n.avatar.isNotEmpty()) {
-                AppImage(n.avatar, Modifier.size(46.dp), CircleShape)
+                AppImage(n.avatar, Modifier.size(44.dp), CircleShape)
             } else {
-                Box(Modifier.size(46.dp).clip(CircleShape).background(TertiaryContainer), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(44.dp).clip(CircleShape).background(TertiaryContainer), contentAlignment = Alignment.Center) {
                     androidx.compose.material3.Icon(Icons.Rounded.Notifications, contentDescription = null, tint = TextMuted, modifier = Modifier.size(22.dp))
                 }
             }
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                n.message,
-                color = TextPrimary,
-                fontSize = 14.sp,
-                fontWeight = if (n.read) FontWeight.Normal else FontWeight.Medium,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis
-            )
-            val label = kindLabel(n.kind)
-            val meta = listOf(label, n.time).filter { it.isNotEmpty() }.joinToString(" • ")
-            if (meta.isNotEmpty()) {
-                Text(meta, color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
-            }
-        }
-        if (n.thumb.isNotEmpty()) {
             Spacer(Modifier.width(12.dp))
-            AppImage(n.thumb, Modifier.width(96.dp).aspectRatio(16f / 9f), RoundedCornerShape(10.dp))
-        }
-        if (!n.read) {
-            Spacer(Modifier.width(8.dp))
-            Box(Modifier.size(8.dp).clip(CircleShape).background(Tertiary))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    n.message,
+                    color = TextPrimary,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = if (n.read) FontWeight.Normal else FontWeight.Bold,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+                val meta = listOf(kindLabel(n.kind), n.time).filter { it.isNotEmpty() }.joinToString(" • ")
+                if (meta.isNotEmpty()) {
+                    Text(meta, color = TextMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+                }
+            }
+            if (n.thumb.isNotEmpty()) {
+                Spacer(Modifier.width(12.dp))
+                Box {
+                    AppImage(n.thumb, Modifier.width(96.dp).aspectRatio(16f / 9f), RoundedCornerShape(12.dp))
+                    if (!n.read) {
+                        Box(
+                            Modifier.align(Alignment.TopEnd).padding(6.dp).size(10.dp)
+                                .clip(CircleShape).background(Accent)
+                        )
+                    }
+                }
+            } else if (!n.read) {
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.size(10.dp).clip(CircleShape).background(Accent))
+            }
         }
     }
 }
