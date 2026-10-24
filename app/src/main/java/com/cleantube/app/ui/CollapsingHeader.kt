@@ -6,6 +6,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -85,14 +86,20 @@ private val NavGapSmall = 10.dp     // photo row -> navigation row when collapse
 private val BottomBig = 10.dp
 private val BottomSmall = 8.dp
 
-private val NavTopBig = TopPad + AvatarBig + GreetGapTop + GreetH + GreetGapBottom
+private val NoGreetGap = 18.dp      // photo row -> navigation row when there is no greeting (signed out)
+
+/** The greeting only exists for a signed-in account with a name; signed out, nothing is shown there. */
+private fun hasGreeting() = Session.loggedIn && Session.name.isNotBlank()
+
+private fun navTopBigDp(greeting: Boolean): Dp =
+    if (greeting) TopPad + AvatarBig + GreetGapTop + GreetH + GreetGapBottom else TopPad + AvatarBig + NoGreetGap
 private val NavTopSmall = TopPad + AvatarSmall + NavGapSmall
-private val CardBig = NavTopBig + NavH + BottomBig        // below the status bar
+private fun cardBig(greeting: Boolean): Dp = navTopBigDp(greeting) + NavH + BottomBig   // below the status bar
 private val CardSmall = NavTopSmall + NavH + BottomSmall
 
 // Rounded top corners of the feed: the header's bottom edge gets a concave fillet at the left and right screen edge,
 // so a video that scrolls up under the header looks rounded there instead of being cut off by a straight line.
-private val FilletR = 24.dp
+private val FilletR = 34.dp
 
 private val SearchIconSize = 24.dp
 private val SearchIconLeft = 16.dp    // icon's place inside the wide search bar
@@ -111,7 +118,7 @@ fun collapsingHeaderHeight(route: Route = Route.Home): Dp {
     val sb = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val target = if (route == Route.Home) HeaderScroll.get(Route.Home) else 1f
     val p by animateFloatAsState(target, HeaderSpring, label = "headerHeight")
-    return sb + androidx.compose.ui.unit.lerp(CardBig, CardSmall, p)
+    return sb + androidx.compose.ui.unit.lerp(cardBig(hasGreeting()), CardSmall, p)
 }
 
 private fun li(a: Int, b: Int, t: Float) = (a + (b - a) * t).roundToInt()
@@ -211,7 +218,7 @@ fun CollapsingHeader(
     }
 
     // The account's first name comes from the saved copy of the Google account (see Session), so it is there at once
-    val firstName = if (Session.loggedIn) Session.name.trim().substringBefore(' ') else ""
+    val firstName = if (hasGreeting()) Session.name.trim().substringBefore(' ') else ""
     val thumb = Session.thumb
 
     // Over a Short the header is see-through with white icons
@@ -220,33 +227,34 @@ fun CollapsingHeader(
     val muted = if (onShorts) Color(0xB3FFFFFF) else TextMuted
     val selBg = if (onShorts) Color.White else Accent
     val onSel = if (onShorts) Color.Black else OnAccent
-    val dark = Bg.luminance() < 0.5f
     val greetingStyle = androidx.compose.ui.text.TextStyle(
-        fontSize = 34.sp, lineHeight = 44.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.8).sp
+        fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.8).sp
     )
     val shortsTab = tabs.firstOrNull { it.route == Route.Shorts }
     val pillTabs = tabs.filter { it.route != Route.Shorts }
 
     Layout(
         content = {
-            // 0: greeting (big, under the photo; fades out completely while the header collapses)
-            Text(
-                buildAnnotatedString {
-                    if (firstName.isEmpty()) {
-                        withStyle(SpanStyle(color = fg)) { append("Welcome!") }
-                    } else {
-                        withStyle(SpanStyle(color = if (dark) fg.copy(alpha = 0.6f) else fg)) { append("Welcome back,\n") }
-                        withStyle(SpanStyle(color = fg)) { append("$firstName!") }
-                    }
-                },
-                style = greetingStyle,
-                maxLines = 2, softWrap = false, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.graphicsLayer {
+            // 0: greeting (under the photo; fades out completely while the header collapses). Two lines: "Welcome back,"
+            // quieter, the account's first name stronger. Nothing at all when signed out.
+            Column(
+                Modifier.graphicsLayer {
                     val p = fOf()
                     alpha = (1f - p * 2.2f).coerceIn(0f, 1f)
                     translationY = -p * 16.dp.toPx()
                 }
-            )
+            ) {
+                if (firstName.isNotEmpty()) {
+                    Text(
+                        "Welcome back,", style = greetingStyle, color = fg.copy(alpha = 0.55f),
+                        maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "$firstName!", style = greetingStyle, color = fg,
+                        maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
             // 1: profile photo (the Google account's), opens Settings
             Box(
                 Modifier
@@ -357,12 +365,13 @@ fun CollapsingHeader(
         )
 
         // greeting: under the photo, at the left edge
+        val hasGreet = firstName.isNotEmpty()
         val greetTop = top + avBig + GreetGapTop.roundToPx()
         val greeting = measurables[0].measure(Constraints(maxWidth = (w - 2 * pad).coerceAtLeast(0)))
 
         // navigation row: Shorts button + pill; moves up to sit under the small photo row
         val navH = NavH.roundToPx()
-        val navTopBig = top + avBig + GreetGapTop.roundToPx() + GreetH.roundToPx() + GreetGapBottom.roundToPx()
+        val navTopBig = top + navTopBigDp(hasGreet).roundToPx() - TopPad.roundToPx()
         val navTopSmall = top + avSm + NavGapSmall.roundToPx()
         val navTop = li(navTopBig, navTopSmall, p)
         val shortsBtn = measurables[6].measure(Constraints.fixed(navH, navH))
@@ -372,7 +381,7 @@ fun CollapsingHeader(
 
         val h = navTop + navH + li(BottomBig.roundToPx(), BottomSmall.roundToPx(), p) + FilletR.roundToPx()
         layout(w, h) {
-            if (p < 0.999f) greeting.place(pad, greetTop)
+            if (hasGreet && p < 0.999f) greeting.place(pad, greetTop)
             avatar.place(pad, cy - av / 2)
             searchBg.place(searchLeft, cy - btn / 2)
             searchIcon.place(iconX, cy - iconSz / 2)

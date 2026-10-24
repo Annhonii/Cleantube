@@ -145,13 +145,6 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                 CollapsingHeader(headerPos, homeIdx, shortsIdx, visibleRoutes, visible)
             }
 
-            // ArchiveTune-style floating bottom bar (under the video page, over the tabs)
-            TabBar(
-                nav, visible,
-                visible = nav.isTabRoot && !VideoHost.expanded && fullscreen.view == null && !ShortsUi.overlayOpen,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
-
             // the video page / mini player: above the screens
             VideoSheet(tabRoot = nav.isTabRoot, hidden = nav.current == Route.Shorts)
 
