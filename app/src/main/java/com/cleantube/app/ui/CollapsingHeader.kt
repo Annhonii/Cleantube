@@ -451,19 +451,39 @@ private fun NavRow(
             }
             Box(Modifier.weight(1f).fillMaxHeight().clip(CircleShape).background(surface))
         }
-        // 2: the indicator, drawn between the two items around the pager position
+        // 2: the indicators. Two separate fixed shapes, never one shape stretching between them: a round one on the
+        // Shorts button and a pill-shaped one that slides between Home / Subscription / Library. Going between Shorts
+        // and Home the round one fades out while the pill one fades in (on the Home item), nothing changes shape.
         Box(
             Modifier.fillMaxSize().drawBehind {
+                if (n == 0) return@drawBehind
                 val p = pagerPosition().coerceIn(0f, (n - 1).coerceAtLeast(0).toFloat())
-                val lo = kotlin.math.floor(p).toInt().coerceIn(0, n - 1)
-                val hi = (lo + 1).coerceAtMost(n - 1)
-                val f = p - lo
-                if (n == 0 || bW[lo] <= 0f || bW[hi] <= 0f) return@drawBehind
-                val x = lf(bX[lo], bX[hi], f) - root.x
-                val y = lf(bTop[lo], bTop[hi], f) - root.y
-                val w = lf(bW[lo], bW[hi], f)
-                val h = lf(bH[lo], bH[hi], f)
-                drawRoundRect(selBg, Offset(x, y), Size(w, h), CornerRadius(h / 2f, h / 2f))
+                val first = if (hasShorts) 1 else 0          // first item that lives in the pill
+                if (hasShorts && bW[0] > 0f) {
+                    val a = (1f - p).coerceIn(0f, 1f)
+                    if (a > 0.01f) {
+                        val h = bH[0]
+                        drawRoundRect(
+                            selBg.copy(alpha = selBg.alpha * a),
+                            Offset(bX[0] - root.x, bTop[0] - root.y), Size(bW[0], h), CornerRadius(h / 2f, h / 2f)
+                        )
+                    }
+                }
+                if (first <= n - 1) {
+                    val pp = p.coerceIn(first.toFloat(), (n - 1).toFloat())
+                    val lo = kotlin.math.floor(pp).toInt().coerceIn(first, n - 1)
+                    val hi = (lo + 1).coerceAtMost(n - 1)
+                    val f = pp - lo
+                    if (bW[lo] <= 0f || bW[hi] <= 0f) return@drawBehind
+                    val a = if (hasShorts) p.coerceIn(0f, 1f) else 1f
+                    if (a > 0.01f) {
+                        val x = lf(bX[lo], bX[hi], f) - root.x
+                        val y = lf(bTop[lo], bTop[hi], f) - root.y
+                        val w = lf(bW[lo], bW[hi], f)
+                        val h = lf(bH[lo], bH[hi], f)
+                        drawRoundRect(selBg.copy(alpha = selBg.alpha * a), Offset(x, y), Size(w, h), CornerRadius(h / 2f, h / 2f))
+                    }
+                }
             }
         )
         // 3: the items on top

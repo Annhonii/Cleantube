@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -239,9 +240,12 @@ fun ShortsScreen() {
     val card = Modifier
         .fillMaxSize()
         .padding(top = headerH)
-        // the video card has smoothly rounded top corners against the black header bar (the player draws on a TextureView,
-        // so the clip also cuts the video itself, nothing bleeds out over the corners)
-        .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+        // the card ends right above the system navigation bar; the insets are consumed here, so the overlays inside
+        // (their own navigationBarsPadding) don't add the bar's height a second time
+        .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars)
+        // a floating card with smoothly rounded corners all around, on the black background (the player draws on a
+        // TextureView, so the clip also cuts the video itself, nothing bleeds out over the corners)
+        .clip(RoundedCornerShape(24.dp))
         .background(Color.Black)
 
     // pure black in light and dark mode: it shows through the rounded top corners of the card, next to the black header
@@ -729,7 +733,7 @@ private fun ShortPage(
             Modifier
                 .align(Alignment.BottomStart)
                 .navigationBarsPadding()
-                .padding(start = 16.dp, end = 88.dp, bottom = 96.dp)
+                .padding(start = 16.dp, end = 88.dp, bottom = 44.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -778,7 +782,7 @@ private fun ShortPage(
 
         // ---------------- right: action bar (no background, sits low so it covers less of the video)
         Column(
-            Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 8.dp, bottom = 104.dp),
+            Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 8.dp, bottom = 52.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -798,7 +802,8 @@ private fun ShortPage(
         AnimatedVisibility(
             visible = current && !p.wantPlay,
             enter = fadeIn(tween(120)), exit = fadeOut(tween(120)),
-            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(bottom = 88.dp)
+            // right on the card's bottom edge, inset so it clears the rounded corners
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 20.dp)
         ) {
             ShortScrubber(p, Modifier.fillMaxWidth())
         }
