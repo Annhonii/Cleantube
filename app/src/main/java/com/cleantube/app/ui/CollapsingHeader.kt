@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -447,55 +448,40 @@ private fun NavRow(
     val navH = NavH
 
     Box(Modifier.fillMaxSize().onGloballyPositioned { root = it.positionInWindow() }) {
-        // 1: the resting backgrounds (round Shorts button, long pill)
-        Row(Modifier.fillMaxSize()) {
-            if (hasShorts) {
-                Box(Modifier.size(navH).clip(CircleShape).background(surface))
-                Spacer(Modifier.width(Gap))
-            }
-            Box(Modifier.weight(1f).fillMaxHeight().clip(CircleShape).background(surface))
-        }
-        // 2: the indicators. Two separate fixed shapes, never one shape stretching between them: a round one on the
-        // Shorts button and a pill-shaped one that slides between Home / Subscription / Library. Going between Shorts
-        // and Home the round one fades out while the pill one fades in (on the Home item), nothing changes shape.
+        // 1: the resting pill behind all the tabs
+        Box(Modifier.fillMaxSize().clip(CircleShape).background(surface))
+        // 2: the indicator: ONE filled pill behind the open tab. Its position AND size are the bounds of the two tabs
+        // it is between (mixed by the pager position), and those bounds keep changing while a label opens / closes, so
+        // it slides and stretches together with the labels, and sticks to the finger while swiping.
         Box(
             Modifier.fillMaxSize().drawBehind {
                 if (n == 0) return@drawBehind
-                val p = pagerPosition().coerceIn(0f, (n - 1).coerceAtLeast(0).toFloat())
-                val first = if (hasShorts) 1 else 0          // first item that lives in the pill
-                if (hasShorts && bW[0] > 0f) {
-                    val a = (1f - p).coerceIn(0f, 1f)
-                    if (a > 0.01f) {
-                        val h = bH[0]
-                        drawRoundRect(
-                            selBg.copy(alpha = selBg.alpha * a),
-                            Offset(bX[0] - root.x, bTop[0] - root.y), Size(bW[0], h), CornerRadius(h / 2f, h / 2f)
-                        )
-                    }
-                }
-                if (first <= n - 1) {
-                    val pp = p.coerceIn(first.toFloat(), (n - 1).toFloat())
-                    val lo = kotlin.math.floor(pp).toInt().coerceIn(first, n - 1)
-                    val hi = (lo + 1).coerceAtMost(n - 1)
-                    val f = pp - lo
-                    if (bW[lo] <= 0f || bW[hi] <= 0f) return@drawBehind
-                    val a = if (hasShorts) p.coerceIn(0f, 1f) else 1f
-                    if (a > 0.01f) {
-                        val x = lf(bX[lo], bX[hi], f) - root.x
-                        val y = lf(bTop[lo], bTop[hi], f) - root.y
-                        val w = lf(bW[lo], bW[hi], f)
-                        val h = lf(bH[lo], bH[hi], f)
-                        drawRoundRect(selBg.copy(alpha = selBg.alpha * a), Offset(x, y), Size(w, h), CornerRadius(h / 2f, h / 2f))
-                    }
-                }
+                val pp = pagerPosition().coerceIn(0f, (n - 1).coerceAtLeast(0).toFloat())
+                val lo = kotlin.math.floor(pp).toInt().coerceIn(0, n - 1)
+                val hi = (lo + 1).coerceAtMost(n - 1)
+                val f = pp - lo
+                if (bW[lo] <= 0f || bW[hi] <= 0f) return@drawBehind
+                val x = lf(bX[lo], bX[hi], f) - root.x
+                val y = lf(bTop[lo], bTop[hi], f) - root.y
+                val w = lf(bW[lo], bW[hi], f)
+                val h = lf(bH[lo], bH[hi], f)
+                drawRoundRect(selBg, Offset(x, y), Size(w, h), CornerRadius(h / 2f, h / 2f))
             }
         )
-        // 3: the items on top
-        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            @Composable
-            fun item(i: Int, t: TabSpec, modifier: Modifier, content: @Composable () -> Unit) {
+        // 3: the tabs on top. Every tab is its icon; the label of a tab opens next to the icon as the indicator arrives
+        // and closes as it leaves (same number as the indicator: the pager position), so only the open tab has its name.
+        val gapPx = with(density) { 6.dp.roundToPx() }
+        Row(
+            Modifier.fillMaxSize().padding(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            tabs.forEachIndexed { i, t ->
+                val k = (1f - kotlin.math.abs(pos - i)).coerceIn(0f, 1f)
+                val tint = lerp(idle, onSel, k)
                 Box(
-                    modifier
+                    Modifier
+                        .fillMaxHeight()
                         .onGloballyPositioned { c ->
                             if (i < bX.size) {
                                 val o = c.positionInWindow()
@@ -504,30 +490,22 @@ private fun NavRow(
                         }
                         .bouncyClickable(pressedScale = 0.94f, onClick = { if (nav.current != t.route) nav.selectTab(t.route) }),
                     contentAlignment = Alignment.Center
-                ) { content() }
-            }
-            if (hasShorts) {
-                val k = (1f - kotlin.math.abs(pos - 0f)).coerceIn(0f, 1f)
-                item(0, tabs[0], Modifier.size(navH)) {
-                    Icon(ShortsIcon, contentDescription = "Shorts", tint = lerp(idle, onSel, k), modifier = Modifier.size(24.dp))
-                }
-                Spacer(Modifier.width(Gap))
-            }
-            Row(
-                Modifier.weight(1f).fillMaxHeight().padding(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                tabs.forEachIndexed { i, t ->
-                    if (hasShorts && i == 0) return@forEachIndexed
-                    val k = (1f - kotlin.math.abs(pos - i)).coerceIn(0f, 1f)
-                    val tint = lerp(idle, onSel, k)
-                    item(i, t, Modifier.fillMaxHeight().padding(horizontal = 0.dp)) {
-                        Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(t.icon, contentDescription = t.label, tint = tint, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text(t.label, color = tint, fontSize = labelSp, fontWeight = FontWeight.Normal, maxLines = 1, softWrap = false)
-                        }
+                ) {
+                    Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(t.icon, contentDescription = t.label, tint = tint, modifier = Modifier.size(22.dp))
+                        Text(
+                            t.label, color = tint, fontSize = labelSp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false,
+                            modifier = Modifier
+                                .layout { m, c ->
+                                    val kk = (1f - kotlin.math.abs(pagerPosition() - i)).coerceIn(0f, 1f)
+                                    val pl = m.measure(androidx.compose.ui.unit.Constraints())
+                                    val w = ((pl.width + gapPx) * kk).roundToInt()
+                                    layout(w, pl.height) { pl.placeRelative((gapPx * kk).roundToInt(), 0) }
+                                }
+                                .graphicsLayer {
+                                    alpha = (1f - kotlin.math.abs(pagerPosition() - i)).coerceIn(0f, 1f)
+                                }
+                        )
                     }
                 }
             }
