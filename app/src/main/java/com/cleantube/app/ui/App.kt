@@ -129,7 +129,9 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
             // Shorts has a black video behind the status bar: white icons only while that page is the one on screen.
             // MainActivity applies it together with the system light / dark setting (one place, so it can't get stuck).
             val shortsOn = nav.isTabRoot && shortsIdx >= 0 && pagerState.targetPage == shortsIdx
-            SideEffect { SystemBarsUi.whiteIcons = false }
+            // the header is black over Shorts: white status bar icons there
+            val shortsBar = nav.isTabRoot && nav.current == Route.Shorts
+            SideEffect { SystemBarsUi.whiteIcons = shortsBar }
             DisposableEffect(Unit) { onDispose { SystemBarsUi.whiteIcons = false } }
             val headerPos: () -> Float = { pagerState.currentPage + pagerState.currentPageOffsetFraction }
             val headerOn by remember(homeIdx, shortsIdx) {

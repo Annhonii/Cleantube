@@ -310,27 +310,27 @@ fun CollapsingHeader(
         modifier = modifier
             .fillMaxWidth()
             .drawBehind {
-                // flat bar over the full screen width (status bar included), in the screen colour; the feed slides under
-                // it with a clean edge. Over a Short it is see-through, so the buttons float on the video.
-                if (!onShorts) {
-                    val r = FilletR.toPx()
-                    val inset = FilletInset.toPx()
-                    val barH = size.height - r        // the bar itself; the last [r] of the layout is only for the two fillets
-                    drawRect(Bg, size = Size(size.width, barH))
-                    val left = Path().apply {
-                        fillType = PathFillType.EvenOdd
-                        addRect(Rect(inset, barH, inset + r, barH + r))
-                        addOval(Rect(inset, barH, inset + 2 * r, barH + 2 * r))
-                    }
-                    clipRect(inset, barH, inset + r, barH + r) { drawPath(left, Bg) }
-                    val rx = size.width - inset
-                    val right = Path().apply {
-                        fillType = PathFillType.EvenOdd
-                        addRect(Rect(rx - r, barH, rx, barH + r))
-                        addOval(Rect(rx - 2 * r, barH, rx, barH + 2 * r))
-                    }
-                    clipRect(rx - r, barH, rx, barH + r) { drawPath(right, Bg) }
+                // flat bar over the full screen width (status bar included): the screen colour, black on Shorts (the video
+                // is dark, white icons). Its bottom corners are rounded outwards, so the feed / the Short under it
+                // gets rounded top corners.
+                val bar = if (onShorts) Color.Black else Bg
+                val r = FilletR.toPx()
+                val inset = FilletInset.toPx()
+                val barH = size.height - r        // the bar itself; the last [r] of the layout is only for the two fillets
+                drawRect(bar, size = Size(size.width, barH))
+                val left = Path().apply {
+                    fillType = PathFillType.EvenOdd
+                    addRect(Rect(inset, barH, inset + r, barH + r))
+                    addOval(Rect(inset, barH, inset + 2 * r, barH + 2 * r))
                 }
+                clipRect(inset, barH, inset + r, barH + r) { drawPath(left, bar) }
+                val rx = size.width - inset
+                val right = Path().apply {
+                    fillType = PathFillType.EvenOdd
+                    addRect(Rect(rx - r, barH, rx, barH + r))
+                    addOval(Rect(rx - 2 * r, barH, rx, barH + 2 * r))
+                }
+                clipRect(rx - r, barH, rx, barH + r) { drawPath(right, bar) }
             }
     ) { measurables, c ->
         val p = fOf()
