@@ -239,6 +239,9 @@ fun ShortsScreen() {
     val card = Modifier
         .fillMaxSize()
         .padding(top = headerH)
+        // the video card has smoothly rounded top corners against the black header bar (the player draws on a TextureView,
+        // so the clip also cuts the video itself, nothing bleeds out over the corners)
+        .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
         .background(Color.Black)
 
     Box(Modifier.fillMaxSize().background(Bg)) {
