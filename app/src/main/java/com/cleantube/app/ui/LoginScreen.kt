@@ -66,7 +66,7 @@ fun LoginScreen() {
                                 Session.markLoggedIn()
                                 scope.launch {
                                     try { Yt.run("reset") } catch (e: Exception) { /* ignore */ }
-                                    Session.refresh()
+                                    Session.refresh(force = true)
                                 }
                                 nav.back()
                             }

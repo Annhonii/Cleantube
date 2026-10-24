@@ -157,18 +157,35 @@ object Session {
         return c.contains("SAPISID=") || c.contains("__Secure-3PAPISID=")
     }
 
-    /** Re-reads the cookie jar; call after login/logout and on start. */
-    suspend fun refresh() {
+    /**
+     * Re-reads the cookie jar; call after login/logout and on start. The account's name / photo / handle are asked from
+     * YouTube only once per login: afterwards they come from the saved copy until sign-out. [force] (a fresh login,
+     * maybe another account) drops the saved copy and fetches again.
+     */
+    suspend fun refresh(force: Boolean = false) {
         loggedIn = hasAuthCookie()
+        val store = runCatching { Graph.store }.getOrNull()
         if (!loggedIn) {
             name = ""; thumb = ""; handle = ""
+            store?.clearAccount()
             return
+        }
+        if (force) {
+            store?.clearAccount()
+            name = ""; thumb = ""; handle = ""
+        } else {
+            val saved = store?.loadAccount()
+            if (saved != null) {
+                name = saved.first; thumb = saved.second; handle = saved.third
+                return
+            }
         }
         try {
             val a = Yt.run("account")
             name = a.optString("name")
             thumb = a.optString("thumb")
             handle = a.optString("handle")
+            if (name.isNotEmpty()) store?.saveAccount(name, thumb, handle)
         } catch (e: Exception) {
             // The account name is cosmetic.
         }
@@ -218,7 +235,7 @@ object Session {
         } catch (e: Exception) {
             // checked below
         }
-        refresh()
+        refresh(force = true)
         if (name.isEmpty() && handle.isEmpty()) {
             logout()
             return "YouTube didn't accept that token. It may have expired: copy a fresh one."
@@ -245,5 +262,6 @@ object Session {
         cm.flush()
         loggedIn = false
         name = ""; thumb = ""; handle = ""
+        runCatching { Graph.store.clearAccount() }
     }
 }

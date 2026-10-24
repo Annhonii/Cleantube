@@ -13,6 +13,24 @@ class Store(context: Context) {
 
     private val sp = context.getSharedPreferences("cleantube", Context.MODE_PRIVATE)
 
+    // ------------------------------------------------------------ signed-in account
+    // Name / photo / handle of the signed-in Google account: fetched once after a login and kept here until sign-out
+    // (or until another account signs in), so the header doesn't ask YouTube for them on every start.
+
+    fun loadAccount(): Triple<String, String, String>? {
+        val n = sp.getString("acc_name", "").orEmpty()
+        if (n.isEmpty()) return null
+        return Triple(n, sp.getString("acc_thumb", "").orEmpty(), sp.getString("acc_handle", "").orEmpty())
+    }
+
+    fun saveAccount(name: String, thumb: String, handle: String) {
+        sp.edit().putString("acc_name", name).putString("acc_thumb", thumb).putString("acc_handle", handle).apply()
+    }
+
+    fun clearAccount() {
+        sp.edit().remove("acc_name").remove("acc_thumb").remove("acc_handle").apply()
+    }
+
     // ------------------------------------------------------------ settings
 
     private val keyState = mutableStateOf(sp.getString("api_key", "").orEmpty())

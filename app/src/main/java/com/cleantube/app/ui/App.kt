@@ -142,7 +142,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                 enter = slideInVertically(spring(dampingRatio = 0.8f, stiffness = 380f)) { -it } + fadeIn(tween(240)),
                 exit = slideOutVertically(tween(260, easing = Motion.EmphasizedAccelerate)) { -it } + fadeOut(tween(180))
             ) {
-                TopTabBar(nav, visible)
+                CollapsingHeader(headerPos, homeIdx, shortsIdx, visibleRoutes, visible)
             }
 
             // ArchiveTune-style floating bottom bar (under the video page, over the tabs)
