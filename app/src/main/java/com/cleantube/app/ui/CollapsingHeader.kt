@@ -43,6 +43,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -76,7 +78,7 @@ import kotlin.math.roundToInt
 //    <First name>!
 //    ( shorts ) ( Home | Subscription | Library )
 //
-// Everything is driven by ONE number (0 = expanded, 1 = collapsed) that follows the feed's scroll through a spring.
+// Everything is driven bY ONE number (0 = expanded, 1 = collapsed) that follows the feed's scroll through a spring.
 // The header never rests half way: the feed's scroll only decides between the two states (see TrackHeaderScroll),
 // and the size / position of every part is worked out from that number in the layout phase (no recomposition per frame).
 
@@ -127,7 +129,7 @@ private val HeaderSpring = spring<Float>(dampingRatio = 0.9f, stiffness = 380f)
 fun collapsingHeaderHeight(route: Route = Route.Home): Dp {
     val sb = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val target = if (route == Route.Home) HeaderScroll.get(Route.Home) else 1f
-    val p by animateFloatAsState(target, HeaderSpring, label = "headerHeight")
+    val p bY animateFloatAsState(target, HeaderSpring, label = "headerHeight")
     return sb + androidx.compose.ui.unit.lerp(cardBig(hasGreeting()), CardSmall, p)
 }
 
@@ -166,7 +168,7 @@ fun Modifier.feedTopCorners(top: () -> Float, radius: Float): Modifier = drawWit
 private fun li(a: Int, b: Int, t: Float) = (a + (b - a) * t).roundToInt()
 private fun lf(a: Float, b: Float, t: Float) = a + (b - a) * t
 
-/** Scroll state of the Home feed as 0 (header expanded) or 1 (collapsed); written by [TrackHeaderScroll]. */
+/** Scroll state of the Home feed as 0 (header expanded) or 1 (collapsed); written bY [TrackHeaderScroll]. */
 object HeaderScroll {
     private val home = androidx.compose.runtime.mutableFloatStateOf(0f)
 
@@ -209,7 +211,7 @@ fun TrackHeaderScroll(listState: LazyListState, route: Route = Route.Home) {
 fun headerVisibility(pos: Float, homeIndex: Int, shortsIndex: Int): Float = 1f
 
 // The YouTube Shorts logo; if the path can't be parsed for any reason the tab's own icon is used instead.
-private val ShortsIcon: ImageVector by lazy {
+private val ShortsIcon: ImageVector bY lazy {
     runCatching {
         ImageVector.Builder(
             name = "Shorts", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f
@@ -241,7 +243,6 @@ fun CollapsingHeader(
     val nav = LocalNav.current
     val density = LocalDensity.current
     val sbPx = WindowInsets.statusBars.getTop(density)
-    val onShorts = nav.current == Route.Shorts
 
     // spring smoothing: the header glides to the state the feed's scroll wants instead of snapping
     val homeF = animateFloatAsState(HeaderScroll.get(Route.Home), HeaderSpring, label = "headerHome")
@@ -265,7 +266,7 @@ fun CollapsingHeader(
 
     // Colours follow the pager: t = 0 on Home / the other tabs, 1 on Shorts, and in between while the pages slide, so the
     // header fades Home <-> Shorts (white <-> black) together with the finger instead of flipping when the swipe ends.
-    val shortsT by remember(shortsIndex) {
+    val shortsT bY remember(shortsIndex) {
         androidx.compose.runtime.derivedStateOf {
             if (shortsIndex < 0) 0f else (1f - kotlin.math.abs(pagerPosition() - shortsIndex)).coerceIn(0f, 1f)
         }
@@ -281,8 +282,6 @@ fun CollapsingHeader(
     val greetingStyle = androidx.compose.ui.text.TextStyle(
         fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.8).sp
     )
-    val shortsTab = tabs.firstOrNull { it.route == Route.Shorts }
-    val pillTabs = tabs.filter { it.route != Route.Shorts }
 
     Layout(
         content = {
@@ -341,20 +340,8 @@ fun CollapsingHeader(
             ) {
                 Icon(Icons.Rounded.NotificationsNone, contentDescription = "Notifications", tint = fg, modifier = Modifier.size(24.dp))
             }
-            // 6: Shorts button
-            Box(
-                Modifier
-                    .bouncyClickable(pressedScale = 0.9f, onClick = { if (shortsTab != null && !onShorts) nav.selectTab(Route.Shorts) })
-                    .clip(CircleShape)
-                    .background(lerp(surface, Color.White, t)),
-                contentAlignment = Alignment.Center
-            ) {
-                if (shortsTab != null) {
-                    Icon(ShortsIcon, contentDescription = "Shorts", tint = lerp(fg, Color.Black, t), modifier = Modifier.size(24.dp))
-                }
-            }
-            // 7: navigation pill: Home | Subscription | Library
-            NavPill(pillTabs, nav, surface, selBg, onSel, muted)
+            // 6: navigation row: Shorts button + Home | Subscription | Library, with ONE indicator that follows the pager
+            NavRow(tabs, nav, pagerPosition, surface, selBg, onSel, muted)
         },
         modifier = modifier
             .fillMaxWidth()
@@ -409,10 +396,7 @@ fun CollapsingHeader(
         val navTopBig = top + navTopBigDp(hasGreet).roundToPx() - TopPad.roundToPx()
         val navTopSmall = top + avSm + NavGapSmall.roundToPx()
         val navTop = li(navTopBig, navTopSmall, p)
-        val shortsBtn = measurables[6].measure(Constraints.fixed(navH, navH))
-        // without a Shorts tab (hidden in Settings) the pill takes the whole row
-        val pillX = if (shortsTab != null) pad + navH + gap else pad
-        val pill = measurables[7].measure(Constraints.fixed((w - pad - pillX).coerceAtLeast(0), navH))
+        val navRow = measurables[6].measure(Constraints.fixed((w - 2 * pad).coerceAtLeast(0), navH))
 
         val h = navTop + navH + li(BottomBig.roundToPx(), BottomSmall.roundToPx(), p)
         layout(w, h) {
@@ -422,90 +406,105 @@ fun CollapsingHeader(
             searchIcon.place(iconX, cy - iconSz / 2)
             if (searchText.width > 0) searchText.place(searchLeft + textLeft, cy - searchText.height / 2)
             bell.place(bellX, cy - btn / 2)
-            if (shortsTab != null) shortsBtn.place(pad, navTop)
-            pill.place(pillX, navTop)
+            navRow.place(pad, navTop)
         }
     }
 }
 
 /**
- * Home | Subscription | Library: ONE filled pill sits behind the open tab and slides (position and width, with a little
- * spring) to the tab that is picked, while the icon / label colours cross-fade. Nothing is shown behind the row when
- * the open page is not one of these tabs (Shorts has its own button).
+ * The navigation row: a round Shorts button and, next to it, the pill with Home | Subscription | Library.
+ * ONE filled indicator sits behind the open tab and is driven straight bY the pager position: while you swipe it is
+ * between the two tabs bY exactly as much as the pages are, so it sticks to the finger (and when a tab is tapped it
+ * follows the pager's own glide). From Home to Shorts it slides out of the pill into the round Shorts button, changing
+ * its shape and colour on the way. The icon / label colours follow the same number.
  */
 @Composable
-private fun NavPill(
+private fun NavRow(
     tabs: List<TabSpec>,
     nav: Nav,
+    pagerPosition: () -> Float,
     surface: Color,
     selBg: Color,
     onSel: Color,
     idle: Color
 ) {
-    val selectedIdx = tabs.indexOfFirst { it.route == nav.current }
+    val n = tabs.size
+    val hasShorts = tabs.firstOrNull()?.route == Route.Shorts
     val density = LocalDensity.current
-    // where each item is inside the row (px): measured once it is laid out
-    val xs = remember(tabs.size) { androidx.compose.runtime.mutableStateListOf(*Array(tabs.size) { -1f }) }
-    val ws = remember(tabs.size) { androidx.compose.runtime.mutableStateListOf(*Array(tabs.size) { 0f }) }
-    val targetX = xs.getOrNull(selectedIdx) ?: -1f
-    val targetW = ws.getOrNull(selectedIdx) ?: 0f
+    // bounds of every item (window px), measured once laid out; index = the pager page of that tab
+    val bX = remember(n) { androidx.compose.runtime.mutableStateListOf(*Array(n) { 0f }) }
+    val bY = remember(n) { androidx.compose.runtime.mutableStateListOf(*Array(n) { 0f }) }
+    val bW = remember(n) { androidx.compose.runtime.mutableStateListOf(*Array(n) { 0f }) }
+    val bH = remember(n) { androidx.compose.runtime.mutableStateListOf(*Array(n) { 0f }) }
+    var root bY remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    val pos = pagerPosition().coerceIn(0f, (n - 1).coerceAtLeast(0).toFloat())
+    // text that never gets cut ("Library" in full): the label size ignores the phone's font scale
+    val labelSp = (13f / density.fontScale).sp
+    val navH = NavH
 
-    val indX = remember { androidx.compose.animation.core.Animatable(0f) }
-    val indW = remember { androidx.compose.animation.core.Animatable(0f) }
-    var placed by remember { androidx.compose.runtime.mutableStateOf(false) }
-    val indAlpha by animateFloatAsState(if (selectedIdx >= 0 && placed) 1f else 0f, tween(160), label = "indicatorAlpha")
-    androidx.compose.runtime.LaunchedEffect(targetX, targetW) {
-        if (targetX < 0f || targetW <= 0f) return@LaunchedEffect
-        val spec = spring<Float>(dampingRatio = 0.8f, stiffness = 420f)
-        if (!placed) {
-            // first time: appear right on the open tab, don't fly in from the left edge
-            indX.snapTo(targetX); indW.snapTo(targetW)
-            placed = true
-        } else {
-            kotlinx.coroutines.coroutineScope {
-                launch { indX.animateTo(targetX, spec) }
-                launch { indW.animateTo(targetW, spec) }
+    Box(Modifier.fillMaxSize().onGloballyPositioned { root = it.positionInWindow() }) {
+        // 1: the resting backgrounds (round Shorts button, long pill)
+        Row(Modifier.fillMaxSize()) {
+            if (hasShorts) {
+                Box(Modifier.size(navH).clip(CircleShape).background(surface))
+                Spacer(Modifier.width(Gap))
             }
+            Box(Modifier.weight(1f).fillMaxHeight().clip(CircleShape).background(surface))
         }
-    }
-
-    Box(
-        Modifier
-            .clip(CircleShape)
-            .background(surface)
-            .padding(4.dp)
-    ) {
-        // the sliding indicator (behind the items)
+        // 2: the indicator, drawn between the two items around the pager position
         Box(
-            Modifier
-                .offset { androidx.compose.ui.unit.IntOffset(indX.value.roundToInt(), 0) }
-                .width(with(density) { indW.value.toDp() })
-                .fillMaxHeight()
-                .graphicsLayer { alpha = indAlpha }
-                .clip(CircleShape)
-                .background(selBg)
+            Modifier.fillMaxSize().drawBehind {
+                val p = pagerPosition().coerceIn(0f, (n - 1).coerceAtLeast(0).toFloat())
+                val lo = kotlin.math.floor(p).toInt().coerceIn(0, n - 1)
+                val hi = (lo + 1).coerceAtMost(n - 1)
+                val f = p - lo
+                if (n == 0 || bW[lo] <= 0f || bW[hi] <= 0f) return@drawBehind
+                val x = lf(bX[lo], bX[hi], f) - root.x
+                val y = lf(bY[lo], bY[hi], f) - root.y
+                val w = lf(bW[lo], bW[hi], f)
+                val h = lf(bH[lo], bH[hi], f)
+                drawRoundRect(selBg, Offset(x, y), Size(w, h), CornerRadius(h / 2f, h / 2f))
+            }
         )
-        Row(
-            Modifier.fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            tabs.forEachIndexed { i, t ->
-                val selected = i == selectedIdx
-                val tint by animateColorAsState(if (selected) onSel else idle, tween(200), label = "pillItemTint")
-                Row(
-                    Modifier
-                        .fillMaxHeight()
+        // 3: the items on top
+        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+            @Composable
+            fun item(i: Int, t: TabSpec, modifier: Modifier, content: @Composable () -> Unit) {
+                Box(
+                    modifier
                         .onGloballyPositioned { c ->
-                            if (i < xs.size) { xs[i] = c.positionInParent().x; ws[i] = c.size.width.toFloat() }
+                            if (i < bX.size) {
+                                val o = c.positionInWindow()
+                                bX[i] = o.x; bY[i] = o.y; bW[i] = c.size.width.toFloat(); bH[i] = c.size.height.toFloat()
+                            }
                         }
-                        .bouncyClickable(pressedScale = 0.94f, onClick = { if (!selected) nav.selectTab(t.route) })
-                        .padding(horizontal = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(t.icon, contentDescription = t.label, tint = tint, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(5.dp))
-                    Text(t.label, color = tint, fontSize = 13.sp, fontWeight = FontWeight.Normal, maxLines = 1, softWrap = false)
+                        .bouncyClickable(pressedScale = 0.94f, onClick = { if (nav.current != t.route) nav.selectTab(t.route) }),
+                    contentAlignment = Alignment.Center
+                ) { content() }
+            }
+            if (hasShorts) {
+                val k = (1f - kotlin.math.abs(pos - 0f)).coerceIn(0f, 1f)
+                item(0, tabs[0], Modifier.size(navH)) {
+                    Icon(ShortsIcon, contentDescription = "Shorts", tint = lerp(idle, onSel, k), modifier = Modifier.size(24.dp))
+                }
+                Spacer(Modifier.width(Gap))
+            }
+            Row(
+                Modifier.weight(1f).fillMaxHeight().padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                tabs.forEachIndexed { i, t ->
+                    if (hasShorts && i == 0) return@forEachIndexed
+                    val k = (1f - kotlin.math.abs(pos - i)).coerceIn(0f, 1f)
+                    val tint = lerp(idle, onSel, k)
+                    item(i, t, Modifier.fillMaxHeight().padding(horizontal = 0.dp)) {
+                        Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(t.icon, contentDescription = t.label, tint = tint, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(t.label, color = tint, fontSize = labelSp, fontWeight = FontWeight.Normal, maxLines = 1, softWrap = false)
+                        }
+                    }
                 }
             }
         }
