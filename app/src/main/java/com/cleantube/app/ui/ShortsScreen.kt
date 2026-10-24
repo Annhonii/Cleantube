@@ -244,7 +244,8 @@ fun ShortsScreen() {
         .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
         .background(Color.Black)
 
-    Box(Modifier.fillMaxSize().background(Bg)) {
+    // pure black in light and dark mode: it shows through the rounded top corners of the card, next to the black header
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
         // a new feed whenever the topic changes
         key(topic) {
             val t = topic
