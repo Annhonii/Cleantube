@@ -70,21 +70,29 @@ object Api {
 
     private val markedWatched = HashSet<String>()
 
+    /** What the last "watched" ping did (shown in Settings > Player so a silent failure is visible). */
+    @Volatile var lastWatchPing: String = "no ping sent yet"
+
     /**
      * Tells YouTube this video was watched (what the official app does when playback starts), so the account's
      * recommendations keep learning from what is watched in this app. Signed in only, once per video per run.
      */
     suspend fun markWatched(videoId: String) {
-        if (!Session.loggedIn || !Graph.store.syncHistory || videoId.isEmpty()) return
-        if (Playback.isBlocked()) return
+        if (!Graph.store.syncHistory || videoId.isEmpty()) return
+        if (!Session.loggedIn) { lastWatchPing = "not signed in (Session.loggedIn is false)"; return }
+        if (Playback.isBlocked()) { lastWatchPing = "paused: network is blocked"; return }
         val first = synchronized(markedWatched) { markedWatched.add(videoId) }
         if (!first) return
         try {
-            Yt.run("markWatched", args("id" to videoId))
+            val r = Yt.run("markWatched", args("id" to videoId, "pos" to 10))
+            lastWatchPing = "$videoId: $r"
+            android.util.Log.d("Voidstream", "markWatched $lastWatchPing")
+            if (!r.optBoolean("ok")) synchronized(markedWatched) { markedWatched.remove(videoId) }
         } catch (e: kotlinx.coroutines.CancellationException) {
             synchronized(markedWatched) { markedWatched.remove(videoId) }
             throw e
         } catch (e: Exception) {
+            lastWatchPing = "$videoId: error ${e.message}"
             synchronized(markedWatched) { markedWatched.remove(videoId) }
         }
     }

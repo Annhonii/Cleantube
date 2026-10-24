@@ -561,6 +561,10 @@ fun SettingsScreen() {
                             Switch(checked = store.syncHistory, onCheckedChange = { store.syncHistory = it })
                         }
                         Text(
+                            "Last ping: " + com.cleantube.app.data.Api.lastWatchPing,
+                            color = TextMuted, fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp)
+                        )
+                        Text(
                             "Signed in only. Videos and Shorts you watch here are added to your YouTube watch history, so Home stops repeating the same videos and learns what you like. Turn it off to keep watching here private.",
                             color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
                         )

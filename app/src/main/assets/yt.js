@@ -951,15 +951,33 @@
     },
     /** Tells YouTube a video was watched (the same ping the official player sends), so history and recommendations learn from it. */
     markWatched: async function (a) {
+      var out = { ok: false, loggedIn: /(?:^|;\s*)(__Secure-3)?PAPISID=/.test(document.cookie) };
       var j = await call('player', { videoId: a.id, contentCheckOk: true, racyCheckOk: true });
+      out.playability = (j && j.playabilityStatus && j.playabilityStatus.status) || 'none';
       var pt = j && j.playbackTracking;
-      var base = pt && pt.videostatsPlaybackUrl && pt.videostatsPlaybackUrl.baseUrl;
-      if (!base) return { ok: false };
+      var pb = pt && pt.videostatsPlaybackUrl && pt.videostatsPlaybackUrl.baseUrl;
+      var wt = pt && pt.videostatsWatchtimeUrl && pt.videostatsWatchtimeUrl.baseUrl;
+      out.hasPlaybackUrl = !!pb; out.hasWatchtimeUrl = !!wt;
+      if (!pb) return out;
       var abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', cpn = '';
       for (var i = 0; i < 16; i++) cpn += abc.charAt(Math.floor(Math.random() * 64));
-      await fetch(base + (base.indexOf('?') < 0 ? '?' : '&') + 'ver=2&cpn=' + cpn + '&cmt=0&el=detailpage',
-                  { mode: 'no-cors', credentials: 'include' });
-      return { ok: true };
+      function withQ(u, q) { return u + (u.indexOf('?') < 0 ? '?' : '&') + q; }
+      async function ping(u) {
+        try {
+          var r = await fetch(u, { credentials: 'include' });
+          return r.status;
+        } catch (e) {
+          try { await fetch(u, { mode: 'no-cors', credentials: 'include' }); return 'sent-no-cors'; }
+          catch (e2) { return 'failed:' + (e2 && e2.message); }
+        }
+      }
+      out.playbackStatus = await ping(withQ(pb, 'ver=2&cpn=' + cpn + '&cmt=0&el=detailpage'));
+      if (wt) {
+        var t = Math.max(5, Math.floor(a.pos || 10));
+        out.watchtimeStatus = await ping(withQ(wt, 'ver=2&cpn=' + cpn + '&cmt=' + t + '&st=0&et=' + t + '&state=playing&el=detailpage&final=1'));
+      }
+      out.ok = (typeof out.playbackStatus === 'number' && out.playbackStatus < 300) || out.playbackStatus === 'sent-no-cors';
+      return out;
     },
     /** YouTube's notification bell (signed-in only). a.token = continuation of the next page. */
     notifications: async function (a) {
