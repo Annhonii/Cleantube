@@ -424,16 +424,16 @@ private fun NavPill(
                     .bouncyClickable(pressedScale = 0.94f, onClick = { if (!selected) nav.selectTab(t.route) })
                     .clip(CircleShape)
                     .background(bg)
-                    .padding(horizontal = if (selected) 14.dp else 6.dp),
+                    .padding(horizontal = if (selected) 12.dp else 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(t.icon, contentDescription = t.label, tint = if (selected) onSel else idle, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(6.dp))
+                Icon(t.icon, contentDescription = t.label, tint = if (selected) onSel else idle, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(5.dp))
                 Text(
                     t.label,
                     color = if (selected) onSel else idle,
-                    fontSize = 14.sp,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Normal,
                     maxLines = 1, softWrap = false
                 )
             }
