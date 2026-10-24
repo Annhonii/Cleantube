@@ -78,7 +78,7 @@ import kotlin.math.roundToInt
 //    <First name>!
 //    ( shorts ) ( Home | Subscription | Library )
 //
-// Everything is driven bY ONE number (0 = expanded, 1 = collapsed) that follows the feed's scroll through a spring.
+// Everything is driven by ONE number (0 = expanded, 1 = collapsed) that follows the feed's scroll through a spring.
 // The header never rests half way: the feed's scroll only decides between the two states (see TrackHeaderScroll),
 // and the size / position of every part is worked out from that number in the layout phase (no recomposition per frame).
 
@@ -129,7 +129,7 @@ private val HeaderSpring = spring<Float>(dampingRatio = 0.9f, stiffness = 380f)
 fun collapsingHeaderHeight(route: Route = Route.Home): Dp {
     val sb = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val target = if (route == Route.Home) HeaderScroll.get(Route.Home) else 1f
-    val p bY animateFloatAsState(target, HeaderSpring, label = "headerHeight")
+    val p by animateFloatAsState(target, HeaderSpring, label = "headerHeight")
     return sb + androidx.compose.ui.unit.lerp(cardBig(hasGreeting()), CardSmall, p)
 }
 
@@ -168,7 +168,7 @@ fun Modifier.feedTopCorners(top: () -> Float, radius: Float): Modifier = drawWit
 private fun li(a: Int, b: Int, t: Float) = (a + (b - a) * t).roundToInt()
 private fun lf(a: Float, b: Float, t: Float) = a + (b - a) * t
 
-/** Scroll state of the Home feed as 0 (header expanded) or 1 (collapsed); written bY [TrackHeaderScroll]. */
+/** Scroll state of the Home feed as 0 (header expanded) or 1 (collapsed); written by [TrackHeaderScroll]. */
 object HeaderScroll {
     private val home = androidx.compose.runtime.mutableFloatStateOf(0f)
 
@@ -211,7 +211,7 @@ fun TrackHeaderScroll(listState: LazyListState, route: Route = Route.Home) {
 fun headerVisibility(pos: Float, homeIndex: Int, shortsIndex: Int): Float = 1f
 
 // The YouTube Shorts logo; if the path can't be parsed for any reason the tab's own icon is used instead.
-private val ShortsIcon: ImageVector bY lazy {
+private val ShortsIcon: ImageVector by lazy {
     runCatching {
         ImageVector.Builder(
             name = "Shorts", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f
@@ -266,7 +266,7 @@ fun CollapsingHeader(
 
     // Colours follow the pager: t = 0 on Home / the other tabs, 1 on Shorts, and in between while the pages slide, so the
     // header fades Home <-> Shorts (white <-> black) together with the finger instead of flipping when the swipe ends.
-    val shortsT bY remember(shortsIndex) {
+    val shortsT by remember(shortsIndex) {
         androidx.compose.runtime.derivedStateOf {
             if (shortsIndex < 0) 0f else (1f - kotlin.math.abs(pagerPosition() - shortsIndex)).coerceIn(0f, 1f)
         }
@@ -413,8 +413,8 @@ fun CollapsingHeader(
 
 /**
  * The navigation row: a round Shorts button and, next to it, the pill with Home | Subscription | Library.
- * ONE filled indicator sits behind the open tab and is driven straight bY the pager position: while you swipe it is
- * between the two tabs bY exactly as much as the pages are, so it sticks to the finger (and when a tab is tapped it
+ * ONE filled indicator sits behind the open tab and is driven straight by the pager position: while you swipe it is
+ * between the two tabs by exactly as much as the pages are, so it sticks to the finger (and when a tab is tapped it
  * follows the pager's own glide). From Home to Shorts it slides out of the pill into the round Shorts button, changing
  * its shape and colour on the way. The icon / label colours follow the same number.
  */
@@ -433,10 +433,10 @@ private fun NavRow(
     val density = LocalDensity.current
     // bounds of every item (window px), measured once laid out; index = the pager page of that tab
     val bX = remember(n) { androidx.compose.runtime.mutableStateListOf(*Array(n) { 0f }) }
-    val bY = remember(n) { androidx.compose.runtime.mutableStateListOf(*Array(n) { 0f }) }
+    val bTop = remember(n) { androidx.compose.runtime.mutableStateListOf(*Array(n) { 0f }) }
     val bW = remember(n) { androidx.compose.runtime.mutableStateListOf(*Array(n) { 0f }) }
     val bH = remember(n) { androidx.compose.runtime.mutableStateListOf(*Array(n) { 0f }) }
-    var root bY remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var root by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     val pos = pagerPosition().coerceIn(0f, (n - 1).coerceAtLeast(0).toFloat())
     // text that never gets cut ("Library" in full): the label size ignores the phone's font scale
     val labelSp = (13f / density.fontScale).sp
@@ -460,7 +460,7 @@ private fun NavRow(
                 val f = p - lo
                 if (n == 0 || bW[lo] <= 0f || bW[hi] <= 0f) return@drawBehind
                 val x = lf(bX[lo], bX[hi], f) - root.x
-                val y = lf(bY[lo], bY[hi], f) - root.y
+                val y = lf(bTop[lo], bTop[hi], f) - root.y
                 val w = lf(bW[lo], bW[hi], f)
                 val h = lf(bH[lo], bH[hi], f)
                 drawRoundRect(selBg, Offset(x, y), Size(w, h), CornerRadius(h / 2f, h / 2f))
@@ -475,7 +475,7 @@ private fun NavRow(
                         .onGloballyPositioned { c ->
                             if (i < bX.size) {
                                 val o = c.positionInWindow()
-                                bX[i] = o.x; bY[i] = o.y; bW[i] = c.size.width.toFloat(); bH[i] = c.size.height.toFloat()
+                                bX[i] = o.x; bTop[i] = o.y; bW[i] = c.size.width.toFloat(); bH[i] = c.size.height.toFloat()
                             }
                         }
                         .bouncyClickable(pressedScale = 0.94f, onClick = { if (nav.current != t.route) nav.selectTab(t.route) }),
