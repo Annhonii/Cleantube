@@ -784,13 +784,19 @@
   }
 
   async function sapHash(origin) {
-    var m = document.cookie.match(/(?:^|;\s*)SAPISID=([^;]+)/) ||
-            document.cookie.match(/(?:^|;\s*)__Secure-3PAPISID=([^;]+)/);
-    if (!m) return null;
+    function ck(n) { var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + n + '=([^;]+)')); return m ? m[1] : null; }
     var ts = Math.floor(Date.now() / 1000);
-    var buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(ts + ' ' + m[1] + ' ' + origin));
-    var hex = Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
-    return 'SAPISIDHASH ' + ts + '_' + hex;
+    async function h(v) {
+      var buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(ts + ' ' + v + ' ' + origin));
+      return ts + '_' + Array.prototype.map.call(new Uint8Array(buf), function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+    }
+    var main = ck('SAPISID') || ck('__Secure-3PAPISID');
+    if (!main) return null;
+    var parts = ['SAPISIDHASH ' + await h(main)];
+    var p1 = ck('__Secure-1PAPISID'), p3 = ck('__Secure-3PAPISID');
+    if (p1) parts.push('SAPISID1PHASH ' + await h(p1));
+    if (p3) parts.push('SAPISID3PHASH ' + await h(p3));
+    return parts.join(' ');
   }
 
   var LOCALE = { hl: 'en', gl: 'IN' };
@@ -948,6 +954,21 @@
       if (st && st !== 'STATUS_SUCCEEDED') throw new Error('reply refused (' + st + ')');
       if (r && r.errors && r.errors.length) throw new Error('reply refused');
       return { ok: true };
+    },
+    /** Connection check: is YouTube really treating this app as a signed-in account? (names only, never cookie values) */
+    diag: async function () {
+      var names = document.cookie.split(';').map(function (c) { return c.split('=')[0].trim(); })
+        .filter(function (n) { return /^(SID|SAPISID|__Secure-[13]PAPISID|__Secure-[13]PSID|LOGIN_INFO)$/.test(n); });
+      var out = { cookiesSeenByPage: names.join(',') || 'none', authHeaderSent: !!(await sapHash(location.origin)) };
+      var j = await call('browse', { browseId: 'FEwhat_to_watch' });
+      var loggedIn = null;
+      walk(j && j.responseContext, function (o) {
+        if (o && o.key === 'logged_in') { loggedIn = o.value; return true; }
+      });
+      out.youtubeSaysLoggedIn = loggedIn === '1' ? 'YES' : loggedIn === '0' ? 'NO (feed is generic)' : 'unknown';
+      out.homeItems = parseItems(j).items.length;
+      try { var a = await call('account/account_menu', {}); out.account = parseAccount(a).name || 'no name'; } catch (e) { out.account = 'error ' + e.message; }
+      return out;
     },
     /** Tells YouTube a video was watched (the same ping the official player sends), so history and recommendations learn from it. */
     markWatched: async function (a) {

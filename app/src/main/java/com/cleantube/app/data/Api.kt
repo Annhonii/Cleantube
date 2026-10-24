@@ -70,6 +70,13 @@ object Api {
 
     private val markedWatched = HashSet<String>()
 
+    /** Asks YouTube whether it treats this app as a signed-in account (shown by Settings > Player > Connection check). */
+    suspend fun connectionCheck(): String = try {
+        Yt.run("diag").toString(2)
+    } catch (e: Exception) {
+        "error: ${e.message}"
+    }
+
     /** What the last "watched" ping did (shown in Settings > Player so a silent failure is visible). */
     @Volatile var lastWatchPing: String = "no ping sent yet"
 

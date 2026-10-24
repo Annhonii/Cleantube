@@ -560,6 +560,25 @@ fun SettingsScreen() {
                             Text("Tell YouTube what I watch", color = TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
                             Switch(checked = store.syncHistory, onCheckedChange = { store.syncHistory = it })
                         }
+                        var diag by remember { mutableStateOf("") }
+                        var diagBusy by remember { mutableStateOf(false) }
+                        val diagScope = rememberCoroutineScope()
+                        Pill(
+                            if (diagBusy) "Checking..." else "Connection check",
+                            onClick = {
+                                if (!diagBusy) {
+                                    diagBusy = true
+                                    diagScope.launch {
+                                        diag = com.cleantube.app.data.Api.connectionCheck()
+                                        diagBusy = false
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (diag.isNotEmpty()) {
+                            Text(diag, color = TextPrimary, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
+                        }
                         Text(
                             "Last ping: " + com.cleantube.app.data.Api.lastWatchPing,
                             color = TextMuted, fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp)
