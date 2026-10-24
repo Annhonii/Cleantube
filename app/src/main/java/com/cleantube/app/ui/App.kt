@@ -42,7 +42,6 @@ import com.cleantube.app.data.Graph
 import com.cleantube.app.data.Session
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
-import kotlin.math.roundToInt
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.AndroidView
@@ -108,15 +107,6 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
         Box(Modifier.fillMaxSize().background(Bg)) {
             val r = nav.current
 
-            // the glow behind Home / Subscriptions / Library; follows the video at the top of the page in view
-            val gradRoute = visible.getOrNull(
-                (pagerState.currentPage + pagerState.currentPageOffsetFraction).roundToInt().coerceIn(0, visible.size - 1)
-            )?.route
-            DynamicGradientBackground(
-                seed = DynamicGradient.seedFor(gradRoute),
-                visible = nav.isTabRoot && gradRoute != null && gradRoute != Route.Shorts
-            )
-
             AnimatedContent(
                 targetState = r,
                 transitionSpec = { screenTransition(nav, visibleRoutes) },
@@ -124,8 +114,8 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                 modifier = Modifier.fillMaxSize(),
                 label = "screens"
             ) { route ->
-                // every pushed screen paints its own background; the tab pages stay see-through for the glow
-                Box(Modifier.fillMaxSize().then(if (route in visibleRoutes) Modifier else Modifier.background(Bg))) {
+                // every screen paints its own background, so the one underneath never shows through while sliding
+                Box(Modifier.fillMaxSize().background(Bg)) {
                     if (route in visibleRoutes) TabsPager(pagerState, visible, pagerLive)
                     else OtherScreen(route)
                 }
@@ -221,7 +211,7 @@ private fun TabsPager(state: PagerState, tabs: List<TabSpec>, live: MutableState
             Modifier
                 .fillMaxSize()
                 // behind the rounded corners: the screen colour, black on Shorts
-                .then(if (route == Route.Shorts) Modifier.background(Color.Black) else Modifier)
+                .background(if (route == Route.Shorts) Color.Black else Bg)
                 .graphicsLayer {
                     val off = ((state.currentPage - page) + state.currentPageOffsetFraction).absoluteValue.coerceIn(0f, 1f)
                     alpha = 1f - 0.35f * off

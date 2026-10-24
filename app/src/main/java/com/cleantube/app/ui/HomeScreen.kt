@@ -55,9 +55,6 @@ fun HomeScreen() {
         ) { }
         // the card itself is drawn once for the whole app (App.kt); this only tells it how far the feed is scrolled
         TrackHeaderScroll(paged.listState, Route.Home)
-        TrackGradient(Route.Home, paged.listState, 1) { i ->
-            entries.drop(i).firstNotNullOfOrNull { (it as? HomeEntry.Video)?.v?.id }
-        }
         PrefetchTop(paged.items)
     }
 }

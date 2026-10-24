@@ -127,7 +127,6 @@ private fun AccountFeedScreen() {
             header = { item { SubscriptionStrip(stripChannels, paged.items) } },
             indexRow = { i -> BentoFeedItem(paged.items, i) { v -> nav.push(Route.Video(v.id, v)) } }
         )
-        TrackGradient(Route.Feed, paged.listState, 1) { paged.items.getOrNull(it)?.id }
         PrefetchTop(paged.items)
     }
 }
@@ -170,7 +169,6 @@ private fun LocalFeedScreen() {
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     Box(Modifier.fillMaxSize()) {
         val list = items
-        TrackGradient(Route.Feed, listState, 1) { list?.getOrNull(it)?.id }
         val err = error
         when {
             subs.isEmpty() -> Box(Modifier.fillMaxSize().padding(top = headerH)) {
@@ -266,8 +264,6 @@ fun LibraryScreen() {
 
     val headerH = collapsingHeaderHeight(Route.Library)
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
-    // the glow follows the video you watched last
-    LaunchedEffect(store.history.firstOrNull()?.id) { store.history.firstOrNull()?.id?.let { DynamicGradient.show(Route.Library, it) } }
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             Modifier.fillMaxSize(), state = listState,

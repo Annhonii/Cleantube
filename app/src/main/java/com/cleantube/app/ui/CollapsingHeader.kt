@@ -282,7 +282,7 @@ fun CollapsingHeader(
     val muted = lerp(TextMuted, Color(0xB3FFFFFF), t)
     val selBg = lerp(Accent, Color.White, t)
     val onSel = lerp(OnAccent, Color.Black, t)
-    val barColor = lerp(Color.Transparent, Color.Black, t)
+    val barColor = lerp(Bg, Color.Black, t)
     val greetingStyle = androidx.compose.ui.text.TextStyle(
         fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.8).sp
     )
