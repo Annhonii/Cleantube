@@ -128,7 +128,7 @@ fun ActionTile(
     Box(
         modifier
             .size(40.dp)
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
             .background(if (active) Accent else SecondaryContainer)
             .bouncyClickable(pressedScale = 0.88f, onClick = onClick),
         contentAlignment = Alignment.Center

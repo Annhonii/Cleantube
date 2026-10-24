@@ -382,7 +382,7 @@ fun VideoRow(
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
                 .onGloballyPositioned { thumbC[0] = it }
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(Hairline)
         ) {
             VideoThumb(v.id, Modifier.fillMaxSize())
