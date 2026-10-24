@@ -31,7 +31,7 @@ fun HomeScreen() {
         PagedColumn(
             paged = paged,
             emptyText = "Nothing to show right now. Pull to retry from the Feed tab, or check your connection.",
-            contentPadding = PaddingValues(top = headerH + 8.dp, bottom = listBottomPad()),
+            contentPadding = PaddingValues(top = headerH + 12.dp, bottom = listBottomPad()),
             refreshIndicatorTop = headerH,
             // Quick picks: newest unwatched videos of your subscribed channels, refreshed automatically
             // the 1dp spacer keeps this item from having zero height when there are no Quick picks: a zero-height first item

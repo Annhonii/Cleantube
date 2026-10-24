@@ -122,7 +122,7 @@ private fun AccountFeedScreen() {
         PagedColumn(
             paged,
             emptyText = "Subscribe to channels and their newest videos show up here.",
-            contentPadding = PaddingValues(top = headerH + 8.dp, bottom = listBottomPad()),
+            contentPadding = PaddingValues(top = headerH + 12.dp, bottom = listBottomPad()),
             refreshIndicatorTop = headerH,
             header = { item { SubscriptionStrip(stripChannels, paged.items) } },
             indexRow = { i -> BentoFeedItem(paged.items, i) { v -> nav.push(Route.Video(v.id, v)) } }
@@ -180,7 +180,7 @@ private fun LocalFeedScreen() {
             else -> PullRefresh(refreshing = loading, onRefresh = { load() }, modifier = Modifier.fillMaxSize(), indicatorTop = headerH) {
                 LazyColumn(
                     Modifier.fillMaxSize(), state = listState,
-                    contentPadding = PaddingValues(top = headerH + 8.dp, bottom = listBottomPad())
+                    contentPadding = PaddingValues(top = headerH + 12.dp, bottom = listBottomPad())
                 ) {
                     item { SubscriptionStrip(subs, list) }
                     items(list.size) { i -> BentoFeedItem(list, i) { v -> nav.push(Route.Video(v.id, v)) } }
@@ -267,7 +267,7 @@ fun LibraryScreen() {
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             Modifier.fillMaxSize(), state = listState,
-            contentPadding = PaddingValues(top = headerH + 8.dp, bottom = listBottomPad())
+            contentPadding = PaddingValues(top = headerH + 12.dp, bottom = listBottomPad())
         ) {
             // 2 x 2 bento dashboard
             item {

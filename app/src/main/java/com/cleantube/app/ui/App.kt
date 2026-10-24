@@ -206,7 +206,7 @@ private fun TabsPager(state: PagerState, tabs: List<TabSpec>, live: MutableState
     ) { page ->
         val route = tabs.getOrNull(page)?.route
         val barBottom = rememberHeaderBarBottom(route ?: Route.Home)
-        val cornerPx = with(androidx.compose.ui.platform.LocalDensity.current) { FeedCorner.toPx() }
+        val cornerPx = with(androidx.compose.ui.platform.LocalDensity.current) { (if (route == Route.Shorts) FeedCorner else FeedCornerFeed).toPx() }
         Box(
             Modifier
                 .fillMaxSize()
