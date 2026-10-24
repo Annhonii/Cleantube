@@ -3,6 +3,12 @@ package com.cleantube.app.ui
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -411,7 +418,11 @@ fun CollapsingHeader(
     }
 }
 
-/** Home | Subscription | Library: the open tab is a filled pill with its name, the others are icon + name. */
+/**
+ * Home | Subscription | Library: ONE filled pill sits behind the open tab and slides (position and width, with a little
+ * spring) to the tab that is picked, while the icon / label colours cross-fade. Nothing is shown behind the row when
+ * the open page is not one of these tabs (Shorts has its own button).
+ */
 @Composable
 private fun NavPill(
     tabs: List<TabSpec>,
@@ -421,35 +432,71 @@ private fun NavPill(
     onSel: Color,
     idle: Color
 ) {
-    Row(
+    val selectedIdx = tabs.indexOfFirst { it.route == nav.current }
+    val density = LocalDensity.current
+    // where each item is inside the row (px): measured once it is laid out
+    val xs = remember(tabs.size) { androidx.compose.runtime.mutableStateListOf(*Array(tabs.size) { -1f }) }
+    val ws = remember(tabs.size) { androidx.compose.runtime.mutableStateListOf(*Array(tabs.size) { 0f }) }
+    val targetX = xs.getOrNull(selectedIdx) ?: -1f
+    val targetW = ws.getOrNull(selectedIdx) ?: 0f
+
+    val indX = remember { androidx.compose.animation.core.Animatable(0f) }
+    val indW = remember { androidx.compose.animation.core.Animatable(0f) }
+    var placed by remember { androidx.compose.runtime.mutableStateOf(false) }
+    val indAlpha by animateFloatAsState(if (selectedIdx >= 0 && placed) 1f else 0f, tween(160), label = "indicatorAlpha")
+    androidx.compose.runtime.LaunchedEffect(targetX, targetW) {
+        if (targetX < 0f || targetW <= 0f) return@LaunchedEffect
+        val spec = spring<Float>(dampingRatio = 0.8f, stiffness = 420f)
+        if (!placed) {
+            // first time: appear right on the open tab, don't fly in from the left edge
+            indX.snapTo(targetX); indW.snapTo(targetW)
+            placed = true
+        } else {
+            kotlinx.coroutines.coroutineScope {
+                launch { indX.animateTo(targetX, spec) }
+                launch { indW.animateTo(targetW, spec) }
+            }
+        }
+    }
+
+    Box(
         Modifier
             .clip(CircleShape)
             .background(surface)
-            .padding(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .padding(4.dp)
     ) {
-        tabs.forEach { t ->
-            val selected = t.route == nav.current
-            val bg by animateColorAsState(if (selected) selBg else Color.Transparent, label = "pillItemBg")
-            Row(
-                Modifier
-                    .fillMaxHeight()
-                    .bouncyClickable(pressedScale = 0.94f, onClick = { if (!selected) nav.selectTab(t.route) })
-                    .clip(CircleShape)
-                    .background(bg)
-                    .padding(horizontal = if (selected) 12.dp else 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(t.icon, contentDescription = t.label, tint = if (selected) onSel else idle, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(5.dp))
-                Text(
-                    t.label,
-                    color = if (selected) onSel else idle,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Normal,
-                    maxLines = 1, softWrap = false
-                )
+        // the sliding indicator (behind the items)
+        Box(
+            Modifier
+                .offset { androidx.compose.ui.unit.IntOffset(indX.value.roundToInt(), 0) }
+                .width(with(density) { indW.value.toDp() })
+                .fillMaxHeight()
+                .graphicsLayer { alpha = indAlpha }
+                .clip(CircleShape)
+                .background(selBg)
+        )
+        Row(
+            Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            tabs.forEachIndexed { i, t ->
+                val selected = i == selectedIdx
+                val tint by animateColorAsState(if (selected) onSel else idle, tween(200), label = "pillItemTint")
+                Row(
+                    Modifier
+                        .fillMaxHeight()
+                        .onGloballyPositioned { c ->
+                            if (i < xs.size) { xs[i] = c.positionInParent().x; ws[i] = c.size.width.toFloat() }
+                        }
+                        .bouncyClickable(pressedScale = 0.94f, onClick = { if (!selected) nav.selectTab(t.route) })
+                        .padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(t.icon, contentDescription = t.label, tint = tint, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(t.label, color = tint, fontSize = 13.sp, fontWeight = FontWeight.Normal, maxLines = 1, softWrap = false)
+                }
             }
         }
     }
