@@ -124,7 +124,7 @@ private val TagRegex = Regex("""#[\p{L}\p{N}_]+""")
 
 private fun postUrl(id: String) = "https://www.youtube.com/post/$id"
 
-private fun openUrl(ctx: android.content.Context, url: String) {
+private fun openPostLink(ctx: android.content.Context, url: String) {
     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
@@ -190,7 +190,7 @@ fun HomePostCard(post: Post, modifier: Modifier = Modifier) {
                     }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; sharePost(ctx, post) })
-                        DropdownMenuItem(text = { Text("Open on YouTube") }, onClick = { menu = false; openUrl(ctx, postUrl(post.id)) })
+                        DropdownMenuItem(text = { Text("Open on YouTube") }, onClick = { menu = false; openPostLink(ctx, postUrl(post.id)) })
                         if (post.channelId.isNotEmpty()) {
                             DropdownMenuItem(text = { Text("Go to channel") }, onClick = { menu = false; nav.push(Route.Channel(post.channelId)) })
                         }
@@ -204,7 +204,7 @@ fun HomePostCard(post: Post, modifier: Modifier = Modifier) {
                     post.text,
                     expanded = expanded,
                     onToggle = { expanded = !expanded },
-                    onUrl = { openUrl(ctx, it) },
+                    onUrl = { openPostLink(ctx, it) },
                     onTag = { nav.push(Route.Search(it)) },
                     modifier = Modifier.padding(top = 12.dp)
                 )
@@ -242,7 +242,7 @@ fun HomePostCard(post: Post, modifier: Modifier = Modifier) {
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
                                 .border(1.dp, Hairline, RoundedCornerShape(12.dp))
-                                .clickable { openUrl(ctx, postUrl(post.id)) }
+                                .clickable { openPostLink(ctx, postUrl(post.id)) }
                                 .padding(horizontal = 14.dp, vertical = 11.dp)
                         ) {
                             Text(option, color = TextPrimary, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -320,7 +320,7 @@ fun HomePostCard(post: Post, modifier: Modifier = Modifier) {
                         .fillMaxWidth()
                         .clip(CircleShape)
                         .background(Accent)
-                        .clickable { comments = false; openUrl(ctx, postUrl(post.id)) }
+                        .clickable { comments = false; openPostLink(ctx, postUrl(post.id)) }
                         .padding(vertical = 14.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
