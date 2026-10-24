@@ -289,6 +289,8 @@ fun <T> PagedColumn(
     onRefresh: (() -> Unit)? = null,
     /** When set, the item at index i is drawn by this instead of [row] (used by the bento feed). */
     indexRow: (@Composable (Int) -> Unit)? = null,
+    /** With [indexRow]: how many rows there are when the list shows more than [Paged.items] (Home mixes in posts). */
+    itemCount: Int? = null,
     row: @Composable (T) -> Unit = {}
 ) {
     // only the very first time: a list that is already loaded (cached) is not fetched again
@@ -313,7 +315,7 @@ fun <T> PagedColumn(
     ) {
         LazyColumn(modifier = Modifier.fillMaxSize(), state = state, contentPadding = contentPadding) {
             header?.invoke(this)
-            items(paged.items.size) { i ->
+            items(itemCount ?: paged.items.size) { i ->
                 Box(Modifier.entrance(seen, i, if (i < 6) 60 + i * 55 else 0)) {
                     if (indexRow != null) indexRow(i) else row(paged.items[i])
                 }

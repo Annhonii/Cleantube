@@ -382,7 +382,8 @@ object Api {
                 image = it.optString("image"),
                 video = it.optString("video"),
                 videoTitle = it.optString("videoTitle"),
-                poll = it.optString("poll")
+                poll = it.optString("poll"),
+                channelId = id
             )
         }
         return Page(list, j.nextToken())

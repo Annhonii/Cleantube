@@ -165,5 +165,7 @@ data class Post(
     val image: String,
     val video: String,
     val videoTitle: String,
-    val poll: String
+    val poll: String,
+    /** The channel the post belongs to (set when it comes from a channel's Posts tab). */
+    val channelId: String = ""
 )
