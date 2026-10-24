@@ -125,13 +125,11 @@ fun DynamicGradientBackground(seed: Color, visible: Boolean, modifier: Modifier 
                 drawRect(end)
                 drawRect(
                     Brush.radialGradient(
-                        colorStops = arrayOf(
-                            0f to bright,
-                            0.25f to bright.copy(alpha = top * 0.95f),
-                            0.55f to deep,
-                            0.85f to end,
-                            1f to end
-                        ),
+                        0f to bright,
+                        0.25f to bright.copy(alpha = top * 0.95f),
+                        0.55f to deep,
+                        0.85f to end,
+                        1f to end,
                         center = Offset(size.width / 2f, -size.height * 0.05f),
                         radius = size.height * 0.90f
                     )
