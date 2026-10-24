@@ -7,6 +7,7 @@ class CleanTubeApp : Application() {
     override fun onCreate() {
         super.onCreate()
         Graph.init(this)
+        com.cleantube.app.data.Reco.init(this)
         com.cleantube.app.data.Yt.init(this)
         com.cleantube.app.data.Downloads.init(this)
         com.cleantube.app.data.Session.markLoggedIn()

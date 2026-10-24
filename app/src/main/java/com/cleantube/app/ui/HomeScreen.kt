@@ -14,11 +14,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import com.cleantube.app.data.Api
 import com.cleantube.app.data.TabCache
 import com.cleantube.app.data.Session
-import com.cleantube.app.data.QuickPicks
-import com.cleantube.app.data.CommunityPosts
 import kotlinx.coroutines.launch
 
-/** YouTube's own home feed: personalized when signed in, the general one otherwise. */
+/** Home: the app's own recommendations (subscribed channels first), ranked on the phone. */
 @Composable
 fun HomeScreen() {
     val nav = LocalNav.current
@@ -29,29 +27,13 @@ fun HomeScreen() {
     Box(Modifier.fillMaxSize()) {
         val paged = TabCache.paged("home:$loggedIn:${Session.handle}") { token -> Api.home(token) }
         val headerH = collapsingHeaderHeight(Route.Home)
-        // Community posts of the subscribed channels are slipped in between the videos (loaded in the background,
-        // the feed never waits for them)
-        val subs = com.cleantube.app.data.Graph.store.subscriptions
-        androidx.compose.runtime.LaunchedEffect(loggedIn, Session.handle, subs) { CommunityPosts.refresh() }
-        val posts = CommunityPosts.pool
-        val entries = remember(paged.items, posts) { mixHome(paged.items, posts) }
         PagedColumn(
             paged = paged,
-            emptyText = "Nothing to show right now. Pull to retry from the Feed tab, or check your connection.",
+            emptyText = "Nothing to show right now. Pull down to retry, or check your connection.",
             contentPadding = PaddingValues(top = headerH + 12.dp, bottom = listBottomPad()),
             refreshIndicatorTop = headerH,
-            // Quick picks: newest unwatched videos of your subscribed channels, refreshed automatically
-            header = { item { Column { Spacer(Modifier.height(1.dp)); QuickPicksSection() } } },
-            onRefresh = { QuickPicks.request(force = true); CommunityPosts.request(force = true) },
-            itemCount = entries.size,
-            // videos and posts, one row each
-            indexRow = { i ->
-                when (val e = entries.getOrNull(i)) {
-                    is HomeEntry.Video -> VideoRow(e.v, onClick = { nav.push(Route.Video(e.v.id, e.v)) })
-                    is HomeEntry.PostEntry -> HomePostCard(e.post)
-                    null -> Unit
-                }
-            }
+            itemCount = paged.items.size,
+            indexRow = { i -> paged.items.getOrNull(i)?.let { v -> VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) }) } }
         ) { }
         // the card itself is drawn once for the whole app (App.kt); this only tells it how far the feed is scrolled
         TrackHeaderScroll(paged.listState, Route.Home)

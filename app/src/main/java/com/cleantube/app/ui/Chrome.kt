@@ -157,7 +157,6 @@ data class TabSpec(val id: String, val route: Route, val label: String, val icon
 val AllTabs = listOf(
     TabSpec("shorts", Route.Shorts, "Shorts", Icons.Rounded.LocalFireDepartment),
     TabSpec("home", Route.Home, "Home", Icons.Rounded.Home),
-    TabSpec("feed", Route.Feed, "Subscription", Icons.Rounded.Subscriptions),
     TabSpec("library", Route.Library, "Library", Icons.Rounded.VideoLibrary)
 )
 

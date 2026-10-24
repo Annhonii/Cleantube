@@ -550,44 +550,6 @@ fun SettingsScreen() {
                             color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
                         )
                     }
-                    SectionTitle("RECOMMENDATIONS")
-                    Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Card)
-                                .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            Text("Tell YouTube what I watch", color = TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                            Switch(checked = store.syncHistory, onCheckedChange = { store.syncHistory = it })
-                        }
-                        var diag by remember { mutableStateOf("") }
-                        var diagBusy by remember { mutableStateOf(false) }
-                        val diagScope = rememberCoroutineScope()
-                        Pill(
-                            if (diagBusy) "Checking..." else "Connection check",
-                            onClick = {
-                                if (!diagBusy) {
-                                    diagBusy = true
-                                    diagScope.launch {
-                                        diag = com.cleantube.app.data.Api.connectionCheck()
-                                        diagBusy = false
-                                    }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        if (diag.isNotEmpty()) {
-                            Text(diag, color = TextPrimary, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
-                        }
-                        Text(
-                            "Last ping: " + com.cleantube.app.data.Api.lastWatchPing,
-                            color = TextMuted, fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp)
-                        )
-                        Text(
-                            "Signed in only. Videos and Shorts you watch here are added to your YouTube watch history, so Home stops repeating the same videos and learns what you like. Turn it off to keep watching here private.",
-                            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
-                        )
-                    }
                     SectionTitle("VIDEO QUALITY ON WI-FI")
                     QualityPills(store.wifiQuality) { store.wifiQuality = it }
                     SectionTitle("VIDEO QUALITY ON MOBILE DATA")

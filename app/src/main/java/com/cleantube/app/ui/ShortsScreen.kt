@@ -672,10 +672,20 @@ private fun ShortPage(
         value = ch?.thumb?.takeIf { it.isNotEmpty() } ?: ChannelAvatars.known(v.channelId, v.channelThumb)
         if (value.isEmpty() && v.channelId.isNotEmpty()) value = ChannelAvatars.load(v.channelId)
     }
+    // how long this Short stayed on screen = the recommendation signal (swiped away fast = no, stayed / looped = yes)
+    val shownSince = remember { longArrayOf(0L) }
+    androidx.compose.runtime.DisposableEffect(current) {
+        if (current) shownSince[0] = System.currentTimeMillis()
+        onDispose {
+            if (current && shownSince[0] > 0L) {
+                com.cleantube.app.data.Reco.onShortLeft(v, System.currentTimeMillis() - shownSince[0])
+                shownSince[0] = 0L
+            }
+        }
+    }
     // remember the Short in the app's watch history (also gets its title / channel once those are known)
     LaunchedEffect(current, title, ch?.title) {
         if (current) {
-            TabCache.appScope.launch { delay(2500); Api.markWatched(v.id) }
             Graph.store.addHistory(v.copy(title = title, channelTitle = v.channelTitle.ifEmpty { ch?.title.orEmpty() }, short = true))
         }
     }

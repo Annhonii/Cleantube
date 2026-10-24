@@ -68,42 +68,6 @@ object Api {
         return o
     }
 
-    private val markedWatched = HashSet<String>()
-
-    /** Asks YouTube whether it treats this app as a signed-in account (shown by Settings > Player > Connection check). */
-    suspend fun connectionCheck(): String = try {
-        Yt.run("diag").toString(2)
-    } catch (e: Exception) {
-        "error: ${e.message}"
-    }
-
-    /** What the last "watched" ping did (shown in Settings > Player so a silent failure is visible). */
-    @Volatile var lastWatchPing: String = "no ping sent yet"
-
-    /**
-     * Tells YouTube this video was watched (what the official app does when playback starts), so the account's
-     * recommendations keep learning from what is watched in this app. Signed in only, once per video per run.
-     */
-    suspend fun markWatched(videoId: String) {
-        if (!Graph.store.syncHistory || videoId.isEmpty()) return
-        if (!Session.loggedIn) { lastWatchPing = "not signed in (Session.loggedIn is false)"; return }
-        if (Playback.isBlocked()) { lastWatchPing = "paused: network is blocked"; return }
-        val first = synchronized(markedWatched) { markedWatched.add(videoId) }
-        if (!first) return
-        try {
-            val r = Yt.run("markWatched", args("id" to videoId, "pos" to 10))
-            lastWatchPing = "$videoId: $r"
-            android.util.Log.d("Voidstream", "markWatched $lastWatchPing")
-            if (!r.optBoolean("ok")) synchronized(markedWatched) { markedWatched.remove(videoId) }
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            synchronized(markedWatched) { markedWatched.remove(videoId) }
-            throw e
-        } catch (e: Exception) {
-            lastWatchPing = "$videoId: error ${e.message}"
-            synchronized(markedWatched) { markedWatched.remove(videoId) }
-        }
-    }
-
     private fun videosPage(j: JSONObject, dropShorts: Boolean = false): Page<VideoItem> {
         var list = j.pick("v") { it.video() }
         if (dropShorts) list = list.filter { !it.short }
@@ -113,8 +77,12 @@ object Api {
     // ---------------------------------------------------------------- account feeds
 
     suspend fun home(token: String?): Page<VideoItem> {
-        // Home is YouTube's own recommendation feed (long videos only: Shorts have their own tab).
-        // No search-based substitute is shown if it comes back empty.
+        // Home is the app's own recommendation engine (Reco): subscribed channels first, ranked on the phone.
+        // With no subscriptions at all there is nothing to learn from yet, so YouTube's own feed is shown instead.
+        if (token == null || token.startsWith("L:")) {
+            Reco.homePage(token)?.let { return it }
+            if (token != null) return Page(emptyList(), null)
+        }
         return videosPage(Yt.run("home", args("token" to token)), dropShorts = true)
     }
 
@@ -188,6 +156,7 @@ object Api {
             val p = rateParams[videoId]?.optString(status)?.takeIf { it.isNotEmpty() } ?: throw e
             Yt.run("rate", args("id" to videoId, "status" to status, "params" to p))
         }
+        Reco.onRate(videoId, status)   // the recommendations learn from it too
     }
 
     // ---------------------------------------------------------------- search
@@ -201,6 +170,11 @@ object Api {
      * topic chip is selected, it falls back to searching "#shorts" (plus topic) and keeping only real Shorts.
      */
     suspend fun shorts(token: String?, topic: String = ""): Page<VideoItem> {
+        // The app's own Shorts engine (Reco) first: subscribed channels' Shorts, reacting to what is watched / swiped.
+        if (topic.isEmpty() && (token == null || token.startsWith("L:"))) {
+            Reco.shortsPage(token)?.let { return it }
+            if (token != null) return Page(emptyList(), null)
+        }
         if (topic.isEmpty() && (token == null || token.startsWith("R:"))) {
             // Only YouTube's own Shorts recommendations: never swapped for a "#shorts" search.
             var failure: Exception? = null
@@ -268,6 +242,8 @@ object Api {
         watches[id] = Watch(j.optString("commentsToken").takeIf { it.isNotEmpty() && it != "null" })
         j.optJSONObject("rateParams")?.let { rateParams[id] = it }
         val related = (j.optJSONArray("related") ?: JSONArray()).mapObjects { it.video() }
+        Reco.remember(vid.copy(title = title))
+        Reco.addRelated(related)   // up next videos = adjacent-topic candidates for Home
         return VideoDetails(
             video = vid,
             description = j.optString("description"),
