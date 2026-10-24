@@ -99,7 +99,9 @@ private val CardSmall = NavTopSmall + NavH + BottomSmall
 
 // Rounded top corners of the feed: the header's bottom edge gets a concave fillet at the left and right screen edge,
 // so a video that scrolls up under the header looks rounded there instead of being cut off by a straight line.
-private val FilletR = 34.dp
+private val FilletR = 44.dp
+// The feed's cards start this far from the screen edge (14dp), so the rounded corner has to start there, not at the edge.
+private val FilletInset = 14.dp
 
 private val SearchIconSize = 24.dp
 private val SearchIconLeft = 16.dp    // icon's place inside the wide search bar
@@ -312,20 +314,22 @@ fun CollapsingHeader(
                 // it with a clean edge. Over a Short it is see-through, so the buttons float on the video.
                 if (!onShorts) {
                     val r = FilletR.toPx()
+                    val inset = FilletInset.toPx()
                     val barH = size.height - r        // the bar itself; the last [r] of the layout is only for the two fillets
                     drawRect(Bg, size = Size(size.width, barH))
                     val left = Path().apply {
                         fillType = PathFillType.EvenOdd
-                        addRect(Rect(0f, barH, r, barH + r))
-                        addOval(Rect(0f, barH, 2 * r, barH + 2 * r))
+                        addRect(Rect(inset, barH, inset + r, barH + r))
+                        addOval(Rect(inset, barH, inset + 2 * r, barH + 2 * r))
                     }
-                    clipRect(0f, barH, r, barH + r) { drawPath(left, Bg) }
+                    clipRect(inset, barH, inset + r, barH + r) { drawPath(left, Bg) }
+                    val rx = size.width - inset
                     val right = Path().apply {
                         fillType = PathFillType.EvenOdd
-                        addRect(Rect(size.width - r, barH, size.width, barH + r))
-                        addOval(Rect(size.width - 2 * r, barH, size.width, barH + 2 * r))
+                        addRect(Rect(rx - r, barH, rx, barH + r))
+                        addOval(Rect(rx - 2 * r, barH, rx, barH + 2 * r))
                     }
-                    clipRect(size.width - r, barH, size.width, barH + r) { drawPath(right, Bg) }
+                    clipRect(rx - r, barH, rx, barH + r) { drawPath(right, Bg) }
                 }
             }
     ) { measurables, c ->
