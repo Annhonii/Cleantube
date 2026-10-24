@@ -68,6 +68,27 @@ object Api {
         return o
     }
 
+    private val markedWatched = HashSet<String>()
+
+    /**
+     * Tells YouTube this video was watched (what the official app does when playback starts), so the account's
+     * recommendations keep learning from what is watched in this app. Signed in only, once per video per run.
+     */
+    suspend fun markWatched(videoId: String) {
+        if (!Session.loggedIn || !Graph.store.syncHistory || videoId.isEmpty()) return
+        if (Playback.isBlocked()) return
+        val first = synchronized(markedWatched) { markedWatched.add(videoId) }
+        if (!first) return
+        try {
+            Yt.run("markWatched", args("id" to videoId))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            synchronized(markedWatched) { markedWatched.remove(videoId) }
+            throw e
+        } catch (e: Exception) {
+            synchronized(markedWatched) { markedWatched.remove(videoId) }
+        }
+    }
+
     private fun videosPage(j: JSONObject, dropShorts: Boolean = false): Page<VideoItem> {
         var list = j.pick("v") { it.video() }
         if (dropShorts) list = list.filter { !it.short }

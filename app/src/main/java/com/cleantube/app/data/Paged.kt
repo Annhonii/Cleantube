@@ -59,7 +59,7 @@ class Paged<T>(
             try {
                 val page = fetch(next)
                 if (gen == generation) {
-                    items = items + page.items
+                    items = dedupe(items + page.items)
                     next = page.next
                     if (page.next == null) finished = true
                 }
@@ -74,6 +74,10 @@ class Paged<T>(
             }
         }
     }
+
+    /** Same video twice in one list (YouTube repeats videos between pages): keep the first one. */
+    private fun dedupe(list: List<T>): List<T> =
+        list.distinctBy { if (it is VideoItem) it.id else it }
 
     /** Puts one item at the top of the list (e.g. a comment that was just posted). */
     fun prepend(item: T) {
@@ -92,7 +96,7 @@ class Paged<T>(
             try {
                 val page = fetch(null)
                 if (gen == generation) {
-                    items = page.items
+                    items = dedupe(page.items)
                     next = page.next
                     finished = page.next == null
                     error = null

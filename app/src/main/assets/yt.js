@@ -949,6 +949,18 @@
       if (r && r.errors && r.errors.length) throw new Error('reply refused');
       return { ok: true };
     },
+    /** Tells YouTube a video was watched (the same ping the official player sends), so history and recommendations learn from it. */
+    markWatched: async function (a) {
+      var j = await call('player', { videoId: a.id, contentCheckOk: true, racyCheckOk: true });
+      var pt = j && j.playbackTracking;
+      var base = pt && pt.videostatsPlaybackUrl && pt.videostatsPlaybackUrl.baseUrl;
+      if (!base) return { ok: false };
+      var abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', cpn = '';
+      for (var i = 0; i < 16; i++) cpn += abc.charAt(Math.floor(Math.random() * 64));
+      await fetch(base + (base.indexOf('?') < 0 ? '?' : '&') + 'ver=2&cpn=' + cpn + '&cmt=0&el=detailpage',
+                  { mode: 'no-cors', credentials: 'include' });
+      return { ok: true };
+    },
     /** YouTube's notification bell (signed-in only). a.token = continuation of the next page. */
     notifications: async function (a) {
       var body = a.token ? { ctoken: a.token } : { notificationsMenuRequestType: 'NOTIFICATIONS_MENU_REQUEST_TYPE_INBOX' };

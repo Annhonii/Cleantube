@@ -29,12 +29,23 @@ object Playback {
 
     // After YouTube refuses this network, background prefetching pauses so it doesn't keep hammering the IP.
     @Volatile private var blockedUntil = 0L
+    // Each new refusal in a row doubles the pause (3 -> 6 -> 12 -> 24 -> 30 min); a success resets it.
     private const val BLOCK_PAUSE_MS = 3L * 60 * 1000
-    // Prefetches run one at a time, with a short gap between them.
-    private val prefetchGate = Semaphore(2)
+    private const val BLOCK_PAUSE_MAX_MS = 30L * 60 * 1000
+    @Volatile private var blockStrikes = 0
+    // Prefetches run one at a time, with a gap between them.
+    private val prefetchGate = Semaphore(1)
+
+    /** True while YouTube is refusing this network. Background work (prefetch, extra feeds, metadata) must stay quiet. */
+    fun isBlocked(): Boolean = System.currentTimeMillis() < blockedUntil
 
     private fun noteBlock(e: Throwable) {
-        if (Streams.isBlock(e.message)) blockedUntil = System.currentTimeMillis() + BLOCK_PAUSE_MS
+        if (Streams.isBlock(e.message)) {
+            val strikes = blockStrikes + 1
+            blockStrikes = strikes
+            val pause = (BLOCK_PAUSE_MS shl (strikes - 1).coerceAtMost(6)).coerceAtMost(BLOCK_PAUSE_MAX_MS)
+            blockedUntil = System.currentTimeMillis() + pause
+        }
     }
 
     fun cached(id: String): StreamInfo? {
@@ -79,6 +90,7 @@ object Playback {
                 cache.entries.minByOrNull { it.value.at }?.let { cache.remove(it.key) }
             }
             cache[id] = Entry(info, System.currentTimeMillis())
+            blockStrikes = 0
             return info
         } finally {
             if (job.isCompleted) synchronized(inflight) { if (inflight[key] === job) inflight.remove(key) }
@@ -104,7 +116,7 @@ object Playback {
             prefetchGate.withPermit {
                 if (cached(id) != null || System.currentTimeMillis() < blockedUntil) return@withPermit
                 runCatching { resolve(id) }
-                delay(150)
+                delay(700)
             }
         }
     }
@@ -113,10 +125,9 @@ object Playback {
     fun warmUp() {
         if (!Graph.store.fastStart) return
         scope.launch {
+            // One light request only. (The NewPipe engine is no longer pre-loaded at start: that was a second
+            // request on every app launch. It loads the first time it is really needed.)
             runCatching { resolve("jNQXAC9IVRw") }
-            // The NewPipe engine is what takes over when a fast link doesn't play. Load it (and YouTube's player
-            // script) now as well, otherwise the first video that needs it waits for all of that: 5-10 s of spinner.
-            if (System.currentTimeMillis() >= blockedUntil) runCatching { Streams.fetch("jNQXAC9IVRw") }
         }
     }
 

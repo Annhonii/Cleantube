@@ -288,7 +288,7 @@ fun ShortsScreen() {
             }
             // find the stream links of the next Shorts before the user gets there
             LaunchedEffect(items.size, pager.currentPage) {
-                for (i in 0..1) items.getOrNull(pager.currentPage + i)?.let { Playback.prefetch(it.id) }
+                items.getOrNull(pager.currentPage + 1)?.let { Playback.prefetch(it.id) }
             }
 
             if (items.isEmpty()) {
@@ -675,6 +675,7 @@ private fun ShortPage(
     // remember the Short in the app's watch history (also gets its title / channel once those are known)
     LaunchedEffect(current, title, ch?.title) {
         if (current) {
+            TabCache.appScope.launch { delay(2500); Api.markWatched(v.id) }
             Graph.store.addHistory(v.copy(title = title, channelTitle = v.channelTitle.ifEmpty { ch?.title.orEmpty() }, short = true))
         }
     }

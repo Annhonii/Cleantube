@@ -19,7 +19,7 @@ import kotlinx.coroutines.withTimeout
  * again when the account / subscriptions change, or on pull-to-refresh; the Home feed never waits for it.
  */
 object CommunityPosts {
-    private const val CHANNELS = 10
+    private const val CHANNELS = 5
     private const val PER_CHANNEL = 3
 
     var pool by mutableStateOf<List<Post>>(emptyList())
@@ -39,6 +39,7 @@ object CommunityPosts {
         val key = if (loggedIn) "acct:${Session.handle}" else "local:" + subs.joinToString(",") { it.id }
         if (!force && key == lastKey) return
         if (loading) return
+        if (Playback.isBlocked()) return   // YouTube is refusing this network: posts are a bonus, stay quiet
         loading = true
         try {
             val channels = (if (loggedIn) runCatching { Api.accountChannels() }.getOrDefault(emptyList()).ifEmpty { subs } else subs)
@@ -47,7 +48,7 @@ object CommunityPosts {
                 lastKey = key
                 return
             }
-            val gate = Semaphore(4)
+            val gate = Semaphore(2)
             val perChannel = coroutineScope {
                 channels.shuffled().take(CHANNELS).map { ch ->
                     async {

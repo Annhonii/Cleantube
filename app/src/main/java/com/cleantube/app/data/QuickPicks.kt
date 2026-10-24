@@ -82,6 +82,7 @@ object QuickPicks {
         val key = keyOf(loggedIn, Session.handle, subs)
         val changed = key != lastKey
         if (!force && !forceNext && !changed) return
+        if (!force && Playback.isBlocked()) return   // blocked: try again on the next refresh, don't add to it
         if (loading) {
             // something newer was asked for while a fetch runs: run once more when it is done
             again = true

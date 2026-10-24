@@ -546,7 +546,22 @@ fun SettingsScreen() {
                             Switch(checked = store.fastStart, onCheckedChange = { store.fastStart = it })
                         }
                         Text(
-                            "Videos start almost instantly: the app prepares the videos on your screen (and the one you are touching) before you open them. Fast start consumes slightly more battery and data. Turn it off to save them; videos then take a moment longer to start.",
+                            "Videos start almost instantly: the app prepares the videos on your screen (and the one you are touching) before you open them. Fast start sends extra requests to YouTube and can get your network temporarily blocked, so it is off by default. Turn it on only if you want faster starts.",
+                            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                    SectionTitle("RECOMMENDATIONS")
+                    Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Card)
+                                .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text("Tell YouTube what I watch", color = TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                            Switch(checked = store.syncHistory, onCheckedChange = { store.syncHistory = it })
+                        }
+                        Text(
+                            "Signed in only. Videos and Shorts you watch here are added to your YouTube watch history, so Home stops repeating the same videos and learns what you like. Turn it off to keep watching here private.",
                             color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
                         )
                     }

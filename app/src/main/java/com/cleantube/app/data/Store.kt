@@ -96,13 +96,22 @@ class Store(context: Context) {
             sp.edit().putFloat("default_speed", value).apply()
         }
 
-    private val fastStartState = mutableStateOf(sp.getBoolean("fast_start", true))
+    private val fastStartState = mutableStateOf(sp.getBoolean("fast_start", false))
     /** Look up stream links ahead of time (videos on screen, the one under your finger, the next Shorts) so playback starts fast. */
     var fastStart: Boolean
         get() = fastStartState.value
         set(value) {
             fastStartState.value = value
             sp.edit().putBoolean("fast_start", value).apply()
+        }
+
+    private val syncHistoryState = mutableStateOf(sp.getBoolean("sync_history", true))
+    /** Tell YouTube you watched a video (signed in only), so your recommendations keep learning from what you watch here. */
+    var syncHistory: Boolean
+        get() = syncHistoryState.value
+        set(value) {
+            syncHistoryState.value = value
+            sp.edit().putBoolean("sync_history", value).apply()
         }
 
     private val autoPopupState = mutableStateOf(sp.getBoolean("auto_popup", true))

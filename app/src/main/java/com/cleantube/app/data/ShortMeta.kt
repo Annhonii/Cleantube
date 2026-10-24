@@ -20,6 +20,7 @@ object ShortMeta {
 
     suspend fun load(videoId: String): Info? {
         cache[videoId]?.let { return it }
+        if (Playback.isBlocked()) return null
         val j = withContext(Dispatchers.IO) {
             try {
                 val u = "https://www.youtube.com/oembed?format=json&url=" +
