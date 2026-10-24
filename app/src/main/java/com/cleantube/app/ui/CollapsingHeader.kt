@@ -46,6 +46,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.SolidColor
@@ -262,12 +263,21 @@ fun CollapsingHeader(
     val firstName = if (hasGreeting()) Session.name.trim().substringBefore(' ') else ""
     val thumb = Session.thumb
 
-    // Over a Short the header is see-through with white icons
-    val surface = if (onShorts) Color(0x33FFFFFF) else Card
-    val fg = if (onShorts) Color.White else TextPrimary
-    val muted = if (onShorts) Color(0xB3FFFFFF) else TextMuted
-    val selBg = if (onShorts) Color.White else Accent
-    val onSel = if (onShorts) Color.Black else OnAccent
+    // Colours follow the pager: t = 0 on Home / the other tabs, 1 on Shorts, and in between while the pages slide, so the
+    // header fades Home <-> Shorts (white <-> black) together with the finger instead of flipping when the swipe ends.
+    val shortsT by remember(shortsIndex) {
+        androidx.compose.runtime.derivedStateOf {
+            if (shortsIndex < 0) 0f else (1f - kotlin.math.abs(pagerPosition() - shortsIndex)).coerceIn(0f, 1f)
+        }
+    }
+    val t = shortsT
+    val shortsSurface = Color(0x33FFFFFF)
+    val surface = lerp(Card, shortsSurface, t)
+    val fg = lerp(TextPrimary, Color.White, t)
+    val muted = lerp(TextMuted, Color(0xB3FFFFFF), t)
+    val selBg = lerp(Accent, Color.White, t)
+    val onSel = lerp(OnAccent, Color.Black, t)
+    val barColor = lerp(Bg, Color.Black, t)
     val greetingStyle = androidx.compose.ui.text.TextStyle(
         fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.8).sp
     )
@@ -336,11 +346,11 @@ fun CollapsingHeader(
                 Modifier
                     .bouncyClickable(pressedScale = 0.9f, onClick = { if (shortsTab != null && !onShorts) nav.selectTab(Route.Shorts) })
                     .clip(CircleShape)
-                    .background(if (onShorts) selBg else surface),
+                    .background(lerp(surface, Color.White, t)),
                 contentAlignment = Alignment.Center
             ) {
                 if (shortsTab != null) {
-                    Icon(ShortsIcon, contentDescription = "Shorts", tint = if (onShorts) onSel else fg, modifier = Modifier.size(24.dp))
+                    Icon(ShortsIcon, contentDescription = "Shorts", tint = lerp(fg, Color.Black, t), modifier = Modifier.size(24.dp))
                 }
             }
             // 7: navigation pill: Home | Subscription | Library
@@ -351,7 +361,7 @@ fun CollapsingHeader(
             .drawBehind {
                 // flat bar over the full screen width (status bar included): the screen colour, black on Shorts
                 // (the video is dark, white icons)
-                drawRect(if (onShorts) Color.Black else Bg)
+                drawRect(barColor)
             }
     ) { measurables, c ->
         val p = fOf()

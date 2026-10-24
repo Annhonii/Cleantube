@@ -130,7 +130,13 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
             // MainActivity applies it together with the system light / dark setting (one place, so it can't get stuck).
             val shortsOn = nav.isTabRoot && shortsIdx >= 0 && pagerState.targetPage == shortsIdx
             // the header is black over Shorts: white status bar icons there
-            val shortsBar = nav.isTabRoot && nav.current == Route.Shorts
+            // (from the pager, so the icons turn white as soon as the Shorts page is more than half on screen)
+            val shortsBar by remember(shortsIdx) {
+                derivedStateOf {
+                    nav.isTabRoot && shortsIdx >= 0 &&
+                        kotlin.math.abs(pagerState.currentPage + pagerState.currentPageOffsetFraction - shortsIdx) < 0.5f
+                }
+            }
             SideEffect { SystemBarsUi.whiteIcons = shortsBar }
             DisposableEffect(Unit) { onDispose { SystemBarsUi.whiteIcons = false } }
             val headerPos: () -> Float = { pagerState.currentPage + pagerState.currentPageOffsetFraction }
