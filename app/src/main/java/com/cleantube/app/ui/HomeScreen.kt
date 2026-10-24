@@ -3,6 +3,8 @@ package com.cleantube.app.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,7 +34,9 @@ fun HomeScreen() {
             contentPadding = PaddingValues(top = headerH + 8.dp, bottom = listBottomPad()),
             refreshIndicatorTop = headerH,
             // Quick picks: newest unwatched videos of your subscribed channels, refreshed automatically
-            header = { item { QuickPicksSection() } },
+            // the 1dp spacer keeps this item from having zero height when there are no Quick picks: a zero-height first item
+            // is skipped by the list, which made the header think the feed was already scrolled (so it started collapsed)
+            header = { item { Column { Spacer(Modifier.height(1.dp)); QuickPicksSection() } } },
             onRefresh = { QuickPicks.request(force = true) },
             // fixed-height rhythm: hero, two tiles, two tiles... (see BentoFeedItem)
             indexRow = { i -> BentoFeedItem(paged.items, i) { v -> nav.push(Route.Video(v.id, v)) } }

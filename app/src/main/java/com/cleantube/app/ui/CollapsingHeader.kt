@@ -33,7 +33,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
@@ -84,6 +89,10 @@ private val NavTopBig = TopPad + AvatarBig + GreetGapTop + GreetH + GreetGapBott
 private val NavTopSmall = TopPad + AvatarSmall + NavGapSmall
 private val CardBig = NavTopBig + NavH + BottomBig        // below the status bar
 private val CardSmall = NavTopSmall + NavH + BottomSmall
+
+// Rounded top corners of the feed: the header's bottom edge gets a concave fillet at the left and right screen edge,
+// so a video that scrolls up under the header looks rounded there instead of being cut off by a straight line.
+private val FilletR = 24.dp
 
 private val SearchIconSize = 24.dp
 private val SearchIconLeft = 16.dp    // icon's place inside the wide search bar
@@ -293,7 +302,23 @@ fun CollapsingHeader(
             .drawBehind {
                 // flat bar over the full screen width (status bar included), in the screen colour; the feed slides under
                 // it with a clean edge. Over a Short it is see-through, so the buttons float on the video.
-                if (!onShorts) drawRect(Bg)
+                if (!onShorts) {
+                    val r = FilletR.toPx()
+                    val barH = size.height - r        // the bar itself; the last [r] of the layout is only for the two fillets
+                    drawRect(Bg, size = Size(size.width, barH))
+                    val left = Path().apply {
+                        fillType = PathFillType.EvenOdd
+                        addRect(Rect(0f, barH, r, barH + r))
+                        addOval(Rect(0f, barH, 2 * r, barH + 2 * r))
+                    }
+                    clipRect(0f, barH, r, barH + r) { drawPath(left, Bg) }
+                    val right = Path().apply {
+                        fillType = PathFillType.EvenOdd
+                        addRect(Rect(size.width - r, barH, size.width, barH + r))
+                        addOval(Rect(size.width - 2 * r, barH, size.width, barH + 2 * r))
+                    }
+                    clipRect(size.width - r, barH, size.width, barH + r) { drawPath(right, Bg) }
+                }
             }
     ) { measurables, c ->
         val p = fOf()
@@ -345,7 +370,7 @@ fun CollapsingHeader(
         val pillX = if (shortsTab != null) pad + navH + gap else pad
         val pill = measurables[7].measure(Constraints.fixed((w - pad - pillX).coerceAtLeast(0), navH))
 
-        val h = navTop + navH + li(BottomBig.roundToPx(), BottomSmall.roundToPx(), p)
+        val h = navTop + navH + li(BottomBig.roundToPx(), BottomSmall.roundToPx(), p) + FilletR.roundToPx()
         layout(w, h) {
             if (p < 0.999f) greeting.place(pad, greetTop)
             avatar.place(pad, cy - av / 2)
