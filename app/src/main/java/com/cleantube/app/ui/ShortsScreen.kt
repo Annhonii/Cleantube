@@ -243,6 +243,9 @@ fun ShortsScreen() {
         // the card ends right above the system navigation bar; the insets are consumed here, so the overlays inside
         // (their own navigationBarsPadding) don't add the bar's height a second time
         .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars)
+        // a little more room above the bar: the gesture-navigation area must not touch the card's bottom edge, or dragging
+        // the progress bar there switches apps
+        .padding(bottom = 22.dp)
         // a floating card with smoothly rounded corners all around, on the black background (the player draws on a
         // TextureView, so the clip also cuts the video itself, nothing bleeds out over the corners)
         .clip(RoundedCornerShape(24.dp))
@@ -733,7 +736,7 @@ private fun ShortPage(
             Modifier
                 .align(Alignment.BottomStart)
                 .navigationBarsPadding()
-                .padding(start = 16.dp, end = 88.dp, bottom = 44.dp)
+                .padding(start = 16.dp, end = 88.dp, bottom = 28.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
