@@ -199,10 +199,13 @@ private fun TabsPager(state: PagerState, tabs: List<TabSpec>, live: MutableState
         )
     ) { page ->
         val route = tabs.getOrNull(page)?.route
+        val barBottom = rememberHeaderBarBottom(route ?: Route.Home)
+        val cornerPx = with(androidx.compose.ui.platform.LocalDensity.current) { FeedCorner.toPx() }
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Bg)
+                // behind the rounded corners: the screen colour, black on Shorts
+                .background(if (route == Route.Shorts) Color.Black else Bg)
                 .graphicsLayer {
                     val off = ((state.currentPage - page) + state.currentPageOffsetFraction).absoluteValue.coerceIn(0f, 1f)
                     alpha = 1f - 0.35f * off
@@ -211,7 +214,10 @@ private fun TabsPager(state: PagerState, tabs: List<TabSpec>, live: MutableState
                     scaleY = s
                 }
         ) {
-            if (route != null) OtherScreen(route)
+            // the page's content with rounded top corners under the header (moves with the page while swiping)
+            Box(Modifier.fillMaxSize().feedTopCorners(barBottom, cornerPx)) {
+                if (route != null) OtherScreen(route)
+            }
         }
     }
 }

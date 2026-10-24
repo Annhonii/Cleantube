@@ -34,12 +34,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathFillType
-import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
@@ -97,11 +98,10 @@ private val NavTopSmall = TopPad + AvatarSmall + NavGapSmall
 private fun cardBig(greeting: Boolean): Dp = navTopBigDp(greeting) + NavH + BottomBig   // below the status bar
 private val CardSmall = NavTopSmall + NavH + BottomSmall
 
-// Rounded top corners of the feed: the header's bottom edge gets a concave fillet at the left and right screen edge,
-// so a video that scrolls up under the header looks rounded there instead of being cut off by a straight line.
-private val FilletR = 44.dp
-// The feed's cards start this far from the screen edge (14dp), so the rounded corner has to start there, not at the edge.
-private val FilletInset = 14.dp
+// Rounded top corners of the feed (every tab page): the page's content is cut with rounded top-left / top-right corners
+// right under the header bar, so a video that scrolls up under the header looks rounded there. It is part of the page
+// (see [feedTopCorners]), so it moves with the page when tabs are switched or swiped.
+val FeedCorner = 36.dp
 
 private val SearchIconSize = 24.dp
 private val SearchIconLeft = 16.dp    // icon's place inside the wide search bar
@@ -121,6 +121,38 @@ fun collapsingHeaderHeight(route: Route = Route.Home): Dp {
     val target = if (route == Route.Home) HeaderScroll.get(Route.Home) else 1f
     val p by animateFloatAsState(target, HeaderSpring, label = "headerHeight")
     return sb + androidx.compose.ui.unit.lerp(cardBig(hasGreeting()), CardSmall, p)
+}
+
+/**
+ * Bottom edge of the header bar (px from the top of the screen) for the page of [route], read when drawing: it follows
+ * the header's own spring, so the page's rounded corners stay glued to the bar while it collapses.
+ */
+@Composable
+fun rememberHeaderBarBottom(route: Route): () -> Float {
+    val density = LocalDensity.current
+    val sbPx = WindowInsets.statusBars.getTop(density)
+    val bigPx = with(density) { cardBig(hasGreeting()).toPx() }
+    val smallPx = with(density) { CardSmall.toPx() }
+    val target = if (route == Route.Home) HeaderScroll.get(Route.Home) else 1f
+    val p = animateFloatAsState(target, HeaderSpring, label = "headerBarBottom")
+    return { sbPx + bigPx + (smallPx - bigPx) * p.value }
+}
+
+/** Cuts the content with rounded top corners at [top] (px); everything above [top] is left to the header bar. */
+fun Modifier.feedTopCorners(top: () -> Float, radius: Float): Modifier = drawWithContent {
+    val y = top()
+    val path = Path().apply {
+        addRoundRect(
+            RoundRect(
+                0f, y, size.width, size.height,
+                topLeftCornerRadius = CornerRadius(radius, radius),
+                topRightCornerRadius = CornerRadius(radius, radius),
+                bottomRightCornerRadius = CornerRadius.Zero,
+                bottomLeftCornerRadius = CornerRadius.Zero
+            )
+        )
+    }
+    clipPath(path) { this@drawWithContent.drawContent() }
 }
 
 private fun li(a: Int, b: Int, t: Float) = (a + (b - a) * t).roundToInt()
@@ -310,27 +342,9 @@ fun CollapsingHeader(
         modifier = modifier
             .fillMaxWidth()
             .drawBehind {
-                // flat bar over the full screen width (status bar included): the screen colour, black on Shorts (the video
-                // is dark, white icons). Its bottom corners are rounded outwards, so the feed / the Short under it
-                // gets rounded top corners.
-                val bar = if (onShorts) Color.Black else Bg
-                val r = FilletR.toPx()
-                val inset = FilletInset.toPx()
-                val barH = size.height - r        // the bar itself; the last [r] of the layout is only for the two fillets
-                drawRect(bar, size = Size(size.width, barH))
-                val left = Path().apply {
-                    fillType = PathFillType.EvenOdd
-                    addRect(Rect(inset, barH, inset + r, barH + r))
-                    addOval(Rect(inset, barH, inset + 2 * r, barH + 2 * r))
-                }
-                clipRect(inset, barH, inset + r, barH + r) { drawPath(left, bar) }
-                val rx = size.width - inset
-                val right = Path().apply {
-                    fillType = PathFillType.EvenOdd
-                    addRect(Rect(rx - r, barH, rx, barH + r))
-                    addOval(Rect(rx - 2 * r, barH, rx, barH + 2 * r))
-                }
-                clipRect(rx - r, barH, rx, barH + r) { drawPath(right, bar) }
+                // flat bar over the full screen width (status bar included): the screen colour, black on Shorts
+                // (the video is dark, white icons)
+                drawRect(if (onShorts) Color.Black else Bg)
             }
     ) { measurables, c ->
         val p = fOf()
@@ -383,7 +397,7 @@ fun CollapsingHeader(
         val pillX = if (shortsTab != null) pad + navH + gap else pad
         val pill = measurables[7].measure(Constraints.fixed((w - pad - pillX).coerceAtLeast(0), navH))
 
-        val h = navTop + navH + li(BottomBig.roundToPx(), BottomSmall.roundToPx(), p) + FilletR.roundToPx()
+        val h = navTop + navH + li(BottomBig.roundToPx(), BottomSmall.roundToPx(), p)
         layout(w, h) {
             if (hasGreet && p < 0.999f) greeting.place(pad, greetTop)
             avatar.place(pad, cy - av / 2)
