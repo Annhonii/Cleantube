@@ -66,6 +66,8 @@ object Reco {
     private val servedShorts = LinkedHashSet<String>()
     private val meta = HashMap<String, VideoItem>()   // what we know about a video (for rating signals)
     private var lastDecayDay = 0L
+    private var seededAt = 0L
+    private val seedLock = Mutex()
 
     private val pool = LinkedHashMap<String, Cand>()        // long videos
     private val shortPool = LinkedHashMap<String, Cand>()   // Shorts
@@ -96,6 +98,7 @@ object Reco {
             j.optJSONArray("watched")?.let { a -> for (i in 0 until a.length()) watched.add(a.optString(i)) }
             j.optJSONArray("shorts")?.let { a -> for (i in 0 until a.length()) servedShorts.add(a.optString(i)) }
             lastDecayDay = j.optLong("decayDay", 0L)
+            seededAt = j.optLong("seededAt", 0L)
         }
         decayIfNewDay()
     }
@@ -127,6 +130,7 @@ object Reco {
             j.put("watched", JSONArray(watched.toList().takeLast(1500)))
             j.put("shorts", JSONArray(servedShorts.toList().takeLast(2000)))
             j.put("decayDay", lastDecayDay)
+            j.put("seededAt", seededAt)
             p.edit().putString("state", j.toString()).apply()
         }
     }
@@ -349,6 +353,45 @@ object Reco {
     private fun mix(main: List<Cand>, adj: List<Cand>, exp: List<Cand>, size: Int): List<VideoItem> =
         mixN(listOf(main, adj, exp), List(MIX_MAIN) { 0 } + List(MIX_ADJACENT) { 1 } + List(MIX_EXPLORE) { 2 }, size)
 
+    // ------------------------------------------------------------------ taste from the account
+    /**
+     * Cold start fix: instead of learning from zero, read what the signed-in account already watched and liked on YouTube
+     * (history + Liked videos) and turn it into channel / topic interests. Done at most once every 3 days. Everything
+     * seen there is also never recommended again.
+     */
+    private suspend fun seedFromAccount() = seedLock.withLock {
+        val now = System.currentTimeMillis()
+        if (!Session.loggedIn || Playback.isBlocked() || now - seededAt < 3L * 86_400_000L) return@withLock
+        val hist = mutableListOf<VideoItem>()
+        runCatching {
+            var t: String? = null
+            var n = 0
+            do {
+                val p = Api.accountHistory(t)
+                hist += p.items
+                t = p.next
+                n++
+            } while (t != null && n < 3)
+        }
+        val liked = runCatching { Api.playlistVideos("LL", null).items }.getOrDefault(emptyList())
+        if (hist.isEmpty() && liked.isEmpty()) return@withLock
+        synchronized(lock) {
+            // newer history counts more: the first items are the most recent
+            hist.filter { !it.short }.take(60).forEachIndexed { i, v ->
+                val w = 1.0 - i / 80.0
+                if (v.channelId.isNotEmpty()) chan[v.channelId] = (chan[v.channelId] ?: 0.0) + 0.5 * w
+                words(v.title).take(8).forEach { topic[it] = (topic[it] ?: 0.0) + 0.25 * w }
+            }
+            liked.take(60).forEach { v ->
+                if (v.channelId.isNotEmpty()) chan[v.channelId] = (chan[v.channelId] ?: 0.0) + 1.5
+                words(v.title).take(8).forEach { topic[it] = (topic[it] ?: 0.0) + 0.8 }
+            }
+            (hist + liked).forEach { watched.add(it.id) }
+            seededAt = now
+        }
+        save()
+    }
+
     // ------------------------------------------------------------------ discovery (beyond the subscriptions)
     private var ytHomeToken: String? = null
     private var ytHomeFetched = 0
@@ -394,6 +437,7 @@ object Reco {
         decayIfNewDay()
         if (subscriptions().isEmpty()) return null
         val first = token == null
+        if (first) runCatching { seedFromAccount() }
         if (first) {
             synchronized(lock) { homeServed.clear() }
             ytHomeToken = null
