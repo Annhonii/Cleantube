@@ -183,6 +183,70 @@ class Store(context: Context) {
             sp.edit().putString("app_font", value).apply()
         }
 
+    // ---------------------------------------------------------------- new-upload alerts (bell icon)
+
+    private val alertsOnState = mutableStateOf(sp.getBoolean("alerts_on", true))
+    /** Master switch for the background "new upload" check. */
+    var alertsEnabled: Boolean
+        get() = alertsOnState.value
+        set(value) {
+            alertsOnState.value = value
+            sp.edit().putBoolean("alerts_on", value).apply()
+        }
+
+    private val alertHoursState = mutableStateOf(sp.getInt("alerts_hours", 3).coerceIn(1, 48))
+    /** How often the background check runs, in hours. */
+    var alertHours: Int
+        get() = alertHoursState.value
+        set(value) {
+            alertHoursState.value = value.coerceIn(1, 48)
+            sp.edit().putInt("alerts_hours", alertHoursState.value).apply()
+        }
+
+    private val lastCheckState = mutableStateOf(sp.getLong("alerts_last_run", 0L))
+    /** When the background check last finished (ms since 1970, 0 = never). */
+    var lastAlertCheck: Long
+        get() = lastCheckState.value
+        set(value) {
+            lastCheckState.value = value
+            sp.edit().putLong("alerts_last_run", value).apply()
+        }
+
+    private val bellState = mutableStateOf(readStrings("bells").toSet())
+    val bellIds: Set<String> get() = bellState.value
+
+    fun isBelled(channelId: String): Boolean = channelId in bellState.value
+
+    /** Bell on/off for one channel. Turning it on starts "from now": older videos never trigger a notification. */
+    fun toggleBell(channelId: String) {
+        if (isBelled(channelId)) setBell(channelId, false) else setBell(channelId, true)
+    }
+
+    private fun setBell(channelId: String, on: Boolean) {
+        bellState.value = if (on) bellState.value + channelId else bellState.value - channelId
+        val a = JSONArray()
+        bellState.value.forEach { a.put(it) }
+        sp.edit().putString("bells", a.toString()).apply()
+        if (on) setLastSeen(channelId, System.currentTimeMillis()) else {
+            val o = lastSeenMap().also { it.remove(channelId) }
+            sp.edit().putString("alerts_seen", o.toString()).apply()
+        }
+    }
+
+    private fun lastSeenMap(): JSONObject = try {
+        JSONObject(sp.getString("alerts_seen", "{}"))
+    } catch (e: Exception) {
+        JSONObject()
+    }
+
+    /** Publish time (ms) of the newest video of this channel we already told the user about; 0 = unknown. */
+    fun lastSeen(channelId: String): Long = lastSeenMap().optLong(channelId, 0L)
+
+    fun setLastSeen(channelId: String, ms: Long) {
+        val o = lastSeenMap().put(channelId, ms)
+        sp.edit().putString("alerts_seen", o.toString()).apply()
+    }
+
     // ---------------------------------------------------------------- data
 
     var subscriptions by mutableStateOf(readArray("subs").mapObjects { it.toChannel() })
@@ -217,6 +281,7 @@ class Store(context: Context) {
     fun isSubscribed(channelId: String): Boolean = subscriptions.any { it.id == channelId }
 
     fun toggleSubscription(c: ChannelItem) {
+        if (isSubscribed(c.id) && isBelled(c.id)) setBell(c.id, false) // no bell without a subscription
         subscriptions =
             if (isSubscribed(c.id)) subscriptions.filter { it.id != c.id } else subscriptions + c
         save("subs", subscriptions) { it.toJson() }

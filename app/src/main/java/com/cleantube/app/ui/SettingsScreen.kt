@@ -12,6 +12,7 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Tab
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -311,6 +312,7 @@ private enum class SettingsPage(val title: String) {
     Navigation("Navigation bar"),
     Content("Content"),
     Downloads("Downloads"),
+    Notifications("Notifications"),
     Player("Player"),
     About("About")
 }
@@ -434,6 +436,7 @@ fun SettingsScreen() {
                     SettingsItem(SettingsPage.Navigation, Icons.Rounded.Tab, IconPurple, "Order and visibility of tabs"),
                     SettingsItem(SettingsPage.Content, Icons.Rounded.Language, IconBlue, "Region and country"),
                     SettingsItem(SettingsPage.Downloads, Icons.Rounded.Download, IconPurple, "Location and connections"),
+                    SettingsItem(SettingsPage.Notifications, Icons.Rounded.Notifications, IconBlue, "New video alerts (bell)"),
                     SettingsItem(SettingsPage.Player, Icons.Rounded.PictureInPictureAlt, IconBlue, "Quality, speed and popup")
                 ),
                 onOpen = { page = it }
@@ -531,6 +534,53 @@ fun SettingsScreen() {
                             }
                         }
                         Pill("Open downloads", onClick = { nav.push(Route.Downloads) }, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+
+                SettingsPage.Notifications -> {
+                    val ctxN = LocalContext.current
+                    val belled = store.subscriptions.count { store.isBelled(it.id) }
+                    SectionTitle("NEW VIDEO ALERTS")
+                    Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Card)
+                                .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text("Check for new videos", color = TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                            Switch(checked = store.alertsEnabled, onCheckedChange = {
+                                store.alertsEnabled = it
+                                com.cleantube.app.data.UploadAlerts.sync(ctxN)
+                            })
+                        }
+                        Text(
+                            "Tap the bell next to Subscribe on a channel. In the background the app then looks for new videos from those channels and shows a notification, like NewPipe does. No account needed.",
+                            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
+                        )
+                        Text("Check every (hours):", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            (listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 16, 18, 24, 36, 48)).forEach { h ->
+                                Pill("$h h", onClick = {
+                                    store.alertHours = h
+                                    com.cleantube.app.data.UploadAlerts.sync(ctxN)
+                                }, active = store.alertHours == h)
+                            }
+                        }
+                        Text(
+                            "Android decides the exact moment to save battery, so a check can come a little later than the time you pick.",
+                            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
+                        )
+                        Text(
+                            "Channels with bell on: $belled" + if (store.lastAlertCheck > 0)
+                                "\nLast checked: " + android.text.format.DateUtils.getRelativeTimeSpanString(
+                                    store.lastAlertCheck, System.currentTimeMillis(), android.text.format.DateUtils.MINUTE_IN_MILLIS
+                                ) else "\nNot checked yet",
+                            color = TextPrimary, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp)
+                        )
+                        Pill("Check now", onClick = {
+                            com.cleantube.app.data.UploadAlerts.checkNow(ctxN)
+                            Toast.makeText(ctxN, if (belled == 0) "No channel has the bell on yet" else "Checking…", Toast.LENGTH_SHORT).show()
+                        }, modifier = Modifier.fillMaxWidth())
                     }
                 }
 

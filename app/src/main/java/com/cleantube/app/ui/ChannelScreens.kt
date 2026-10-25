@@ -23,6 +23,9 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.NotificationsNone
+import android.widget.Toast
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
@@ -207,6 +210,36 @@ private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit, onBac
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (subscribed) {
+                // YouTube-style bell: tap to get a notification for this channel's new videos
+                val belled = store.isBelled(ch.id)
+                Box(
+                    Modifier
+                        .padding(end = 10.dp)
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(if (belled) TextPrimary else Card)
+                        .bouncyClickable(pressedScale = 0.9f, onClick = {
+                            store.toggleBell(ch.id)
+                            if (store.isBelled(ch.id) && !store.alertsEnabled) store.alertsEnabled = true
+                            com.cleantube.app.data.UploadAlerts.sync(ctx)
+                            Toast.makeText(
+                                ctx,
+                                if (store.isBelled(ch.id)) "You'll get notified about new videos from ${ch.title}"
+                                else "Notifications off for ${ch.title}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        if (belled) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsNone,
+                        contentDescription = if (belled) "Turn off notifications" else "Notify me about new videos",
+                        tint = if (belled) Bg else TextPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
             Box(
                 Modifier
                     .height(48.dp)

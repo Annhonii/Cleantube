@@ -78,16 +78,17 @@ class DownloadService : Service() {
         return PendingIntent.getActivity(this, 0, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 
-    /** "45%  •  12.3 MB of 27.1 MB  •  3.2 MB/s  •  1:20 left" */
+    /** "1:20 left  •  45%  •  12.3 MB of 27.1 MB  •  3.2 MB/s" */
     private fun progressText(item: DownloadItem): String {
         if (item.phase.isNotEmpty()) return item.phase
         val pct = (item.progress * 100).toInt()
         val eta = if (item.etaSec >= 0) "${formatEta(item.etaSec)} left" else "calculating time left…"
+        // time left goes first: the collapsed notification cuts the line short, and that is the part people look for
         return listOf(
+            eta,
             "$pct%",
             if (item.total > 0) "${formatBytes(item.bytes)} of ${formatBytes(item.total)}" else formatBytes(item.bytes),
-            formatSpeed(item.speed),
-            eta
+            formatSpeed(item.speed)
         ).filter { it.isNotEmpty() }.joinToString("  •  ")
     }
 
