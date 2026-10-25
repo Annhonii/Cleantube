@@ -51,7 +51,7 @@ object Reco {
     private const val SUBS_TTL_MS = 6L * 60 * 60 * 1000
     private const val SWIPE_AWAY_MS = 2_500L
 
-    private enum class Src { SUB, RELATED, INJECT }
+    private enum class Src { SUB, RELATED, INJECT, DISCOVER }
 
     private class Cand(val v: VideoItem, val src: Src)
 
@@ -314,13 +314,12 @@ object Reco {
         return fresh + chA + toA + explore + session + inject - fatigue
     }
 
-    /** Picks [size] items from three queues in a 7 / 2 / 1 rhythm, with at most 2 per channel. */
-    private fun mix(main: List<Cand>, adj: List<Cand>, exp: List<Cand>, size: Int): List<VideoItem> {
+    /** Picks [size] items from the queues following [rhythm] (queue numbers), with at most 2 per channel. */
+    private fun mixN(lists: List<List<Cand>>, rhythm: List<Int>, size: Int): List<VideoItem> {
         val out = ArrayList<VideoItem>()
         val used = HashSet<String>()
         val perChannel = HashMap<String, Int>()
-        val queues = listOf(ArrayDeque(main), ArrayDeque(adj), ArrayDeque(exp))
-        val rhythm = List(MIX_MAIN) { 0 } + List(MIX_ADJACENT) { 1 } + List(MIX_EXPLORE) { 2 }
+        val queues = lists.map { ArrayDeque(it) }
         fun take(q: ArrayDeque<Cand>): Boolean {
             while (q.isNotEmpty()) {
                 val c = q.removeFirst()
@@ -346,6 +345,49 @@ object Reco {
         return out
     }
 
+    /** The old 7 / 2 / 1 mix of three queues (Shorts). */
+    private fun mix(main: List<Cand>, adj: List<Cand>, exp: List<Cand>, size: Int): List<VideoItem> =
+        mixN(listOf(main, adj, exp), List(MIX_MAIN) { 0 } + List(MIX_ADJACENT) { 1 } + List(MIX_EXPLORE) { 2 }, size)
+
+    // ------------------------------------------------------------------ discovery (beyond the subscriptions)
+    private var ytHomeToken: String? = null
+    private var ytHomeFetched = 0
+    private val discoverLock = Mutex()
+    private var ytShortsToken: String? = null
+
+    /**
+     * Candidates from outside the subscriptions, like YouTube's own Home: YouTube's own recommendation feed (personalised
+     * when signed in) plus searches for the topics this phone has seen you like most.
+     */
+    private suspend fun fetchDiscover() = discoverLock.withLock {
+        if (Playback.isBlocked()) return@withLock
+        coroutineScope {
+            val feed = async(Dispatchers.Default) {
+                runCatching { Api.youtubeHome(ytHomeToken) }.getOrNull()
+            }
+            val topics = synchronized(lock) {
+                topic.entries.filter { it.value > 1.0 }.sortedByDescending { it.value }.map { it.key }.take(6)
+            }
+            val query = if (topics.size >= 2) topics.shuffled().take(2).joinToString(" ") else null
+            val searched = async(Dispatchers.Default) {
+                if (query == null) null else runCatching { Api.searchVideos(query, null) }.getOrNull()
+            }
+            val f = feed.await()
+            val s = searched.await()
+            synchronized(lock) {
+                if (f != null) {
+                    ytHomeToken = f.next
+                    ytHomeFetched++
+                    f.items.filter { !it.short }.forEach { meta[it.id] = it; if (it.id !in pool) pool[it.id] = Cand(it, Src.DISCOVER) }
+                }
+                s?.items?.filter { !it.short && it.durationSec !in 1..62 }?.take(10)?.forEach {
+                    meta[it.id] = it; if (it.id !in pool) pool[it.id] = Cand(it, Src.DISCOVER)
+                }
+                trimPool()
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ Home (long videos)
     /** Null when there is nothing to recommend from (no subscriptions): the caller then uses YouTube's own feed. */
     suspend fun homePage(token: String?): Page<VideoItem>? {
@@ -354,15 +396,22 @@ object Reco {
         val first = token == null
         if (first) {
             synchronized(lock) { homeServed.clear() }
+            ytHomeToken = null
             // a quick first batch; the rest of the channels load as the user scrolls
             if (synchronized(lock) { pool.size } < HOME_PAGE || chanFetchedAt.isEmpty()) fetchBatch(CHANNEL_BATCH)
             else runCatching { fetchBatch(4) }
+        }
+        // YouTube's own recommendations + topic searches: the part of Home that is NOT about the subscriptions
+        if (first || synchronized(lock) { pool.values.count { it.src == Src.DISCOVER && it.v.id !in homeServed } } < HOME_PAGE) {
+            if (first || ytHomeToken != null) runCatching { fetchDiscover() }
         }
         var page = buildHomePage()
         var tries = 0
         while (page.size < HOME_PAGE / 2 && tries++ < 3 && fetchBatch(CHANNEL_BATCH) > 0) page = buildHomePage()
         if (page.isEmpty()) return if (first) null else Page(emptyList(), null)
-        val more = synchronized(lock) { nextChannels(chanFetchedAt, 1).isNotEmpty() || pool.size - homeServed.size > 0 }
+        val more = synchronized(lock) {
+            nextChannels(chanFetchedAt, 1).isNotEmpty() || pool.size - homeServed.size > 0 || ytHomeToken != null
+        }
         return Page(page, if (more) "L:${synchronized(lock) { homeServed.size }}" else null)
     }
 
@@ -371,13 +420,16 @@ object Reco {
         val history = runCatching { Graph.store.history.map { it.id }.toSet() }.getOrDefault(emptySet())
         val ranked = pool.values.filter { it.v.id !in watched && it.v.id !in history && it.v.id !in homeServed }
             .map { it to score(it, now, false) }.sortedByDescending { it.second }.map { it.first }
-        val main = ranked.filter { it.src == Src.SUB && (chan[it.v.channelId] ?: 0.0) > 0.0 }
+        val subsKnown = ranked.filter { it.src == Src.SUB && (chan[it.v.channelId] ?: 0.0) > 0.0 }
+        val subsOther = ranked.filter { it.src == Src.SUB && (chan[it.v.channelId] ?: 0.0) <= 0.0 }
+        val disc = ranked.filter { it.src == Src.DISCOVER }
         val adj = ranked.filter { it.src == Src.RELATED }
-        val exp = ranked.filter { it.src == Src.SUB && (chan[it.v.channelId] ?: 0.0) <= 0.0 }
-        // before any history exists everything is "unknown": then the freshness ranking is the main queue
-        val mainQ = if (main.isEmpty()) exp else main
-        val expQ = if (main.isEmpty()) emptyList() else exp.shuffled().take(30)
-        val page = mix(mainQ, adj, expQ, HOME_PAGE)
+        // Like YouTube's Home: about 4 of 10 from outside your subscriptions (YouTube's own picks + topics you like),
+        // 3 from channels you watch most, 2 "up next" style, 1 from a subscription you have not watched yet.
+        // Before any history exists the subscriptions' freshness ranking leads.
+        val known = if (subsKnown.isEmpty()) subsOther else subsKnown
+        val other = if (subsKnown.isEmpty()) emptyList() else subsOther.shuffled().take(30)
+        val page = mixN(listOf(known, disc, adj, other), listOf(1, 0, 1, 2, 0, 1, 3, 1, 0, 2), HOME_PAGE)
         page.forEach {
             homeServed.add(it.id)
             impressions[it.id] = (impressions[it.id] ?: 0) + 1
@@ -405,6 +457,16 @@ object Reco {
         }
         var tries = 0
         while (unserved() < SHORTS_PAGE && tries++ < 3 && fetchShortsBatch(8) > 0) { /* keep filling */ }
+        // YouTube's own Shorts recommendations are part of the mix too (not only the subscribed channels' Shorts)
+        if (first) ytShortsToken = null
+        if (!Playback.isBlocked() && (first || synchronized(lock) { shortPool.values.count { it.src == Src.DISCOVER && it.v.id !in servedShorts } } < SHORTS_PAGE)) {
+            runCatching { Api.youtubeShorts(ytShortsToken) }.getOrNull()?.let { p ->
+                ytShortsToken = p.next
+                synchronized(lock) {
+                    p.items.forEach { if (it.id !in servedShorts && it.id !in shortPool) { meta[it.id] = it; shortPool[it.id] = Cand(it.copy(short = true), Src.DISCOVER) } }
+                }
+            }
+        }
         val page = synchronized(lock) {
             val now = System.currentTimeMillis()
             val ranked = shortPool.values.filter { it.v.id !in servedShorts && !runCatching { Graph.store.isShortSeen(it.v.id) }.getOrDefault(false) }
@@ -412,9 +474,13 @@ object Reco {
             val inj = ranked.filter { it.src == Src.INJECT }
             val known = ranked.filter { it.src == Src.SUB && (chan[it.v.channelId] ?: 0.0) > 0.0 }
             val unknown = ranked.filter { it.src == Src.SUB && (chan[it.v.channelId] ?: 0.0) <= 0.0 }
-            // fresh topic injections go first, then 70% known channels, 30% exploring
+            val disc = ranked.filter { it.src == Src.DISCOVER }
+            // fresh topic injections go first, then: 3 YouTube's own picks, 3 channels you watch, 2 unknown subscriptions
             val first3 = inj.take(3).map { it.v }
-            val rest = mix(if (known.isEmpty()) unknown else known, emptyList(), if (known.isEmpty()) emptyList() else unknown.shuffled(), SHORTS_PAGE - first3.size)
+            val rest = mixN(
+                listOf(if (known.isEmpty()) unknown else known, disc, if (known.isEmpty()) emptyList() else unknown.shuffled()),
+                listOf(1, 0, 1, 0, 2, 1, 0, 2), SHORTS_PAGE - first3.size
+            )
             (first3 + rest).distinctBy { it.id }
         }
         if (page.isEmpty()) return if (first) null else Page(emptyList(), null)

@@ -76,6 +76,14 @@ object Api {
 
     // ---------------------------------------------------------------- account feeds
 
+    /** YouTube's own Home recommendations (long videos only), personalised when signed in. Used as a candidate source by Reco. */
+    suspend fun youtubeHome(token: String?): Page<VideoItem> =
+        videosPage(Yt.run("home", args("token" to token)), dropShorts = true)
+
+    /** YouTube's own Shorts recommendations (one page); [token] is the raw continuation of the previous page. */
+    suspend fun youtubeShorts(token: String?): Page<VideoItem> =
+        videosPage(Yt.run("shorts", args("token" to token)))
+
     suspend fun home(token: String?): Page<VideoItem> {
         // Home is the app's own recommendation engine (Reco): subscribed channels first, ranked on the phone.
         // With no subscriptions at all there is nothing to learn from yet, so YouTube's own feed is shown instead.
