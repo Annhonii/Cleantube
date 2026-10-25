@@ -266,7 +266,11 @@ fun ShortsScreen() {
                 var tries = 0
                 while (true) {
                     val page = Api.shorts(tok, t)
-                    val fresh = page.items.filter { !Graph.store.isShortSeen(it.id) }
+                    // never again: Shorts already watched here, in this app's history or in the account's history
+                    val fresh = page.items.filter {
+                        !Graph.store.isShortSeen(it.id) && !Graph.store.isInHistory(it.id) &&
+                            !com.cleantube.app.data.Reco.isWatched(it.id)
+                    }
                     result = Page(fresh, page.next)
                     tries++
                     if (fresh.isNotEmpty() || page.next == null || page.next == tok || tries >= 8) break
@@ -686,7 +690,11 @@ private fun ShortPage(
     // remember the Short in the app's watch history (also gets its title / channel once those are known)
     LaunchedEffect(current, title, ch?.title) {
         if (current) {
-            TabCache.appScope.launch { delay(2500); Api.markWatched(v.id) }
+            TabCache.appScope.launch {
+                delay(2500)
+                // one retry: if YouTube never hears about it, its own feed keeps sending the same Shorts again
+                if (!Api.markWatched(v.id, v.durationSec)) { delay(6000); Api.markWatched(v.id, v.durationSec) }
+            }
             Graph.store.addHistory(v.copy(title = title, channelTitle = v.channelTitle.ifEmpty { ch?.title.orEmpty() }, short = true))
         }
     }

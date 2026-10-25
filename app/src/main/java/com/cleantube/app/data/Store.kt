@@ -264,6 +264,9 @@ class Store(context: Context) {
 
     fun isShortSeen(id: String): Boolean = synchronized(seenShorts) { id in seenShorts }
 
+    /** In the app's own history (any device-side record of having watched it). */
+    fun isInHistory(id: String): Boolean = history.any { it.id == id }
+
     fun markShortSeen(id: String) {
         synchronized(seenShorts) {
             if (!seenShorts.add(id)) return

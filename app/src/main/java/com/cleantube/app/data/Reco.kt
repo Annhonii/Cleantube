@@ -530,6 +530,9 @@ object Reco {
     }.also { save() }
 
     // ------------------------------------------------------------------ Shorts
+    /** True when this video is in the YouTube account's history (read at sign-in) or was opened here. */
+    fun isWatched(id: String): Boolean = synchronized(lock) { id in watched }
+
     /** Null when there is nothing to recommend from (no subscriptions): the caller then uses YouTube's own Shorts feed. */
     suspend fun shortsPage(token: String?): Page<VideoItem>? {
         decayIfNewDay()
@@ -566,7 +569,12 @@ object Reco {
         }
         val page = synchronized(lock) {
             val now = System.currentTimeMillis()
-            val ranked = shortPool.values.filter { it.v.id !in servedShorts && !runCatching { Graph.store.isShortSeen(it.v.id) }.getOrDefault(false) }
+            // a Short that is in the app's history, was seen, or is in the YouTube account's history never comes back
+            val hist = runCatching { Graph.store.history.mapTo(HashSet()) { it.id } }.getOrDefault(HashSet())
+            val ranked = shortPool.values.filter {
+                it.v.id !in servedShorts && it.v.id !in watched && it.v.id !in hist &&
+                    !runCatching { Graph.store.isShortSeen(it.v.id) }.getOrDefault(false)
+            }
                 .map { it to score(it, now, true) }.sortedByDescending { it.second }.map { it.first }
             val inj = ranked.filter { it.src == Src.INJECT }
             val disc = ranked.filter { it.src == Src.DISCOVER }

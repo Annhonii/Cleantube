@@ -344,13 +344,24 @@ fun HistoryScreen() {
 
         if (loggedIn) {
             val state = paged.listState
-            LaunchedEffect(paged) { if (paged.items.isEmpty() && !paged.loading) paged.loadMore() }
+            // the list is kept between visits: fetch it again on open so what was just watched shows up
+            LaunchedEffect(paged) {
+                if (paged.items.isEmpty()) { if (!paged.loading) paged.loadMore() } else paged.pullRefresh()
+            }
             LoadMoreEffect(state, paged)
-            val list = paged.items.filter { it.short == wantShort }
+            val remote = paged.items.filter { it.short == wantShort }
+            val remoteIds = remote.map { it.id }.toHashSet()
+            // what was watched in this app lately, but YouTube's list doesn't have (yet): shown on top
+            val localOnly = store.history.filter { it.short == wantShort }.take(20).filter { it.id !in remoteIds }
+            val localIds = localOnly.map { it.id }.toHashSet()
+            val list = localOnly + remote
             LazyColumn(Modifier.fillMaxSize(), state = state, contentPadding = listPadding) {
                 items(list.size) { i ->
                     val v = list[i]
-                    VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
+                    VideoRow(
+                        v, onClick = { nav.push(Route.Video(v.id, v)) },
+                        onRemove = if (v.id in localIds) ({ store.removeHistory(v.id) }) else null
+                    )
                 }
                 item {
                     val err = paged.error

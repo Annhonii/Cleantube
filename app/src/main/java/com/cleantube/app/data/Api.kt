@@ -84,23 +84,28 @@ object Api {
      * Tells YouTube this video was watched (what the official app does when playback starts), so the account's
      * recommendations keep learning from what is watched in this app. Signed in only, once per video per run.
      */
-    suspend fun markWatched(videoId: String) {
-        if (!Graph.store.syncHistory || videoId.isEmpty()) return
-        if (!Session.loggedIn) { lastWatchPing = "not signed in (Session.loggedIn is false)"; return }
-        if (Playback.isBlocked()) { lastWatchPing = "paused: network is blocked"; return }
+    suspend fun markWatched(videoId: String, durationSec: Long = 0): Boolean {
+        if (!Graph.store.syncHistory || videoId.isEmpty()) return true
+        if (!Session.loggedIn) { lastWatchPing = "not signed in (Session.loggedIn is false)"; return true }
+        if (Playback.isBlocked()) { lastWatchPing = "paused: network is blocked"; return false }
         val first = synchronized(markedWatched) { markedWatched.add(videoId) }
-        if (!first) return
+        if (!first) return true
+        // a Short can be shorter than the usual 10 s ping: never report more watch time than the clip has
+        val pos = if (durationSec in 1L..10L) maxOf(1, (durationSec - 1).toInt()) else 10
         try {
-            val r = Yt.run("markWatched", args("id" to videoId, "pos" to 10))
+            val r = Yt.run("markWatched", args("id" to videoId, "pos" to pos))
             lastWatchPing = "$videoId: $r"
             android.util.Log.d("Voidstream", "markWatched $lastWatchPing")
-            if (!r.optBoolean("ok")) synchronized(markedWatched) { markedWatched.remove(videoId) }
+            val ok = r.optBoolean("ok")
+            if (!ok) synchronized(markedWatched) { markedWatched.remove(videoId) }
+            return ok
         } catch (e: kotlinx.coroutines.CancellationException) {
             synchronized(markedWatched) { markedWatched.remove(videoId) }
             throw e
         } catch (e: Exception) {
             lastWatchPing = "$videoId: error ${e.message}"
             synchronized(markedWatched) { markedWatched.remove(videoId) }
+            return false
         }
     }
 

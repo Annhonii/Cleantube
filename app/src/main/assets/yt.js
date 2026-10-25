@@ -994,7 +994,7 @@
       }
       out.playbackStatus = await ping(withQ(pb, 'ver=2&cpn=' + cpn + '&cmt=0&el=detailpage'));
       if (wt) {
-        var t = Math.max(5, Math.floor(a.pos || 10));
+        var t = Math.max(1, Math.floor(a.pos || 10));
         out.watchtimeStatus = await ping(withQ(wt, 'ver=2&cpn=' + cpn + '&cmt=' + t + '&st=0&et=' + t + '&state=playing&el=detailpage&final=1'));
       }
       out.ok = (typeof out.playbackStatus === 'number' && out.playbackStatus < 300) || out.playbackStatus === 'sent-no-cors';
