@@ -610,7 +610,7 @@ fun CtOverlay(
                 Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { panel = false } }) {
                     PlayerSettingsSheet(
                         p, onClose = { panel = false },
-                        modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = 560.dp)
+                        modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = 680.dp)
                     )
                 }
             }

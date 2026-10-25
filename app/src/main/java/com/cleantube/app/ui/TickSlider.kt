@@ -100,9 +100,9 @@ fun TickSlider(
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
     val last = labels.lastIndex
-    val gap: Dp = if (compact) 46.dp else 64.dp
+    val gap: Dp = if (compact) 42.dp else 56.dp
     val gapPx = with(LocalDensity.current) { gap.toPx() }
-    val barH = if (compact) 44.dp else 56.dp
+    val barH = if (compact) 40.dp else 48.dp
 
     val bg = if (dark) Color(0x33FFFFFF) else SurfaceHighest
     val accent = if (dark) Color.White else Accent
@@ -232,30 +232,30 @@ fun TickSlider(
             .height(barH)
             .clip(CircleShape)
             .background(bg)
-            .padding(horizontal = if (compact) 14.dp else 22.dp),
+            .padding(horizontal = if (compact) 12.dp else 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (pixel && bubble) {
             Box(
                 Modifier
-                    .size(barH - 12.dp)
+                    .size(barH - 10.dp)
                     .graphicsLayer { scaleX = bump.value; scaleY = bump.value }
                     .clip(CircleShape)
                     .background(TextPrimary),
                 contentAlignment = Alignment.Center
             ) {
-                Text(labels[held.coerceIn(0, last)], color = Bg, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(labels[held.coerceIn(0, last)], color = Bg, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             }
             Spacer(Modifier.width(8.dp))
         } else {
             Text(
                 labels[held.coerceIn(0, last)],
                 color = if (pixel) TextMuted else textColor,
-                fontSize = if (compact) 14.sp else if (pixel) 26.sp else 20.sp,
+                fontSize = if (compact) 13.sp else if (pixel) 18.sp else 16.sp,
                 fontWeight = if (pixel) FontWeight.Bold else FontWeight.Medium,
                 maxLines = 1,
                 modifier = Modifier
-                    .width(if (compact) 54.dp else if (pixel) 100.dp else 84.dp)
+                    .width(if (compact) 50.dp else if (pixel) 76.dp else 72.dp)
                     .graphicsLayer {
                         scaleX = bump.value; scaleY = bump.value
                         transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
@@ -336,7 +336,7 @@ fun TickSlider(
                 val lean = (motion / 7f).coerceIn(-1f, 1f)
                 val stretch = 1f + 0.4f * abs(lean)
                 if (pixel) {
-                    val nh = size.height * (0.5f + 0.14f * touch)          // 28dp -> 36dp on a 56dp bar
+                    val nh = size.height * (0.5f + 0.14f * touch)          // 24dp -> 31dp on a 48dp bar
                     val nw = (6.dp.toPx() + 2.5.dp.toPx() * touch) * stretch // 6dp -> 8.5dp
                     rotate(-lean * 8f, Offset(cx, cy)) {
                         drawLine(needleColor, Offset(cx, cy - nh / 2f), Offset(cx, cy + nh / 2f), nw, StrokeCap.Round)
@@ -351,7 +351,7 @@ fun TickSlider(
         }
         if (resetIndex != null) {
             Box(
-                Modifier.size(if (compact) 30.dp else 40.dp).clip(CircleShape).clickable {
+                Modifier.size(if (compact) 28.dp else 36.dp).clip(CircleShape).clickable {
                     scope.launch { spin.animateTo(spin.value + 360f, tween(520, easing = FastOutSlowInEasing)) }
                     settle(resetIndex.coerceIn(0, last))
                     commit(resetIndex.coerceIn(0, last))
@@ -362,7 +362,7 @@ fun TickSlider(
                     Icons.Rounded.RestartAlt, contentDescription = "Reset",
                     tint = if (dark) Color.White else TextPrimary,
                     modifier = Modifier
-                        .size(if (compact) 18.dp else 24.dp)
+                        .size(if (compact) 16.dp else 20.dp)
                         .graphicsLayer { rotationZ = spin.value }
                 )
             }

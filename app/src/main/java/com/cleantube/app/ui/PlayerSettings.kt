@@ -90,6 +90,11 @@ private fun speedLabel(s: Float): String =
 fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = Modifier) {
     LaunchedEffect(p) { p.ensureExtras() }
 
+    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+    val land = cfg.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    // landscape: a short card (at most ~70% of the screen height) so it doesn't cover the video
+    val maxH = if (land) (cfg.screenHeightDp * 0.7f).dp else 600.dp
+
     var dragY by remember { mutableFloatStateOf(0f) }
     val closeAt = with(LocalDensity.current) { 90.dp.toPx() }
     suspend fun settle(velocity: Float) {
@@ -102,7 +107,7 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
         modifier
             .offset { IntOffset(0, dragY.roundToInt()) }
             .fillMaxWidth()
-            .heightIn(max = 680.dp)
+            .heightIn(max = maxH)
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(Card)
             // swallow taps so the page underneath doesn't react
@@ -118,33 +123,28 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
             Box(
                 Modifier
                     .align(Alignment.CenterHorizontally)
-                    .padding(top = 8.dp)
-                    .size(width = 36.dp, height = 4.dp)
+                    .padding(top = 6.dp)
+                    .size(width = 32.dp, height = 4.dp)
                     .clip(CircleShape)
                     .background(Hairline)
             )
             Row(
-                Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+                Modifier.fillMaxWidth().padding(start = 18.dp, end = 4.dp, top = 0.dp, bottom = 0.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Playback", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Icon(Icons.Outlined.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.padding(start = 10.dp).size(22.dp))
+                Text("Playback", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Icon(Icons.Outlined.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.padding(start = 8.dp).size(18.dp))
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Rounded.Close, contentDescription = "Close", tint = TextPrimary)
+                IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Rounded.Close, contentDescription = "Close", tint = TextPrimary, modifier = Modifier.size(20.dp))
                 }
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(Hairline))
 
-        Column(
-            Modifier
-                .weight(1f, fill = false)
-                .verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            // ---- speed
+        val gapV = if (land) 10.dp else 14.dp
+
+        @Composable fun SpeedBlock() {
             SettingsBlock("Speed", speedLabel(p.speed)) {
                 val idx = SpeedSteps.indexOfFirst { abs(it - p.speed) < 0.01f }.coerceAtLeast(0)
                 TickSlider(
@@ -153,12 +153,13 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
                     onPick = { p.changeSpeed(SpeedSteps[it]) }
                 )
             }
+        }
 
-            // ---- quality
+        @Composable fun QualityBlock() {
             val opts = remember(p.heights) { listOf(0) + p.heights }
             SettingsBlock(
                 "Quality",
-                if (p.quality == 0) (if (p.currentHeight > 0) "Auto · ${p.currentHeight}p" else "Auto") else "${p.quality}p"
+                if (p.quality == 0) (if (p.currentHeight > 0) "Auto \u00b7 ${p.currentHeight}p" else "Auto") else "${p.quality}p"
             ) {
                 TickSlider(
                     labels = opts.map { if (it == 0) "Auto" else "${it}p" },
@@ -167,10 +168,11 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
                     onPick = { p.changeQuality(opts[it]) }
                 )
             }
+        }
 
-            // ---- audio source
+        @Composable fun AudioBlock() {
             SettingsBlock("Audio source", null) {
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     p.audioSources.forEachIndexed { i, a ->
                         val l = a.label.lowercase()
                         val ic = when {
@@ -181,19 +183,21 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
                         SheetChip(a.label, ic, p.audioIndex == i) { p.changeAudio(i) }
                     }
                     if (p.extrasState == 1) {
-                        Text("loading…", color = TextMuted, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterVertically).padding(start = 4.dp))
+                        Text("loading\u2026", color = TextMuted, fontSize = 11.sp, modifier = Modifier.align(Alignment.CenterVertically).padding(start = 4.dp))
                     }
                 }
             }
+        }
 
-            // ---- captions: switch + the language to read
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // captions: switch + the language to read
+        @Composable fun CaptionsBlock() {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val none = p.extrasState == 2 && p.subtitles.isEmpty()
                 val sub = when {
-                    p.extrasFailed -> "Couldn't load captions · tap to retry"
-                    p.extrasState == 1 -> "Loading…"
+                    p.extrasFailed -> "Couldn't load captions \u00b7 tap to retry"
+                    p.extrasState == 1 -> "Loading\u2026"
                     none -> "Not available for this video"
-                    p.captionsOn && p.cueState == 1 -> "Loading captions…"
+                    p.captionsOn && p.cueState == 1 -> "Loading captions\u2026"
                     p.captionsOn && p.cueState == 3 -> "Couldn't read this caption file"
                     p.captionsOn && p.subtitles.isNotEmpty() -> p.subtitles.getOrNull(p.captionIndex)?.label.orEmpty()
                     else -> "Off"
@@ -203,16 +207,45 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
                     onClick = if (p.extrasFailed) ({ p.ensureExtras() }) else null
                 ) { p.setCaptions(it) }
                 if (p.subtitles.isNotEmpty()) {
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         p.subtitles.forEachIndexed { i, t ->
                             SheetChip(t.label, null, p.captionsOn && p.captionIndex == i) { p.pickCaption(i) }
                         }
                     }
                 }
             }
+        }
 
-            // ---- loop
+        @Composable fun LoopBlock() {
             ToggleCard("Loop video", if (p.loopOn) "On" else "Off", p.loopOn, enabled = true, onClick = null) { p.setLooping(it) }
+        }
+
+        if (land) {
+            // landscape: two columns so the card stays short and leaves the video visible
+            Row(
+                Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(gapV)) {
+                    SpeedBlock(); QualityBlock()
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(gapV)) {
+                    AudioBlock(); CaptionsBlock(); LoopBlock()
+                }
+            }
+        } else {
+            Column(
+                Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(gapV)
+            ) {
+                SpeedBlock(); QualityBlock(); AudioBlock(); CaptionsBlock(); LoopBlock()
+            }
         }
     }
 }
@@ -228,18 +261,18 @@ private fun SheetChip(text: String, icon: androidx.compose.ui.graphics.vector.Im
     )
     Row(
         Modifier
-            .height(52.dp)
+            .height(38.dp)
             .bouncyClickable(pressedScale = 0.95f, onClick = onClick)
             .clip(CircleShape)
             .background(bg)
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (icon != null) {
-            Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(10.dp))
+            Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
         }
-        Text(text, color = fg, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Text(text, color = fg, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 
@@ -256,15 +289,15 @@ private fun ToggleCard(
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(SurfaceHighest)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(start = 22.dp, end = 18.dp, top = 18.dp, bottom = 18.dp),
+            .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Medium)
-            Text(status, color = TextMuted, fontSize = 16.sp, modifier = Modifier.padding(top = 2.dp))
+            Text(title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(status, color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 1.dp))
         }
         Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
     }
@@ -277,7 +310,7 @@ private fun SettingsBlock(title: String, value: String?, content: @Composable ()
             Text(title, color = TextMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
             if (value != null) Text(value, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
         content()
     }
 }
