@@ -24,7 +24,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
@@ -139,7 +139,7 @@ fun NotificationsScreen() {
                 LazyColumn(
                     Modifier.fillMaxSize(), state = state,
                     contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = listBottomPad()),
-                    verticalArrangement = Arr.spacedBy(8.dp)
+                    verticalArrangement = Arr.spacedBy(3.dp)
                 ) {
                     if (filter == NotifFilter.All) {
                         val videos = shown.filter { it.isVideo() }
@@ -147,18 +147,18 @@ fun NotificationsScreen() {
                         val other = shown.filter { !it.isVideo() && !it.isMention() }
                         if (videos.isNotEmpty()) {
                             item(key = "h-videos") { SectionTitle("Video uploads") }
-                            items(videos) { n -> NotificationCard(n, onClick = { open(n) }) }
+                            itemsIndexed(videos) { i, n -> NotificationCard(n, groupShape(i, videos.size), onClick = { open(n) }) }
                         }
                         if (mentions.isNotEmpty()) {
                             item(key = "h-mentions") { SectionTitle("Mentions & comments") }
-                            items(mentions) { n -> NotificationCard(n, onClick = { open(n) }) }
+                            itemsIndexed(mentions) { i, n -> NotificationCard(n, groupShape(i, mentions.size), onClick = { open(n) }) }
                         }
                         if (other.isNotEmpty()) {
                             item(key = "h-other") { SectionTitle("Other") }
-                            items(other) { n -> NotificationCard(n, onClick = { open(n) }) }
+                            itemsIndexed(other) { i, n -> NotificationCard(n, groupShape(i, other.size), onClick = { open(n) }) }
                         }
                     } else {
-                        items(shown) { n -> NotificationCard(n, onClick = { open(n) }) }
+                        itemsIndexed(shown) { i, n -> NotificationCard(n, groupShape(i, shown.size), onClick = { open(n) }) }
                     }
                     item(key = "footer") {
                         val err = paged.error
@@ -198,57 +198,71 @@ private fun kindLabel(kind: String): String = when (kind) {
     else -> ""
 }
 
+/** Rows of one section are joined like the system Settings list: big corners outside, small ones between rows. */
+private fun groupShape(i: Int, n: Int): RoundedCornerShape {
+    val outer = 28.dp
+    val inner = 6.dp
+    return RoundedCornerShape(
+        topStart = if (i == 0) outer else inner, topEnd = if (i == 0) outer else inner,
+        bottomStart = if (i == n - 1) outer else inner, bottomEnd = if (i == n - 1) outer else inner
+    )
+}
+
 /**
- * One notification as a Material 3 card: tonal container, 16dp corners, ripple on tap. Left the channel's / person's
- * picture, in the middle the text (Title Medium) with the kind and time under it (Body Small), right the rounded
- * thumbnail of the video. An unread notification has a stronger container, bold text and a small dot on its thumbnail.
+ * One notification as a row of the system Settings list: compact (about 72dp), tonal container, joined corners,
+ * picture at the left, text in the normal weight (16sp title, 14sp kind + time), small thumbnail at the right.
+ * An unread notification only has a stronger container and a small dot on its thumbnail (no bold text).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NotificationCard(n: NotificationItem, onClick: () -> Unit) {
+private fun NotificationCard(n: NotificationItem, shape: RoundedCornerShape, onClick: () -> Unit) {
     M3Card(
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = if (n.read) Card else SurfaceHighest),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.heightIn(min = 72.dp).padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             if (n.avatar.isNotEmpty()) {
-                AppImage(n.avatar, Modifier.size(44.dp), CircleShape)
+                AppImage(n.avatar, Modifier.size(40.dp), CircleShape)
             } else {
-                Box(Modifier.size(44.dp).clip(CircleShape).background(TertiaryContainer), contentAlignment = Alignment.Center) {
-                    androidx.compose.material3.Icon(Icons.Rounded.Notifications, contentDescription = null, tint = TextMuted, modifier = Modifier.size(22.dp))
+                Box(Modifier.size(40.dp).clip(CircleShape).background(TertiaryContainer), contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.Icon(Icons.Rounded.Notifications, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
                 }
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     n.message,
                     color = TextPrimary,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = if (n.read) FontWeight.Normal else FontWeight.Bold,
-                    maxLines = 3,
+                    fontSize = 16.sp,
+                    lineHeight = 21.sp,
+                    fontWeight = FontWeight.Normal,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
                 val meta = listOf(kindLabel(n.kind), n.time).filter { it.isNotEmpty() }.joinToString(" • ")
                 if (meta.isNotEmpty()) {
-                    Text(meta, color = TextMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+                    Text(meta, color = TextMuted, fontSize = 14.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 2.dp))
                 }
             }
             if (n.thumb.isNotEmpty()) {
                 Spacer(Modifier.width(12.dp))
                 Box {
-                    AppImage(n.thumb, Modifier.width(96.dp).aspectRatio(16f / 9f), RoundedCornerShape(12.dp))
+                    AppImage(n.thumb, Modifier.width(72.dp).aspectRatio(16f / 9f), RoundedCornerShape(8.dp))
                     if (!n.read) {
                         Box(
-                            Modifier.align(Alignment.TopEnd).padding(6.dp).size(10.dp)
+                            Modifier.align(Alignment.TopEnd).padding(4.dp).size(8.dp)
                                 .clip(CircleShape).background(Accent)
                         )
                     }
                 }
             } else if (!n.read) {
                 Spacer(Modifier.width(8.dp))
-                Box(Modifier.size(10.dp).clip(CircleShape).background(Accent))
+                Box(Modifier.size(8.dp).clip(CircleShape).background(Accent))
             }
         }
     }
