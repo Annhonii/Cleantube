@@ -309,6 +309,12 @@ object Api {
         )
     }
 
+    /** YouTube's own "related to this video" list (the up-next column), long videos only. */
+    suspend fun relatedOf(id: String): List<VideoItem> {
+        val j = Yt.run("watch", args("id" to id))
+        return (j.optJSONArray("related") ?: JSONArray()).mapObjects { it.video() }.filter { !it.short }
+    }
+
     suspend fun related(token: String?): Page<VideoItem> {
         if (token == null) return Page(emptyList(), null)
         return videosPage(Yt.run("related", args("token" to token)), dropShorts = true)

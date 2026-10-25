@@ -41,7 +41,9 @@ object Reco {
     private const val W_FRESH = 3.0
     private const val FRESH_DAYS = 7.0          // freshness halves roughly every ~5 days
     private const val W_CHANNEL = 0.6         // who made it matters little ...
-    private const val W_TOPIC = 3.0           // ... what it is about matters most
+    private const val W_TOPIC = 1.5           // title words: only a small hint
+    private const val W_SEED = 4.0            // what YouTube itself relates to what you watched: the main signal
+    private const val SEED_TTL_MS = 6L * 60 * 60 * 1000
     private const val CHAN_SHARE = 0.3      // a channel learns at 30 % of the speed ...
     private const val TOPIC_GAIN = 1.5      // ... a topic at 150 %
     private const val PER_CHANNEL_POOL = 4  // newest videos kept per channel (no channel can flood the pool)
@@ -60,7 +62,7 @@ object Reco {
     private const val SWIPE_AWAY_MS = 2_500L
     private const val SUB_EVERY = 20
 
-    private enum class Src { SUB, RELATED, INJECT, DISCOVER, TOPIC }
+    private enum class Src { SUB, RELATED, INJECT, DISCOVER, TOPIC, SEED }
 
     private class Cand(val v: VideoItem, val src: Src)
 
@@ -119,6 +121,14 @@ object Reco {
     /** Same for Home: channels of the last ~25 videos served, so a channel does not fill the page again and again. */
     private val recentHomeChannels = ArrayDeque<String>()
 
+    // Content graph: the videos you really watched / liked are "seeds"; YouTube's own "related to this video" lists of
+    // the seeds are the candidates. A candidate that many (recent, strongly watched) seeds point to is content you like,
+    // no matter which channel made it and without looking at words in titles.
+    private val seeds = LinkedHashMap<String, Double>()        // video id -> weight (history 0.5, watched 1, liked 2); newest last
+    private val seedFetchedAt = HashMap<String, Long>()
+    private val seedScore = LinkedHashMap<String, Double>()    // candidate id -> how strongly the seeds point to it
+    private val relatedLock = Mutex()
+
     fun init(context: Context) {
         if (sp != null) return
         val p = context.applicationContext.getSharedPreferences("reco_v1", Context.MODE_PRIVATE)
@@ -130,6 +140,7 @@ object Reco {
             j.optJSONObject("imp")?.let { o -> o.keys().forEach { k -> impressions[k] = o.optInt(k) } }
             j.optJSONArray("watched")?.let { a -> for (i in 0 until a.length()) watched.add(a.optString(i)) }
             j.optJSONArray("shorts")?.let { a -> for (i in 0 until a.length()) servedShorts.add(a.optString(i)) }
+            j.optJSONArray("seeds")?.let { a -> for (i in 0 until a.length()) a.optString(i).split("|").let { p -> if (p.size == 2) seeds[p[0]] = p[1].toDoubleOrNull() ?: 0.5 } }
             lastDecayDay = j.optLong("decayDay", 0L)
             seededAt = j.optLong("seededAt", 0L)
             j.optJSONObject("ci")?.let { o -> o.keys().forEach { k -> o.optJSONArray(k)?.let { a -> chanInfo[k] = ChannelItem(id = k, title = a.optString(0), thumb = a.optString(1)) } } }
@@ -163,6 +174,7 @@ object Reco {
             j.put("imp", JSONObject(capped(impressions, 800) { it.toDouble() }))
             j.put("watched", JSONArray(watched.toList().takeLast(1500)))
             j.put("shorts", JSONArray(servedShorts.toList().takeLast(2000)))
+            j.put("seeds", JSONArray(seeds.entries.map { "${it.key}|${it.value}" }))
             j.put("decayDay", lastDecayDay)
             j.put("seededAt", seededAt)
             val ci = JSONObject()
@@ -208,16 +220,25 @@ object Reco {
 
     /** The video was watched for a while (counted by the caller after ~30 s). */
     fun onEngaged(videoId: String) {
+        addSeed(videoId, 1.0)
         bump(meta[videoId], 1.5, 0.8)
         save()
+    }
+
+    /** A video you really watched / liked becomes a seed of the content graph (newest last, 60 kept). */
+    private fun addSeed(id: String, w: Double) = synchronized(lock) {
+        val old = seeds.remove(id) ?: 0.0
+        seeds[id] = maxOf(w, old)
+        while (seeds.size > 60) seeds.remove(seeds.keys.first())
     }
 
     /** Like / dislike. [status] is "like", "dislike" or "none". */
     fun onRate(videoId: String, status: String) {
         val v = meta[videoId]
         when (status) {
-            "like" -> bump(v, 3.0, 1.5)
+            "like" -> { addSeed(videoId, 2.0); bump(v, 3.0, 1.5) }
             "dislike" -> {
+                synchronized(lock) { seeds.remove(videoId) }
                 bump(v, -6.0, -3.0)
                 synchronized(lock) { watched.add(videoId) }
             }
@@ -365,7 +386,8 @@ object Reco {
         val fatigue = if (imp >= FATIGUE_AFTER) W_FATIGUE * (imp - FATIGUE_AFTER + 1) else 0.0
         val session = if (sessionBoost) words(v.title).sumOf { sessionTopic[it] ?: 0.0 }.coerceIn(-3.0, 4.0) * 0.8 else 0.0
         val inject = if (c.src == Src.INJECT) 1.5 else 0.0
-        return fresh + chA + toA + explore + session + inject - fatigue
+        val graph = tanh((seedScore[v.id] ?: 0.0) / 1.5) * W_SEED
+        return fresh + chA + toA + explore + session + inject + graph - fatigue
     }
 
     /** Picks [size] items from the queues following [rhythm] (queue numbers), with at most 2 per channel. */
@@ -454,6 +476,9 @@ object Reco {
                 }
                 words(v.title).take(8).forEach { topic[it] = (topic[it] ?: 0.0) + 1.2 }
             }
+            // the newest watched / liked long videos are seeds of the content graph (oldest first, so the newest ends last)
+            liked.filter { !it.short }.take(15).reversed().forEach { addSeed(it.id, 1.5) }
+            hist.filter { !it.short }.take(25).reversed().forEach { addSeed(it.id, 0.5) }
             (hist + liked).forEach { watched.add(it.id) }
             seededAt = now
         }
@@ -539,6 +564,56 @@ object Reco {
         }
     }
 
+    /** No seeds yet (first run of this version): start from what was watched lately, in the account and in this app. */
+    private suspend fun ensureSeeds() {
+        if (synchronized(lock) { seeds.isNotEmpty() }) return
+        val account = if (Session.loggedIn && !Playback.isBlocked()) runCatching { Api.accountHistory(null).items }.getOrDefault(emptyList()) else emptyList()
+        val local = runCatching { Graph.store.history }.getOrDefault(emptyList())
+        synchronized(lock) {
+            local.filter { !it.short }.take(15).reversed().forEach { addSeed(it.id, 0.7) }
+            account.filter { !it.short }.take(25).reversed().forEach { addSeed(it.id, 0.5) }
+        }
+        save()
+    }
+
+    /** Asks YouTube "what is related to this?" for a few seeds (weighted by strength and recency) and pools the answers. */
+    private suspend fun fetchFromSeeds(n: Int = 4) = relatedLock.withLock {
+        if (Playback.isBlocked()) return@withLock
+        val now = System.currentTimeMillis()
+        val pick = synchronized(lock) {
+            val list = seeds.entries.toList()
+            list.mapIndexed { i, e -> e.key to e.value * (0.4 + (i + 1.0) / list.size) * Random.nextDouble() }
+                .filter { now - (seedFetchedAt[it.first] ?: 0L) > SEED_TTL_MS }
+                .sortedByDescending { it.second }.take(n).map { it.first }
+        }
+        if (pick.isEmpty()) return@withLock
+        val gate = Semaphore(3)
+        coroutineScope {
+            pick.map { id ->
+                async(Dispatchers.Default) {
+                    gate.withPermit {
+                        val rel = runCatching { Api.relatedOf(id) }.getOrNull()
+                        synchronized(lock) {
+                            seedFetchedAt[id] = System.currentTimeMillis()
+                            if (rel != null) {
+                                val w = seeds[id] ?: 0.5
+                                rel.forEachIndexed { rank, v ->
+                                    if (v.id in watched) return@forEachIndexed
+                                    meta[v.id] = v
+                                    // earlier in YouTube's list = closer to the seed
+                                    seedScore[v.id] = (seedScore[v.id] ?: 0.0) + w * (1.0 - rank / (rel.size + 5.0))
+                                    if (v.id !in pool) pool[v.id] = Cand(v, Src.SEED)
+                                }
+                                while (seedScore.size > 1500) seedScore.remove(seedScore.keys.first())
+                                trimPool()
+                            }
+                        }
+                    }
+                }
+            }.awaitAll()
+        }
+    }
+
     // ------------------------------------------------------------------ Home (long videos)
     /** Null when there is nothing to recommend from (no subscriptions): the caller then uses YouTube's own feed. */
     suspend fun homePage(token: String?): Page<VideoItem>? {
@@ -553,6 +628,10 @@ object Reco {
             if (synchronized(lock) { pool.size } < HOME_PAGE || chanFetchedAt.isEmpty()) fetchBatch(CHANNEL_BATCH)
             else runCatching { fetchBatch(4) }
         }
+        // content graph: what YouTube relates to the videos you really watched (more of it when the supply runs low)
+        val seedLeft = synchronized(lock) { pool.values.count { (seedScore[it.v.id] ?: 0.0) > 0.0 && it.v.id !in homeServed } }
+        if (first) runCatching { ensureSeeds() }
+        if (first) runCatching { fetchFromSeeds(5) } else if (seedLeft < HOME_PAGE) runCatching { fetchFromSeeds(3) }
         // YouTube's own recommendations + topic searches: the part of Home that is NOT about the subscriptions
         if (first || synchronized(lock) { pool.values.count { it.src == Src.DISCOVER && it.v.id !in homeServed } } < HOME_PAGE) {
             if (first || ytHomeToken != null) runCatching { fetchDiscover() }
@@ -577,7 +656,10 @@ object Reco {
             .sortedBy { chKey(it.v).let { k -> k.isNotEmpty() && k in recent } }
         // Content first: what you get is chosen by what the video is about (topics you watch), whoever made it.
         fun likesContent(c: Cand): Boolean = words(c.v.title).any { (topic[it] ?: 0.0) > 0.8 }
-        val match = ranked.filter { likesContent(it) }
+        // first what YouTube relates to your watched videos (content graph), then title-word matches as a fallback
+        val graphMatch = ranked.filter { (seedScore[it.v.id] ?: 0.0) > 0.0 }
+        val graphIds = graphMatch.mapTo(HashSet()) { it.v.id }
+        val match = graphMatch + ranked.filter { it.v.id !in graphIds && likesContent(it) }
         val matchIds = match.mapTo(HashSet()) { it.v.id }
         val rest = ranked.filter { it.v.id !in matchIds }
         val disc = rest.filter { it.src == Src.DISCOVER }
