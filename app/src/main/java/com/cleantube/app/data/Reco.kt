@@ -40,8 +40,11 @@ object Reco {
     // ------------------------------------------------------------------ tunable weights
     private const val W_FRESH = 3.0
     private const val FRESH_DAYS = 7.0          // freshness halves roughly every ~5 days
-    private const val W_CHANNEL = 2.0
-    private const val W_TOPIC = 1.5
+    private const val W_CHANNEL = 0.6         // who made it matters little ...
+    private const val W_TOPIC = 3.0           // ... what it is about matters most
+    private const val CHAN_SHARE = 0.3      // a channel learns at 30 % of the speed ...
+    private const val TOPIC_GAIN = 1.5      // ... a topic at 150 %
+    private const val PER_CHANNEL_POOL = 4  // newest videos kept per channel (no channel can flood the pool)
     private const val W_EXPLORE = 0.6
     private const val FATIGUE_AFTER = 3         // shown this many times without being opened -> pushed down
     private const val W_FATIGUE = 1.2
@@ -113,6 +116,8 @@ object Reco {
     private var shortsSinceSub = 0
     /** Channels of the last Shorts served: the next batch avoids them, so one channel never shows up twice close together. */
     private val recentShortChannels = ArrayDeque<String>()
+    /** Same for Home: channels of the last ~25 videos served, so a channel does not fill the page again and again. */
+    private val recentHomeChannels = ArrayDeque<String>()
 
     fun init(context: Context) {
         if (sp != null) return
@@ -186,8 +191,8 @@ object Reco {
 
     private fun bump(v: VideoItem?, channelDelta: Double, topicDelta: Double) = synchronized(lock) {
         if (v == null) return@synchronized
-        if (v.channelId.isNotEmpty()) chan[v.channelId] = (chan[v.channelId] ?: 0.0) + channelDelta
-        words(v.title).take(8).forEach { topic[it] = (topic[it] ?: 0.0) + topicDelta }
+        if (v.channelId.isNotEmpty()) chan[v.channelId] = (chan[v.channelId] ?: 0.0) + channelDelta * CHAN_SHARE
+        words(v.title).take(8).forEach { topic[it] = (topic[it] ?: 0.0) + topicDelta * TOPIC_GAIN }
     }
 
     /** A long video was opened. */
@@ -306,7 +311,7 @@ object Reco {
                         if (items == null) synchronized(lock) { chanFetchedAt[c.id] = System.currentTimeMillis() }
                         if (items != null) synchronized(lock) {
                             chanFetchedAt[c.id] = System.currentTimeMillis()
-                            items.filter { !it.short }.take(10).forEach {
+                            items.filter { !it.short }.take(PER_CHANNEL_POOL).forEach {
                                 val v = it.copy(channelId = c.id, channelTitle = it.channelTitle.ifEmpty { c.title }, channelThumb = it.channelThumb.ifEmpty { c.thumb })
                                 meta[v.id] = v
                                 pool[v.id] = Cand(v, Src.SUB)
@@ -437,17 +442,17 @@ object Reco {
             h.forEachIndexed { i, v ->
                 val w = 1.0 - i / (h.size * 1.3)
                 if (v.channelId.isNotEmpty()) {
-                    chan[v.channelId] = (chan[v.channelId] ?: 0.0) + 0.5 * w
+                    chan[v.channelId] = (chan[v.channelId] ?: 0.0) + 0.15 * w
                     if (v.channelId !in chanInfo) chanInfo[v.channelId] = ChannelItem(id = v.channelId, title = v.channelTitle, thumb = v.channelThumb)
                 }
-                words(v.title).take(8).forEach { topic[it] = (topic[it] ?: 0.0) + 0.25 * w }
+                words(v.title).take(8).forEach { topic[it] = (topic[it] ?: 0.0) + 0.4 * w }
             }
             liked.take(60).forEach { v ->
                 if (v.channelId.isNotEmpty()) {
-                    chan[v.channelId] = (chan[v.channelId] ?: 0.0) + 1.5
+                    chan[v.channelId] = (chan[v.channelId] ?: 0.0) + 0.45
                     if (v.channelId !in chanInfo) chanInfo[v.channelId] = ChannelItem(id = v.channelId, title = v.channelTitle, thumb = v.channelThumb)
                 }
-                words(v.title).take(8).forEach { topic[it] = (topic[it] ?: 0.0) + 0.8 }
+                words(v.title).take(8).forEach { topic[it] = (topic[it] ?: 0.0) + 1.2 }
             }
             (hist + liked).forEach { watched.add(it.id) }
             seededAt = now
@@ -565,22 +570,33 @@ object Reco {
     private fun buildHomePage(): List<VideoItem> = synchronized(lock) {
         val now = System.currentTimeMillis()
         val history = runCatching { Graph.store.history.map { it.id }.toSet() }.getOrDefault(emptySet())
+        val recent = recentHomeChannels.toSet()
+        // stable sort: channels shown in the last pages go to the back (still used if nothing else is left)
         val ranked = pool.values.filter { it.v.id !in watched && it.v.id !in history && it.v.id !in homeServed }
             .map { it to score(it, now, false) }.sortedByDescending { it.second }.map { it.first }
-        val subsKnown = ranked.filter { it.src == Src.SUB && (chan[it.v.channelId] ?: 0.0) > 0.0 }
-        val subsOther = ranked.filter { it.src == Src.SUB && (chan[it.v.channelId] ?: 0.0) <= 0.0 }
-        val disc = ranked.filter { it.src == Src.DISCOVER }
-        val adj = ranked.filter { it.src == Src.RELATED }
-        // Like YouTube's Home: about 4 of 10 from outside your subscriptions (YouTube's own picks + topics you like),
-        // 3 from channels you watch most, 2 "up next" style, 1 from a subscription you have not watched yet.
-        // Before any history exists the subscriptions' freshness ranking leads.
-        val known = if (subsKnown.isEmpty()) subsOther else subsKnown
-        val other = if (subsKnown.isEmpty()) emptyList() else subsOther.shuffled().take(30)
-        val page = mixN(listOf(known, disc, adj, other), listOf(1, 0, 1, 2, 0, 1, 3, 1, 0, 2), HOME_PAGE)
+            .sortedBy { chKey(it.v).let { k -> k.isNotEmpty() && k in recent } }
+        // Content first: what you get is chosen by what the video is about (topics you watch), whoever made it.
+        fun likesContent(c: Cand): Boolean = words(c.v.title).any { (topic[it] ?: 0.0) > 0.8 }
+        val match = ranked.filter { likesContent(it) }
+        val matchIds = match.mapTo(HashSet()) { it.v.id }
+        val rest = ranked.filter { it.v.id !in matchIds }
+        val disc = rest.filter { it.src == Src.DISCOVER }
+        val adj = rest.filter { it.src == Src.RELATED }
+        val newSubs = rest.filter { it.src == Src.SUB }
+        // 4 of 10 match your topics (from any source), 3 are YouTube's own picks, 2 "up next" style, 1 new upload of a
+        // subscription. Before any history exists the subscriptions' freshness ranking leads.
+        val known = if (match.isEmpty()) newSubs else match
+        val other = if (match.isEmpty()) emptyList() else newSubs.shuffled().take(30)
+        val rhythm = listOf(0, 1, 0, 2, 1, 0, 3, 0, 1, 2)
+        // one video per channel on a page; only if that leaves a very short page, allow two
+        var page = mixN(listOf(known, disc, adj, other), rhythm, HOME_PAGE, maxPerChannel = 1)
+        if (page.size < HOME_PAGE / 2) page = mixN(listOf(known, disc, adj, other), rhythm, HOME_PAGE, maxPerChannel = 2)
         page.forEach {
             homeServed.add(it.id)
             impressions[it.id] = (impressions[it.id] ?: 0) + 1
+            chKey(it).takeIf { k -> k.isNotEmpty() }?.let { k -> recentHomeChannels.addLast(k) }
         }
+        while (recentHomeChannels.size > 25) recentHomeChannels.removeFirst()
         page
     }.also { save() }
 
@@ -648,7 +664,7 @@ object Reco {
             val inj = nonSub.filter { it.src == Src.INJECT }
             val disc = nonSub.filter { it.src == Src.DISCOVER }
             // what matches your interests (channel you like, or a topic you like), from any source
-            fun likes(c: Cand): Boolean = (chan[c.v.channelId] ?: 0.0) > 0.0 || words(c.v.title).any { (topic[it] ?: 0.0) > 0.8 }
+            fun likes(c: Cand): Boolean = words(c.v.title).any { (topic[it] ?: 0.0) > 0.8 }
             val mine = nonSub.filter { it.src != Src.INJECT && it.src != Src.DISCOVER && likes(it) }
             val rest0 = nonSub.filter { it.src != Src.INJECT && it.src != Src.DISCOVER && !likes(it) }
             // a hot topic of this session goes first, then: 4 of 8 match your interests, 3 are YouTube's own picks, 1 explores
