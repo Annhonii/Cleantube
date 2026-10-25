@@ -62,6 +62,8 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
     val firstRoute = visible.firstOrNull { it.route == Route.Home }?.route ?: visible.first().route
     val visibleRoutes = visible.map { it.route }
     val navState = rememberUpdatedState(nav)
+    // right after signing in: read the history and learn the interests (once; the overlay shows the progress)
+    LaunchedEffect(Session.loggedIn) { if (Session.loggedIn) com.cleantube.app.data.Reco.requestSeed() }
     val visibleState = rememberUpdatedState(visible)
 
     // The tab screens live in a pager: they follow the finger while you swipe, both pages are visible side by
@@ -155,6 +157,9 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
 
             // the video page / mini player: above the screens
             VideoSheet(tabRoot = nav.isTabRoot, hidden = nav.current == Route.Shorts)
+
+            // first sign-in: the app reads the whole history and works out what you like
+            AnalysingOverlay()
 
             // Fullscreen video from the YouTube player, drawn above everything.
             val fsView = fullscreen.view

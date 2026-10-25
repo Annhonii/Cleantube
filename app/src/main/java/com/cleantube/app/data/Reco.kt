@@ -1,10 +1,15 @@
 package com.cleantube.app.data
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
@@ -72,6 +77,21 @@ object Reco {
     private val chanInfo = LinkedHashMap<String, ChannelItem>()
     private val topicFetchedAt = HashMap<String, Long>()
     private val seedLock = Mutex()
+
+    // shown by the "analysing your taste" screen while the first (deep) read of the account's history runs
+    var seeding by mutableStateOf(false)
+        private set
+    var seedStage by mutableStateOf("")
+        private set
+    var seedProgress by mutableFloatStateOf(0f)
+        private set
+    /** The screen was dismissed by the user: the analysis keeps running in the background. */
+    var seedHidden by mutableStateOf(false)
+
+    /** Starts the account read right after sign-in (not tied to any screen). */
+    fun requestSeed() {
+        TabCache.appScope.launch { runCatching { seedFromAccount() } }
+    }
 
     private val pool = LinkedHashMap<String, Cand>()        // long videos
     private val shortPool = LinkedHashMap<String, Cand>()   // Shorts
@@ -393,6 +413,8 @@ object Reco {
         if (!Session.loggedIn || Playback.isBlocked() || now - seededAt < 3L * 86_400_000L) return@withLock
         // the very first time: read (nearly) the whole history; later only the newest part
         val deep = seededAt == 0L
+        if (deep) { seedHidden = false; seeding = true; seedStage = "Reading your watch history…"; seedProgress = 0.05f }
+        try {
         val hist = mutableListOf<VideoItem>()
         runCatching {
             var t: String? = null
@@ -402,10 +424,13 @@ object Reco {
                 hist += p.items
                 t = p.next
                 n++
+                if (deep) seedProgress = 0.05f + 0.6f * n / 12f
             } while (t != null && n < (if (deep) 12 else 3))
         }
+        if (deep) { seedStage = "Reading your liked videos…"; seedProgress = 0.7f }
         val liked = runCatching { Api.playlistVideos("LL", null).items }.getOrDefault(emptyList())
         if (hist.isEmpty() && liked.isEmpty()) return@withLock
+        if (deep) { seedStage = "Finding the topics and channels you love…"; seedProgress = 0.85f }
         synchronized(lock) {
             // newer history counts more: the first items are the most recent
             val h = hist.take(400)
@@ -428,6 +453,14 @@ object Reco {
             seededAt = now
         }
         save()
+        if (deep) {
+            seedStage = "Your feed is ready"
+            seedProgress = 1f
+            kotlinx.coroutines.delay(900)
+        }
+        } finally {
+            if (deep) seeding = false
+        }
     }
 
     /** Channels whose Shorts we pull for the main feed: the ones the history says you like and are NOT subscribed to. */
