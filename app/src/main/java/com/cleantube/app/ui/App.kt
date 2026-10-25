@@ -20,7 +20,9 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
@@ -149,8 +151,9 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                 // hides under a Shorts sheet / menu
                 visible = nav.isTabRoot && !(nav.current == Route.Shorts && ShortsUi.overlayOpen),
                 modifier = Modifier.align(Alignment.TopCenter),
-                enter = slideInVertically(spring(dampingRatio = 0.8f, stiffness = 380f)) { -it } + fadeIn(tween(240)),
-                exit = slideOutVertically(tween(260, easing = Motion.EmphasizedAccelerate)) { -it } + fadeOut(tween(180))
+                // sideways like the screen under it (same distance and timing as screenTransition), never up / down
+                enter = slideInHorizontally(tween(420, easing = Motion.Emphasized)) { -(it * 0.28f).toInt() } + fadeIn(tween(320)),
+                exit = slideOutHorizontally(tween(440, easing = Motion.Emphasized)) { -(it * 0.28f).toInt() } + fadeOut(tween(320))
             ) {
                 CollapsingHeader(headerPos, homeIdx, shortsIdx, visibleRoutes, visible)
             }
