@@ -94,6 +94,7 @@ private val GreetGapTop = 14.dp     // photo -> greeting
 private val GreetH = 88.dp          // two lines of the greeting
 private val GreetGapBottom = 18.dp  // greeting -> navigation row
 private val NavH = 44.dp
+private val ShortsGap = 8.dp
 private val NavGapSmall = 10.dp     // photo row -> navigation row when collapsed
 private val BottomBig = 10.dp
 private val BottomSmall = 8.dp
@@ -448,8 +449,11 @@ private fun NavRow(
     val navH = NavH
 
     Box(Modifier.fillMaxSize().onGloballyPositioned { root = it.positionInWindow() }) {
-        // 1: the resting pill behind all the tabs
-        Box(Modifier.fillMaxSize().clip(CircleShape).background(surface))
+        // 1: resting backgrounds: the round Shorts button and the pill behind the other tabs
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(ShortsGap), verticalAlignment = Alignment.CenterVertically) {
+            if (hasShorts) Box(Modifier.size(navH).clip(CircleShape).background(surface))
+            Box(Modifier.weight(1f).fillMaxHeight().clip(CircleShape).background(surface))
+        }
         // 2: the indicator: ONE filled pill behind the open tab. Its position AND size are the bounds of the two tabs
         // it is between (mixed by the pager position), and those bounds keep changing while a label opens / closes, so
         // it slides and stretches together with the labels, and sticks to the finger while swiping.
@@ -468,44 +472,67 @@ private fun NavRow(
                 drawRoundRect(selBg, Offset(x, y), Size(w, h), CornerRadius(h / 2f, h / 2f))
             }
         )
-        // 3: the tabs on top. Every tab is its icon; the label of a tab opens next to the icon as the indicator arrives
-        // and closes as it leaves (same number as the indicator: the pager position), so only the open tab has its name.
+        // 3: the tabs on top. The pill tabs show their icon; the label of a tab opens next to the icon as the indicator
+        // arrives and closes as it leaves (same number as the indicator: the pager position). Shorts is just the round icon.
         val gapPx = with(density) { 6.dp.roundToPx() }
         Row(
-            Modifier.fillMaxSize().padding(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(ShortsGap),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            tabs.forEachIndexed { i, t ->
-                val k = (1f - kotlin.math.abs(pos - i)).coerceIn(0f, 1f)
-                val tint = lerp(idle, onSel, k)
+            if (hasShorts) {
+                val t = tabs[0]
+                val tint = lerp(idle, onSel, (1f - kotlin.math.abs(pos - 0)).coerceIn(0f, 1f))
                 Box(
                     Modifier
-                        .fillMaxHeight()
+                        .size(navH)
                         .onGloballyPositioned { c ->
-                            if (i < bX.size) {
-                                val o = c.positionInWindow()
-                                bX[i] = o.x; bTop[i] = o.y; bW[i] = c.size.width.toFloat(); bH[i] = c.size.height.toFloat()
-                            }
+                            val o = c.positionInWindow()
+                            bX[0] = o.x; bTop[0] = o.y; bW[0] = c.size.width.toFloat(); bH[0] = c.size.height.toFloat()
                         }
-                        .bouncyClickable(pressedScale = 0.94f, onClick = { if (nav.current != t.route) nav.selectTab(t.route) }),
+                        .bouncyClickable(pressedScale = 0.9f, onClick = { if (nav.current != t.route) nav.selectTab(t.route) }),
                     contentAlignment = Alignment.Center
                 ) {
-                    Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(t.icon, contentDescription = t.label, tint = tint, modifier = Modifier.size(22.dp))
-                        Text(
-                            t.label, color = tint, fontSize = labelSp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false,
-                            modifier = Modifier
-                                .layout { m, c ->
-                                    val kk = (1f - kotlin.math.abs(pagerPosition() - i)).coerceIn(0f, 1f)
-                                    val pl = m.measure(androidx.compose.ui.unit.Constraints())
-                                    val w = ((pl.width + gapPx) * kk).roundToInt()
-                                    layout(w, pl.height) { pl.placeRelative((gapPx * kk).roundToInt(), 0) }
+                    Icon(t.icon, contentDescription = t.label, tint = tint, modifier = Modifier.size(22.dp))
+                }
+            }
+            Row(
+                Modifier.weight(1f).fillMaxHeight().padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                tabs.forEachIndexed { i, t ->
+                    if (hasShorts && i == 0) return@forEachIndexed
+                    val k = (1f - kotlin.math.abs(pos - i)).coerceIn(0f, 1f)
+                    val tint = lerp(idle, onSel, k)
+                    Box(
+                        Modifier
+                            .fillMaxHeight()
+                            .onGloballyPositioned { c ->
+                                if (i < bX.size) {
+                                    val o = c.positionInWindow()
+                                    bX[i] = o.x; bTop[i] = o.y; bW[i] = c.size.width.toFloat(); bH[i] = c.size.height.toFloat()
                                 }
-                                .graphicsLayer {
-                                    alpha = (1f - kotlin.math.abs(pagerPosition() - i)).coerceIn(0f, 1f)
-                                }
-                        )
+                            }
+                            .bouncyClickable(pressedScale = 0.94f, onClick = { if (nav.current != t.route) nav.selectTab(t.route) }),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(t.icon, contentDescription = t.label, tint = tint, modifier = Modifier.size(22.dp))
+                            Text(
+                                t.label, color = tint, fontSize = labelSp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false,
+                                modifier = Modifier
+                                    .layout { m, c ->
+                                        val kk = (1f - kotlin.math.abs(pagerPosition() - i)).coerceIn(0f, 1f)
+                                        val pl = m.measure(androidx.compose.ui.unit.Constraints())
+                                        val w = ((pl.width + gapPx) * kk).roundToInt()
+                                        layout(w, pl.height) { pl.placeRelative((gapPx * kk).roundToInt(), 0) }
+                                    }
+                                    .graphicsLayer {
+                                        alpha = (1f - kotlin.math.abs(pagerPosition() - i)).coerceIn(0f, 1f)
+                                    }
+                            )
+                        }
                     }
                 }
             }
