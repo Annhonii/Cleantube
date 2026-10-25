@@ -51,7 +51,7 @@ object Reco {
     private const val SUBS_TTL_MS = 6L * 60 * 60 * 1000
     private const val SWIPE_AWAY_MS = 2_500L
 
-    private enum class Src { SUB, RELATED, INJECT, DISCOVER }
+    private enum class Src { SUB, RELATED, INJECT, DISCOVER, TOPIC }
 
     private class Cand(val v: VideoItem, val src: Src)
 
@@ -67,6 +67,9 @@ object Reco {
     private val meta = HashMap<String, VideoItem>()   // what we know about a video (for rating signals)
     private var lastDecayDay = 0L
     private var seededAt = 0L
+    /** Channels the interests come from (id -> name / logo), so their Shorts can be fetched even when not subscribed. */
+    private val chanInfo = LinkedHashMap<String, ChannelItem>()
+    private val topicFetchedAt = HashMap<String, Long>()
     private val seedLock = Mutex()
 
     private val pool = LinkedHashMap<String, Cand>()        // long videos
@@ -99,6 +102,7 @@ object Reco {
             j.optJSONArray("shorts")?.let { a -> for (i in 0 until a.length()) servedShorts.add(a.optString(i)) }
             lastDecayDay = j.optLong("decayDay", 0L)
             seededAt = j.optLong("seededAt", 0L)
+            j.optJSONObject("ci")?.let { o -> o.keys().forEach { k -> o.optJSONArray(k)?.let { a -> chanInfo[k] = ChannelItem(id = k, title = a.optString(0), thumb = a.optString(1)) } } }
         }
         decayIfNewDay()
     }
@@ -131,6 +135,9 @@ object Reco {
             j.put("shorts", JSONArray(servedShorts.toList().takeLast(2000)))
             j.put("decayDay", lastDecayDay)
             j.put("seededAt", seededAt)
+            val ci = JSONObject()
+            chanInfo.entries.sortedByDescending { chan[it.key] ?: 0.0 }.take(150).forEach { ci.put(it.key, JSONArray(listOf(it.value.title, it.value.thumb))) }
+            j.put("ci", ci)
             p.edit().putString("state", j.toString()).apply()
         }
     }
@@ -235,9 +242,9 @@ object Reco {
     }
 
     /** Stalest / most liked channels first. */
-    private fun nextChannels(times: Map<String, Long>, n: Int): List<ChannelItem> {
+    private fun nextChannels(times: Map<String, Long>, n: Int, from: List<ChannelItem> = subs): List<ChannelItem> {
         val now = System.currentTimeMillis()
-        return subs.filter { now - (times[it.id] ?: 0L) > CHANNEL_TTL_MS }
+        return from.filter { now - (times[it.id] ?: 0L) > CHANNEL_TTL_MS }
             .sortedWith(compareBy<ChannelItem> { times.containsKey(it.id) }.thenByDescending { chan[it.id] ?: 0.0 }.thenBy { times[it.id] ?: 0L })
             .take(n)
     }
@@ -277,7 +284,7 @@ object Reco {
 
     private suspend fun fetchShortsBatch(n: Int = 8): Int = shortsLock.withLock {
         if (Playback.isBlocked()) return 0
-        val batch = synchronized(lock) { nextChannels(chanShortsFetchedAt, n) }
+        val batch = synchronized(lock) { nextChannels(chanShortsFetchedAt, n, shortChannels()) }
         if (batch.isEmpty()) return 0
         val gate = Semaphore(3)
         coroutineScope {
@@ -362,6 +369,8 @@ object Reco {
     private suspend fun seedFromAccount() = seedLock.withLock {
         val now = System.currentTimeMillis()
         if (!Session.loggedIn || Playback.isBlocked() || now - seededAt < 3L * 86_400_000L) return@withLock
+        // the very first time: read (nearly) the whole history; later only the newest part
+        val deep = seededAt == 0L
         val hist = mutableListOf<VideoItem>()
         runCatching {
             var t: String? = null
@@ -371,25 +380,64 @@ object Reco {
                 hist += p.items
                 t = p.next
                 n++
-            } while (t != null && n < 3)
+            } while (t != null && n < (if (deep) 12 else 3))
         }
         val liked = runCatching { Api.playlistVideos("LL", null).items }.getOrDefault(emptyList())
         if (hist.isEmpty() && liked.isEmpty()) return@withLock
         synchronized(lock) {
             // newer history counts more: the first items are the most recent
-            hist.filter { !it.short }.take(60).forEachIndexed { i, v ->
-                val w = 1.0 - i / 80.0
-                if (v.channelId.isNotEmpty()) chan[v.channelId] = (chan[v.channelId] ?: 0.0) + 0.5 * w
+            val h = hist.take(400)
+            h.forEachIndexed { i, v ->
+                val w = 1.0 - i / (h.size * 1.3)
+                if (v.channelId.isNotEmpty()) {
+                    chan[v.channelId] = (chan[v.channelId] ?: 0.0) + 0.5 * w
+                    if (v.channelId !in chanInfo) chanInfo[v.channelId] = ChannelItem(id = v.channelId, title = v.channelTitle, thumb = v.channelThumb)
+                }
                 words(v.title).take(8).forEach { topic[it] = (topic[it] ?: 0.0) + 0.25 * w }
             }
             liked.take(60).forEach { v ->
-                if (v.channelId.isNotEmpty()) chan[v.channelId] = (chan[v.channelId] ?: 0.0) + 1.5
+                if (v.channelId.isNotEmpty()) {
+                    chan[v.channelId] = (chan[v.channelId] ?: 0.0) + 1.5
+                    if (v.channelId !in chanInfo) chanInfo[v.channelId] = ChannelItem(id = v.channelId, title = v.channelTitle, thumb = v.channelThumb)
+                }
                 words(v.title).take(8).forEach { topic[it] = (topic[it] ?: 0.0) + 0.8 }
             }
             (hist + liked).forEach { watched.add(it.id) }
             seededAt = now
         }
         save()
+    }
+
+    /** Channels whose Shorts we pull: the subscriptions plus the channels the history says you like (even if not subscribed). */
+    private fun shortChannels(): List<ChannelItem> = synchronized(lock) {
+        val liked = chanInfo.values.filter { (chan[it.id] ?: 0.0) > 0.4 && it.title.isNotEmpty() }
+            .sortedByDescending { chan[it.id] ?: 0.0 }.take(40)
+        (liked + subs).distinctBy { it.id }
+    }
+
+    /** Topic searches for Shorts: your strongest interests right now, a few at a time, not more often than every 20 min each. */
+    private suspend fun fetchShortTopics() {
+        if (Playback.isBlocked()) return
+        val now = System.currentTimeMillis()
+        val topics = synchronized(lock) {
+            topic.entries.filter { it.value > 0.6 }
+                .sortedByDescending { it.value + (sessionTopic[it.key] ?: 0.0) }
+                .map { it.key }.filter { now - (topicFetchedAt[it] ?: 0L) > 20 * 60_000L }.take(3)
+        }
+        if (topics.isEmpty()) return
+        topics.forEach { synchronized(lock) { topicFetchedAt[it] = now } }
+        coroutineScope {
+            topics.map { t ->
+                async(Dispatchers.Default) { runCatching { Api.shorts(null, t) }.getOrNull()?.items.orEmpty() }
+            }.awaitAll().flatten().let { found ->
+                synchronized(lock) {
+                    found.forEach {
+                        if (it.id !in servedShorts && it.id !in shortPool) { meta[it.id] = it; shortPool[it.id] = Cand(it.copy(short = true), Src.TOPIC) }
+                    }
+                    trimPool()
+                }
+            }
+        }
     }
 
     // ------------------------------------------------------------------ discovery (beyond the subscriptions)
@@ -485,7 +533,10 @@ object Reco {
     /** Null when there is nothing to recommend from (no subscriptions): the caller then uses YouTube's own Shorts feed. */
     suspend fun shortsPage(token: String?): Page<VideoItem>? {
         decayIfNewDay()
-        if (subscriptions().isEmpty()) return null
+        subscriptions()
+        if (token == null) runCatching { seedFromAccount() }
+        // with neither subscriptions nor any taste data there is nothing to go on: YouTube's own feed
+        if (subs.isEmpty() && synchronized(lock) { chan.isEmpty() && topic.isEmpty() }) return null
         val first = token == null
         val unserved = { synchronized(lock) { shortPool.values.count { it.v.id !in servedShorts } } }
         if (first && unserved() < SHORTS_PAGE) fetchShortsBatch(8)
@@ -499,6 +550,8 @@ object Reco {
                 }
             }
         }
+        // Shorts of the topics you like (searched), and of the channels you watch most
+        if (first || unserved() < SHORTS_PAGE * 2) runCatching { fetchShortTopics() }
         var tries = 0
         while (unserved() < SHORTS_PAGE && tries++ < 3 && fetchShortsBatch(8) > 0) { /* keep filling */ }
         // YouTube's own Shorts recommendations are part of the mix too (not only the subscribed channels' Shorts)
@@ -516,21 +569,25 @@ object Reco {
             val ranked = shortPool.values.filter { it.v.id !in servedShorts && !runCatching { Graph.store.isShortSeen(it.v.id) }.getOrDefault(false) }
                 .map { it to score(it, now, true) }.sortedByDescending { it.second }.map { it.first }
             val inj = ranked.filter { it.src == Src.INJECT }
-            val known = ranked.filter { it.src == Src.SUB && (chan[it.v.channelId] ?: 0.0) > 0.0 }
-            val unknown = ranked.filter { it.src == Src.SUB && (chan[it.v.channelId] ?: 0.0) <= 0.0 }
             val disc = ranked.filter { it.src == Src.DISCOVER }
-            // fresh topic injections go first, then: 3 YouTube's own picks, 3 channels you watch, 2 unknown subscriptions
+            // what matches your interests (channel you like, or a topic you like), from any source
+            fun likes(c: Cand): Boolean = (chan[c.v.channelId] ?: 0.0) > 0.0 || words(c.v.title).any { (topic[it] ?: 0.0) > 0.8 }
+            val mine = ranked.filter { it.src != Src.INJECT && it.src != Src.DISCOVER && likes(it) }
+            val rest0 = ranked.filter { it.src != Src.INJECT && it.src != Src.DISCOVER && !likes(it) }
+            // a hot topic of this session goes first, then: 5 of 8 match your interests, 2 are YouTube's own picks, 1 explores
             val first3 = inj.take(3).map { it.v }
             val rest = mixN(
-                listOf(if (known.isEmpty()) unknown else known, disc, if (known.isEmpty()) emptyList() else unknown.shuffled()),
-                listOf(1, 0, 1, 0, 2, 1, 0, 2), SHORTS_PAGE - first3.size
+                listOf(if (mine.isEmpty()) rest0 else mine, disc, if (mine.isEmpty()) emptyList() else rest0.shuffled()),
+                listOf(0, 0, 1, 0, 0, 2, 1, 0), SHORTS_PAGE - first3.size
             )
             (first3 + rest).distinctBy { it.id }
         }
         if (page.isEmpty()) return if (first) null else Page(emptyList(), null)
         synchronized(lock) { page.forEach { servedShorts.add(it.id) } }
         save()
-        val more = synchronized(lock) { nextChannels(chanShortsFetchedAt, 1).isNotEmpty() || shortPool.values.any { it.v.id !in servedShorts } }
+        val more = synchronized(lock) {
+            nextChannels(chanShortsFetchedAt, 1, shortChannels()).isNotEmpty() || shortPool.values.any { it.v.id !in servedShorts } || topic.isNotEmpty()
+        }
         return Page(page, if (more) "L:${synchronized(lock) { servedShorts.size }}" else null)
     }
 }
