@@ -91,6 +91,8 @@ object Reco {
     private var lastInjectAt = 0L
     /** Shorts shown since the last one from a subscribed channel (those come about 1 in [SUB_EVERY]). */
     private var shortsSinceSub = 0
+    /** Channels of the last Shorts served: the next batch avoids them, so one channel never shows up twice close together. */
+    private val recentShortChannels = ArrayDeque<String>()
 
     fun init(context: Context) {
         if (sp != null) return
@@ -342,7 +344,7 @@ object Reco {
     }
 
     /** Picks [size] items from the queues following [rhythm] (queue numbers), with at most 2 per channel. */
-    private fun mixN(lists: List<List<Cand>>, rhythm: List<Int>, size: Int): List<VideoItem> {
+    private fun mixN(lists: List<List<Cand>>, rhythm: List<Int>, size: Int, maxPerChannel: Int = MAX_PER_CHANNEL_PER_PAGE): List<VideoItem> {
         val out = ArrayList<VideoItem>()
         val used = HashSet<String>()
         val perChannel = HashMap<String, Int>()
@@ -351,9 +353,10 @@ object Reco {
             while (q.isNotEmpty()) {
                 val c = q.removeFirst()
                 if (c.v.id in used) continue
-                if ((perChannel[c.v.channelId] ?: 0) >= MAX_PER_CHANNEL_PER_PAGE) continue
+                val key = chKey(c.v)
+                if (key.isNotEmpty() && (perChannel[key] ?: 0) >= maxPerChannel) continue
                 used.add(c.v.id)
-                perChannel[c.v.channelId] = (perChannel[c.v.channelId] ?: 0) + 1
+                if (key.isNotEmpty()) perChannel[key] = (perChannel[key] ?: 0) + 1
                 out.add(c.v)
                 return true
             }
@@ -371,6 +374,9 @@ object Reco {
         }
         return out
     }
+
+    /** Which channel a video belongs to (the name when the id is missing, as for many Shorts); empty = unknown. */
+    private fun chKey(v: VideoItem): String = v.channelId.ifEmpty { v.channelTitle }
 
     /** The old 7 / 2 / 1 mix of three queues (Shorts). */
     private fun mix(main: List<Cand>, adj: List<Cand>, exp: List<Cand>, size: Int): List<VideoItem> =
@@ -602,7 +608,9 @@ object Reco {
                 it.v.id !in servedShorts && it.v.id !in watched && it.v.id !in hist &&
                     !runCatching { Graph.store.isShortSeen(it.v.id) }.getOrDefault(false)
             }.map { it to score(it, now, true) }.sortedByDescending { it.second }.map { it.first }
-            val nonSub = ranked.filter { it.v.channelId !in subIds }
+            val recent = recentShortChannels.toSet()
+            // stable sort: channels shown in the last batches go to the back of every queue (still usable if nothing else is left)
+            val nonSub = ranked.filter { it.v.channelId !in subIds }.sortedBy { chKey(it.v) in recent }
             val subOnly = ranked.filter { it.v.channelId in subIds }
             val inj = nonSub.filter { it.src == Src.INJECT }
             val disc = nonSub.filter { it.src == Src.DISCOVER }
@@ -611,16 +619,17 @@ object Reco {
             val mine = nonSub.filter { it.src != Src.INJECT && it.src != Src.DISCOVER && likes(it) }
             val rest0 = nonSub.filter { it.src != Src.INJECT && it.src != Src.DISCOVER && !likes(it) }
             // a hot topic of this session goes first, then: 4 of 8 match your interests, 3 are YouTube's own picks, 1 explores
-            val first3 = inj.take(3).map { it.v }
+            val first3 = inj.distinctBy { chKey(it.v) }.take(3).map { it.v }
             val rest = mixN(
                 listOf(if (mine.isEmpty()) rest0 else mine, disc, if (mine.isEmpty()) emptyList() else rest0.shuffled()),
-                listOf(0, 1, 0, 1, 0, 2, 1, 0), SHORTS_PAGE - first3.size
+                listOf(0, 1, 0, 1, 0, 2, 1, 0), SHORTS_PAGE - first3.size, maxPerChannel = 1
             )
-            var out = (first3 + rest).distinctBy { it.id }
+            var out = (first3 + rest).distinctBy { it.id }.distinctBy { chKey(it).ifEmpty { it.id } }
             shortsSinceSub += out.size
-            if (shortsSinceSub >= SUB_EVERY && subOnly.isNotEmpty()) {
+            val subPick = subOnly.firstOrNull { c -> out.none { chKey(it) == chKey(c.v) } && chKey(c.v) !in recent }
+            if (shortsSinceSub >= SUB_EVERY && subPick != null) {
                 // one Short from a subscribed channel, somewhere in the middle of the batch
-                out = out.toMutableList().also { it.add(minOf(it.size, 2 + Random.nextInt(4)), subOnly.first().v) }
+                out = out.toMutableList().also { it.add(minOf(it.size, 2 + Random.nextInt(4)), subPick.v) }
                 shortsSinceSub = 0
             } else if (out.isEmpty()) {
                 out = subOnly.take(3).map { it.v }      // nothing else to show right now: better than an empty feed
@@ -628,7 +637,11 @@ object Reco {
             out
         }
         if (page.isEmpty()) return if (first) null else Page(emptyList(), null)
-        synchronized(lock) { page.forEach { servedShorts.add(it.id) } }
+        synchronized(lock) {
+            page.forEach { servedShorts.add(it.id) }
+            page.forEach { v -> chKey(v).takeIf { it.isNotEmpty() }?.let { recentShortChannels.addLast(it) } }
+            while (recentShortChannels.size > 10) recentShortChannels.removeFirst()
+        }
         save()
         val more = synchronized(lock) {
             nextChannels(chanShortsFetchedAt, 1, shortChannels()).isNotEmpty() || shortPool.values.any { it.v.id !in servedShorts } ||
