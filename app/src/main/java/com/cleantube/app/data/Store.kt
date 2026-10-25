@@ -105,6 +105,15 @@ class Store(context: Context) {
             sp.edit().putBoolean("fast_start", value).apply()
         }
 
+    private val syncHistoryState = mutableStateOf(sp.getBoolean("sync_history", true))
+    /** Tell YouTube you watched a video (signed in only), so your recommendations keep learning from what you watch here. */
+    var syncHistory: Boolean
+        get() = syncHistoryState.value
+        set(value) {
+            syncHistoryState.value = value
+            sp.edit().putBoolean("sync_history", value).apply()
+        }
+
     private val autoPopupState = mutableStateOf(sp.getBoolean("auto_popup", true))
     /** Leaving the app while a video plays opens the floating popup window by itself. */
     var autoPopup: Boolean

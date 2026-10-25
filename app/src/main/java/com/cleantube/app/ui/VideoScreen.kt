@@ -187,6 +187,7 @@ fun VideoScreen(route: Route.Video) {
     // the recommendations learn from it: opened = a little, still watching after 30 s = a lot
     LaunchedEffect(route.id) {
         route.seed?.let { com.cleantube.app.data.Reco.onOpen(it) }
+        launch { kotlinx.coroutines.delay(4000); Api.markWatched(route.id) }   // YouTube learns from it too
         kotlinx.coroutines.delay(30_000)
         com.cleantube.app.data.Reco.onEngaged(route.id)
     }

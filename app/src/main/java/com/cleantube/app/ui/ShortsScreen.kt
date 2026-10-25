@@ -686,6 +686,7 @@ private fun ShortPage(
     // remember the Short in the app's watch history (also gets its title / channel once those are known)
     LaunchedEffect(current, title, ch?.title) {
         if (current) {
+            TabCache.appScope.launch { delay(2500); Api.markWatched(v.id) }
             Graph.store.addHistory(v.copy(title = title, channelTitle = v.channelTitle.ifEmpty { ch?.title.orEmpty() }, short = true))
         }
     }
