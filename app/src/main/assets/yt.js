@@ -683,12 +683,28 @@
 
 
   /** Official Shorts feed ("reel/reel_watch_sequence"): entries[].command.reelWatchEndpoint, in YouTube's own personalised order. */
+  /** Ads sit in the Shorts sequence as ordinary-looking entries: they carry ad parameters / ad containers. */
+  var AD_KEY_RE = /^ad[A-Z]|Ad(Slot|Layout|Renderer|ClientParams|Placement|Params|Info)|[Pp]romoted|[Ss]parkles|^sponsor/;
+  function isAdEntry(e) {
+    var ad = false;
+    walk(e, function (x) {
+      if (ad) return true;
+      for (var k in x) {
+        if (AD_KEYS[k] || AD_KEY_RE.test(k)) { ad = true; return true; }
+      }
+      return false;
+    });
+    return ad;
+  }
+
   function parseReelSequence(j) {
     var items = [], seen = {}, lastParams = '';
     var entries = (j && j.entries) || [];
     entries.forEach(function (e) {
       var ep = e && e.command && e.command.reelWatchEndpoint;
+      if (ep && ep.sequenceParams) lastParams = ep.sequenceParams;   // keep the sequence going even over an ad
       if (!ep || !ep.videoId || seen[ep.videoId]) return;
+      if (isAdEntry(e)) return;                                       // ads never reach the feed
       seen[ep.videoId] = 1;
       if (ep.sequenceParams) lastParams = ep.sequenceParams;
       var title = txt(findFirst(e, 'reelTitleText')) || txt(findFirst(e, 'headline'));

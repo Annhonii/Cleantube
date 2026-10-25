@@ -682,7 +682,7 @@ private fun ShortPage(
         if (current) shownSince[0] = System.currentTimeMillis()
         onDispose {
             if (current && shownSince[0] > 0L) {
-                com.cleantube.app.data.Reco.onShortLeft(v, System.currentTimeMillis() - shownSince[0])
+                com.cleantube.app.data.Reco.onShortLeft(v, System.currentTimeMillis() - shownSince[0], p.duration)
                 shownSince[0] = 0L
             }
         }
