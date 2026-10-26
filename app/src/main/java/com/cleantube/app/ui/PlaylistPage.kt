@@ -327,7 +327,7 @@ private fun PlaylistVideoRow(v: VideoItem, onClick: () -> Unit) {
             if (v.channelTitle.isNotEmpty()) {
                 Text(
                     v.channelTitle,
-                    color = TextMuted,
+                    color = Color(0xFFBDBDBD),
                     fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -394,8 +394,8 @@ private fun SavePlaylistDialog(playlistId: String, title: String, onDismiss: () 
 
     AlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
-        containerColor = Card,
-        title = { Text("Save playlist") },
+        containerColor = Color.Black,
+        title = { Text("Save playlist", color = Color.White) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
@@ -403,20 +403,22 @@ private fun SavePlaylistDialog(playlistId: String, title: String, onDismiss: () 
                     color = TextMuted,
                     fontSize = 13.sp
                 )
-                store.playlists.forEach { playlist ->
+                store.playlists.forEachIndexed { index, playlist ->
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
                             .clickable(enabled = !saving) { saveInto(targetId = playlist.id) }
                             .padding(horizontal = 8.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(playlist.name, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${playlist.videos.size} videos", color = TextMuted, fontSize = 12.sp)
+                            Text(playlist.name, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("${playlist.videos.size} videos", color = Color(0xFFBDBDBD), fontSize = 12.sp)
                         }
                         Text("Save", color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    }
+                    if (index < store.playlists.lastIndex) {
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF303030)))
                     }
                 }
                 Spacer(Modifier.size(4.dp))
@@ -431,7 +433,7 @@ private fun SavePlaylistDialog(playlistId: String, title: String, onDismiss: () 
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss, enabled = !saving) { Text("Done", color = TextPrimary) }
+            TextButton(onClick = onDismiss, enabled = !saving) { Text("Done", color = Color.White) }
         }
     )
 }
