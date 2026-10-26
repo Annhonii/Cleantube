@@ -95,6 +95,7 @@ private val GreetGapTop = 14.dp     // photo -> greeting
 private val GreetH = 88.dp          // two lines of the greeting
 private val GreetGapBottom = 18.dp  // greeting -> navigation row
 private val NavH = 44.dp
+private val NavPadH = 12.dp         // screen edge -> navigation row (smaller than PadH, so the pill is wider than the rows above)
 private val ShortsGap = 8.dp
 private val NavGapSmall = 10.dp     // photo row -> navigation row when collapsed
 private val BottomBig = 10.dp
@@ -403,7 +404,8 @@ fun CollapsingHeader(
         val navTopBig = top + navTopBigDp(hasGreet).roundToPx() - TopPad.roundToPx()
         val navTopSmall = top + avSm + NavGapSmall.roundToPx()
         val navTop = li(navTopBig, navTopSmall, p)
-        val navRow = measurables[6].measure(Constraints.fixed((w - 2 * pad).coerceAtLeast(0), navH))
+        val navPad = NavPadH.roundToPx()
+        val navRow = measurables[6].measure(Constraints.fixed((w - 2 * navPad).coerceAtLeast(0), navH))
 
         val h = navTop + navH + li(BottomBig.roundToPx(), BottomSmall.roundToPx(), p)
         layout(w, h) {
@@ -413,7 +415,7 @@ fun CollapsingHeader(
             searchIcon.place(iconX, cy - iconSz / 2)
             if (searchText.width > 0) searchText.place(searchLeft + textLeft, cy - searchText.height / 2)
             bell.place(bellX, cy - btn / 2)
-            navRow.place(pad, navTop)
+            navRow.place(navPad, navTop)
         }
     }
 }
