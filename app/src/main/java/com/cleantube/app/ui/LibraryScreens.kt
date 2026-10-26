@@ -408,15 +408,20 @@ fun HistoryScreen() {
 @Composable
 fun PlaylistsScreen() {
     val nav = LocalNav.current
-    val store = Graph.store
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
     val loggedIn = Session.loggedIn
     var account by remember { mutableStateOf<List<PlaylistItem>?>(null) }
     var error by remember { mutableStateOf<ApiException?>(null) }
     var reload by remember { mutableIntStateOf(0) }
     var newName by remember { mutableStateOf("") }
+    var creating by remember { mutableStateOf(false) }
 
     LaunchedEffect(loggedIn, reload) {
-        if (!loggedIn) return@LaunchedEffect
+        if (!loggedIn) {
+            account = null
+            return@LaunchedEffect
+        }
         error = null
         try {
             account = Api.accountPlaylists()
@@ -440,12 +445,54 @@ fun PlaylistsScreen() {
                         }
                     }
                 }
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        PillTextField(
+                            newName,
+                            { newName = it },
+                            "New YouTube playlist",
+                            Modifier.weight(1f),
+                            keyboardActions = KeyboardActions(onDone = {})
+                        )
+                        Pill(
+                            if (creating) "Creating…" else "Create",
+                            onClick = {
+                                val title = newName.trim()
+                                if (title.isEmpty() || creating) {
+                                    if (title.isEmpty()) Toast.makeText(ctx, "Enter a playlist name.", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    creating = true
+                                    scope.launch {
+                                        try {
+                                            Api.createYouTubePlaylist(title)
+                                            newName = ""
+                                            account = null
+                                            reload++
+                                            Toast.makeText(ctx, "Playlist created on YouTube.", Toast.LENGTH_SHORT).show()
+                                        } catch (e: CancellationException) {
+                                            throw e
+                                        } catch (e: Exception) {
+                                            Toast.makeText(ctx, "Couldn't create playlist: ${e.message ?: "try again"}", Toast.LENGTH_LONG).show()
+                                        } finally {
+                                            creating = false
+                                        }
+                                    }
+                                }
+                            },
+                            active = true
+                        )
+                    }
+                }
                 val acc = account?.filter { it.id != "LL" }
                 val err = error
                 when {
                     acc != null -> {
                         item { LibSection("YOUR PLAYLISTS") }
-                        if (acc.isEmpty()) item { EmptyState("No playlists on your account.") }
+                        if (acc.isEmpty()) item { EmptyState("No playlists on your YouTube account yet.") }
                         items(acc.size) { i ->
                             val p = acc[i]
                             PlaylistRow(p, onClick = { nav.push(Route.Playlist(p.id, p.title)) }, shape = groupedCardShape(i, acc.size))
@@ -456,61 +503,9 @@ fun PlaylistsScreen() {
                 }
             } else {
                 item {
-                    EmptyState("Sign in from Settings to see your YouTube playlists and liked videos.")
+                    EmptyState("Sign in from Settings to create and see playlists on your YouTube account.")
                 }
             }
-
-            item { LibSection("ON THIS PHONE") }
-            item {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    PillTextField(
-                        newName,
-                        { newName = it },
-                        "New playlist",
-                        Modifier.weight(1f),
-                        keyboardActions = KeyboardActions(onDone = {})
-                    )
-                    Pill("Create", onClick = {
-                        if (newName.isNotBlank()) {
-                            store.createPlaylist(newName)
-                            newName = ""
-                        }
-                    }, active = true)
-                }
-            }
-            val lists = store.playlists
-            items(lists.size) { i ->
-                val p = lists[i]
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
-                        .clip(groupedCardShape(i, lists.size, 16.dp))
-                        .background(Card)
-                ) {
-                    Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .bouncyClickable(pressedScale = 0.975f) { nav.push(Route.LocalList(p.id)) }
-                            .padding(16.dp)
-                    ) {
-                        Text(p.name, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${p.videos.size} videos", color = TextMuted, fontSize = 12.sp)
-                    }
-                    if (i < lists.lastIndex) {
-                        androidx.compose.material3.HorizontalDivider(
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp),
-                            thickness = 1.dp,
-                            color = TextMuted.copy(alpha = 0.22f)
-                        )
-                    }
-                }
-            }
-            if (lists.isEmpty()) item { EmptyState("No playlists yet.") }
         }
     }
 }
