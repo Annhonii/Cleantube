@@ -139,7 +139,7 @@ fun NotificationsScreen() {
                 LazyColumn(
                     Modifier.fillMaxSize(), state = state,
                     contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = listBottomPad()),
-                    verticalArrangement = Arr.spacedBy(3.dp)
+                    verticalArrangement = Arr.spacedBy(0.dp)
                 ) {
                     if (filter == NotifFilter.All) {
                         val videos = shown.filter { it.isVideo() }
@@ -147,18 +147,18 @@ fun NotificationsScreen() {
                         val other = shown.filter { !it.isVideo() && !it.isMention() }
                         if (videos.isNotEmpty()) {
                             item(key = "h-videos") { SectionTitle("Video uploads") }
-                            itemsIndexed(videos) { i, n -> NotificationCard(n, groupShape(i, videos.size), onClick = { open(n) }) }
+                            itemsIndexed(videos) { i, n -> NotificationCard(n, groupedCardShape(i, videos.size), onClick = { open(n) }) }
                         }
                         if (mentions.isNotEmpty()) {
                             item(key = "h-mentions") { SectionTitle("Mentions & comments") }
-                            itemsIndexed(mentions) { i, n -> NotificationCard(n, groupShape(i, mentions.size), onClick = { open(n) }) }
+                            itemsIndexed(mentions) { i, n -> NotificationCard(n, groupedCardShape(i, mentions.size), onClick = { open(n) }) }
                         }
                         if (other.isNotEmpty()) {
                             item(key = "h-other") { SectionTitle("Other") }
-                            itemsIndexed(other) { i, n -> NotificationCard(n, groupShape(i, other.size), onClick = { open(n) }) }
+                            itemsIndexed(other) { i, n -> NotificationCard(n, groupedCardShape(i, other.size), onClick = { open(n) }) }
                         }
                     } else {
-                        itemsIndexed(shown) { i, n -> NotificationCard(n, groupShape(i, shown.size), onClick = { open(n) }) }
+                        itemsIndexed(shown) { i, n -> NotificationCard(n, groupedCardShape(i, shown.size), onClick = { open(n) }) }
                     }
                     item(key = "footer") {
                         val err = paged.error
@@ -196,16 +196,6 @@ private fun kindLabel(kind: String): String = when (kind) {
     "reply" -> "Reply"
     "mention" -> "Mention"
     else -> ""
-}
-
-/** Rows of one section are joined like the system Settings list: big corners outside, small ones between rows. */
-private fun groupShape(i: Int, n: Int): RoundedCornerShape {
-    val outer = 28.dp
-    val inner = 6.dp
-    return RoundedCornerShape(
-        topStart = if (i == 0) outer else inner, topEnd = if (i == 0) outer else inner,
-        bottomStart = if (i == n - 1) outer else inner, bottomEnd = if (i == n - 1) outer else inner
-    )
 }
 
 /**
