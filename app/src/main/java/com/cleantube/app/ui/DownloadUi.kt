@@ -45,9 +45,6 @@ import kotlinx.coroutines.launch
 import com.cleantube.app.data.formatBytes
 import com.cleantube.app.data.formatEta
 import com.cleantube.app.data.formatSpeed
-import android.view.ViewGroup
-import android.widget.MediaController
-import android.widget.VideoView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -83,7 +80,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import com.cleantube.app.data.Api
 import com.cleantube.app.data.ApiException
 import com.cleantube.app.data.DlStatus
@@ -585,7 +581,6 @@ private fun resolutionOf(d: DownloadItem): String =
 
 @Composable
 private fun DownloadRow(d: DownloadItem) {
-    val nav = LocalNav.current
     val ctx = LocalContext.current
     var confirm by remember(d.id) { mutableStateOf(false) }
     var menu by remember(d.id) { mutableStateOf(false) }
@@ -598,9 +593,17 @@ private fun DownloadRow(d: DownloadItem) {
     val c = rememberCardPalette(d.videoId)
     val res = resolutionOf(d)
 
+    // opens in the app's main video player (the one that plays streams), straight from the file: no network is needed
     fun play() {
-        if (Downloads.exists(ctx, d)) nav.push(Route.LocalPlay(Downloads.uriOf(d).toString(), d.title))
-        else android.widget.Toast.makeText(ctx, "The file is gone (deleted or moved).", android.widget.Toast.LENGTH_LONG).show()
+        if (Downloads.exists(ctx, d)) {
+            val details = listOf(
+                res, if (d.audioOnly) "Audio" else "Video", sizeText(d.bytes),
+                if (d.where == "phone") "Phone storage" else "In app"
+            ).filter { it.isNotEmpty() }.joinToString(" • ")
+            VideoHost.openLocal(d.videoId, LocalVideo(Downloads.uriOf(d).toString(), d.title, details))
+        } else {
+            android.widget.Toast.makeText(ctx, "The file is gone (deleted or moved).", android.widget.Toast.LENGTH_LONG).show()
+        }
     }
 
     fun saveToStorage() {
@@ -741,29 +744,6 @@ private fun DownloadRow(d: DownloadItem) {
             text = { Text(if (d.status == DlStatus.DONE) "The file will be removed from your phone." else "Remove it from the list.", color = TextMuted) },
             confirmButton = { TextButton(onClick = { Downloads.remove(ctx, d, deleteFile = true); confirm = false }) { Text("Delete", color = Danger) } },
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel", color = TextPrimary) } }
-        )
-    }
-}
-
-/** Plays a downloaded file with the system VideoView (no network needed). */
-@Composable
-fun LocalPlayScreen(route: Route.LocalPlay) {
-    val nav = LocalNav.current
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        ScreenTitle(route.title, onBack = { nav.back() })
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { ctx ->
-                VideoView(ctx).apply {
-                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                    val mc = MediaController(ctx)
-                    mc.setAnchorView(this)
-                    setMediaController(mc)
-                    setVideoURI(Uri.parse(route.uri))
-                    setOnPreparedListener { start() }
-                }
-            },
-            onRelease = { it.stopPlayback() }
         )
     }
 }

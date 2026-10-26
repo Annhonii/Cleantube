@@ -251,7 +251,6 @@ private fun OtherScreen(route: Route) {
         Route.Playlists -> PlaylistsScreen()
         Route.Login -> LoginScreen()
         Route.Downloads -> DownloadsScreen()
-        is Route.LocalPlay -> LocalPlayScreen(route)
         is Route.Search -> SearchScreen(route)
         is Route.Video -> Unit   // videos are drawn by VideoSheet
         is Route.Channel -> ChannelScreen(route)

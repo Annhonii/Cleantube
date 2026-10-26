@@ -104,6 +104,12 @@ import kotlin.math.roundToInt
  *  - swipe the card down (or press its X) and the video stops and the card goes away
  * The player lives here, outside of the screens, so it survives navigating around the app.
  */
+/**
+ * A downloaded video, as the player page shows it. Everything comes from the download itself (the file address, the
+ * title it was saved with, and a line of details), so opening it needs no stream extractor and no internet.
+ */
+class LocalVideo(val uri: String, val title: String, val details: String)
+
 object VideoHost {
     var videoId by mutableStateOf<String?>(null)
         private set
@@ -164,26 +170,47 @@ object VideoHost {
     var collapseTick by mutableIntStateOf(0)
     var fresh = false
 
-    fun open(id: String, s: VideoItem?) {
+    /** Set while a downloaded file is open: the page and the player then work entirely from the phone, no network. */
+    var local by mutableStateOf<LocalVideo?>(null)
+        private set
+
+    fun open(id: String, s: VideoItem?) = show(id, s, null)
+
+    /** Opens a downloaded video in this same player. [lv] carries the file address and everything the page shows. */
+    fun openLocal(id: String, lv: LocalVideo) = show(id, VideoItem(id = id, title = lv.title), lv)
+
+    private fun show(id: String, s: VideoItem?, lv: LocalVideo?) {
         val cur = videoId
-        if (cur != null && cur != id) {
-            prevItem = seed?.takeIf { it.id == cur } ?: VideoItem(id = cur, title = title, channelTitle = channel)
+        // the same video opened again as the same kind (online / that file) just comes back up; anything else is a new one
+        val same = cur == id && local?.uri == lv?.uri
+        if (cur != null && !same) {
+            // an online video that was open can be gone back to; a downloaded file has no "previous" to open
+            prevItem = if (local != null) null
+            else seed?.takeIf { it.id == cur } ?: VideoItem(id = cur, title = title, channelTitle = channel)
             nextItem = null
         }
         fresh = videoId == null
-        if (videoId != id) {
+        if (!same) {
             title = s?.title.orEmpty()
-            channel = s?.channelTitle.orEmpty()
+            channel = if (lv != null) "Downloaded" else s?.channelTitle.orEmpty()
         }
         videoId = id
         seed = s
-        // inside the playlist queue: previous / next are the neighbours in the playlist; outside it: no queue any more
-        val qi = queue.indexOfFirst { it.id == id }
-        if (qi >= 0) {
-            prevItem = queue.getOrNull(qi - 1)
-            nextItem = queue.getOrNull(qi + 1)
-        } else {
+        local = lv
+        if (lv != null) {
+            // offline: no playlist queue, no "up next" (those come from the network)
             queue = emptyList()
+            prevItem = null
+            nextItem = null
+        } else {
+            // inside the playlist queue: previous / next are the neighbours in the playlist; outside it: no queue any more
+            val qi = queue.indexOfFirst { it.id == id }
+            if (qi >= 0) {
+                prevItem = queue.getOrNull(qi - 1)
+                nextItem = queue.getOrNull(qi + 1)
+            } else {
+                queue = emptyList()
+            }
         }
         openTick++
     }
@@ -195,6 +222,7 @@ object VideoHost {
     fun close() {
         videoId = null
         seed = null
+        local = null
         prevItem = null
         nextItem = null
         queue = emptyList()
@@ -259,17 +287,19 @@ private fun MiniGlassButton(icon: androidx.compose.ui.graphics.vector.ImageVecto
 @Composable
 fun VideoSheet(tabRoot: Boolean, hidden: Boolean) {
     val id = VideoHost.videoId ?: return
-    key(id) { VideoSheetContent(id, tabRoot, hidden) }
+    val local = VideoHost.local
+    // the same video as a download and as a stream are two different players
+    key(id, local?.uri) { VideoSheetContent(id, local, tabRoot, hidden) }
 }
 
 @Composable
-private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
+private fun VideoSheetContent(id: String, local: LocalVideo?, tabRoot: Boolean, hidden: Boolean) {
     val ctx = LocalContext.current
     val host = LocalFullscreen.current
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val pA = VideoHost.p
-    val player = remember(id) { CtPlayer(ctx, id, maxHeight = 480) }
+    val player = remember(id, local?.uri) { CtPlayer(ctx, id, maxHeight = 480, localUri = local?.uri) }
     var fullscreen by remember(id) { mutableStateOf(false) }
 
     // ---- player plumbing (same as the old in-page player)
@@ -571,7 +601,7 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                         translationY = (1f - k) * 56.dp.toPx()
                     }
             ) {
-                VideoScreen(route)
+                if (local != null) LocalVideoPage(id, local) else VideoScreen(route)
             }
 
             // ---- the picture. It is always laid out at the full-page size and only scaled / moved on the GPU while
@@ -612,7 +642,11 @@ private fun VideoSheetContent(id: String, tabRoot: Boolean, hidden: Boolean) {
                 val err = player.error
                 when {
                     inPip -> if (player.buffering) CtSpinner(Modifier.align(Alignment.Center), disc = false)
-                    err != null -> if (expandedLook) CtErrorView(err, onRetry = { player.retry() }, onOpen = { openInYouTube(ctx, id) })
+                    err != null -> if (expandedLook) CtErrorView(
+                        err, onRetry = { player.retry() },
+                        // a downloaded file has nothing to open on YouTube
+                        onOpen = if (local != null) null else ({ openInYouTube(ctx, id) })
+                    )
                     expandedLook -> CtOverlay(
                         player, fullscreen = false, title = VideoHost.title,
                         onFullscreen = { fullscreen = true; host.setActive(true) }

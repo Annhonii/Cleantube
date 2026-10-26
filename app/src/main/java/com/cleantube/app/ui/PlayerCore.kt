@@ -19,6 +19,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -158,9 +159,15 @@ class CtPlayer(
     ctx: Context,
     val videoId: String,
     shorts: Boolean = false,
-    private val maxHeight: Int = 720
+    private val maxHeight: Int = 720,
+    /**
+     * A downloaded file (file:// or content:// address) to play instead of a stream. Then the player never touches the
+     * network: no stream links are looked up, nothing is retried against YouTube, no captions / sound tracks are asked for.
+     */
+    private val localUri: String? = null
 ) {
     private val app = ctx.applicationContext
+    private val isLocal = localUri != null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     val exo: ExoPlayer = ExoPlayer.Builder(app, DefaultRenderersFactory(app).setEnableDecoderFallback(true))
@@ -263,6 +270,11 @@ class CtPlayer(
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            // a downloaded file has no links to renew: it either plays or it is gone / damaged
+            if (isLocal) {
+                fail("Couldn't play this file (${error.errorCodeName}). It may have been deleted or moved.")
+                return
+            }
             // most often an expired / refused link: get fresh ones and carry on from the same second
             if (retries < 2) {
                 retries++
@@ -283,6 +295,10 @@ class CtPlayer(
         job?.cancel()
         error = null
         buffering = true
+        if (localUri != null) {
+            prepareLocal(localUri, resumeMs)
+            return
+        }
         job = scope.launch {
             try {
                 val i = Playback.resolve(videoId, force, safe)
@@ -295,6 +311,17 @@ class CtPlayer(
                 fail(e.message?.lineSequence()?.firstOrNull() ?: "Couldn't load this video.")
             }
         }
+    }
+
+    /** Plays a downloaded file straight from the phone (file:// or content://): no stream lookup, no network. */
+    private fun prepareLocal(uri: String, resumeMs: Long) {
+        if (released) return
+        currentHeight = 0
+        val src = ProgressiveMediaSource.Factory(DefaultDataSource.Factory(app))
+            .createMediaSource(MediaItem.fromUri(uri))
+        exo.setMediaSource(src, resumeMs)
+        exo.prepare()
+        exo.playWhenReady = wantPlay
     }
 
     private fun prepare(i: StreamInfo, resumeMs: Long) {
@@ -354,6 +381,10 @@ class CtPlayer(
 
     fun retry() {
         retries = 0
+        if (isLocal) {
+            load(resumeMs = position)
+            return
+        }
         safe = true
         load(force = true, resumeMs = position)
     }
@@ -391,6 +422,7 @@ class CtPlayer(
     }
 
     fun changeQuality(height: Int) {
+        if (isLocal) return // a downloaded file is one quality
         quality = height
         val i = info ?: return
         prepare(i, exo.currentPosition.coerceAtLeast(0L))
@@ -407,6 +439,11 @@ class CtPlayer(
     /** Loads the other sound tracks and the caption languages (once per video). */
     fun ensureExtras() {
         if (extrasState != 0 || released) return
+        if (isLocal) {
+            // no other sound tracks / captions offline: nothing to ask the network for
+            extrasState = 2
+            return
+        }
         extrasState = 1
         extrasFailed = false
         scope.launch {
