@@ -70,16 +70,12 @@ fun VideoMenuButton(v: VideoItem, modifier: Modifier = Modifier, onRemove: (() -
 @Composable
 fun CompactRow(v: VideoItem, onClick: () -> Unit, modifier: Modifier = Modifier, onRemove: (() -> Unit)? = null) {
     val thumbC = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
-    val vt = rememberVideoTint(v.id)
     Row(
         modifier
             .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(vt.container)
             .prefetchOnPress(v.id)
             .plainClickable { thumbC[0]?.takeIf { it.isAttached }?.let { VideoHost.rememberOrigin(it.boundsInWindow()) }; onClick() }
-            .padding(start = 6.dp, end = 2.dp, top = 6.dp, bottom = 6.dp),
+            .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.Top
     ) {
         Box(Modifier.width(150.dp).aspectRatio(16f / 9f).onGloballyPositioned { thumbC[0] = it }.clip(RoundedCornerShape(12.dp)).background(Hairline)) {
@@ -91,10 +87,10 @@ fun CompactRow(v: VideoItem, onClick: () -> Unit, modifier: Modifier = Modifier,
             }
         }
         Column(Modifier.weight(1f).padding(start = 12.dp, top = 2.dp)) {
-            Text(v.title, color = vt.onContainer, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(v.title, color = TextPrimary, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(4.dp))
             val meta = listOf(v.channelTitle, videoMeta(v)).filter { it.isNotEmpty() }.joinToString(" • ")
-            Text(meta, color = vt.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(meta, color = TextMuted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         VideoMenuButton(v, onRemove = onRemove)
     }

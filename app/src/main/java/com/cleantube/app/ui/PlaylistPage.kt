@@ -278,19 +278,15 @@ private fun PlaylistVideoRow(v: VideoItem, onClick: () -> Unit) {
     var download by remember { mutableStateOf(false) }
     val thumbC = remember { arrayOfNulls<LayoutCoordinates>(1) }
 
-    val vt = rememberVideoTint(v.id)
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(vt.container)
             .prefetchOnPress(v.id)
             .plainClickable {
                 thumbC[0]?.takeIf { it.isAttached }?.let { VideoHost.rememberOrigin(it.boundsInWindow()) }
                 onClick()
             }
-            .padding(start = 6.dp, end = 2.dp, top = 6.dp, bottom = 6.dp),
+            .padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.Top
     ) {
         Box(
@@ -323,7 +319,7 @@ private fun PlaylistVideoRow(v: VideoItem, onClick: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(
                 v.title,
-                color = vt.onContainer,
+                color = TextPrimary,
                 fontSize = 15.sp,
                 lineHeight = 20.sp,
                 fontWeight = FontWeight.Medium,
@@ -333,7 +329,7 @@ private fun PlaylistVideoRow(v: VideoItem, onClick: () -> Unit) {
             if (v.channelTitle.isNotEmpty()) {
                 Text(
                     v.channelTitle,
-                    color = vt.muted,
+                    color = TextMuted,
                     fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -342,12 +338,12 @@ private fun PlaylistVideoRow(v: VideoItem, onClick: () -> Unit) {
             }
             val meta = videoMeta(v)
             if (meta.isNotEmpty()) {
-                Text(meta, color = vt.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(meta, color = TextMuted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         Box {
             IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = vt.muted)
+                Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = TextMuted)
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Download") }, onClick = { menu = false; download = true })

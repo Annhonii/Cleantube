@@ -375,17 +375,12 @@ fun VideoRow(
         !v.live && com.cleantube.app.data.Api.ageMinutes(v.ageText) <= 2 * 1440L &&
             com.cleantube.app.data.Graph.store.history.none { it.id == v.id }
     }
-    // every video card wears the colours of ITS OWN thumbnail, so the list changes colour from one video to the next
-    val vt = rememberVideoTint(v.id)
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(26.dp))
-            .background(vt.container)
             .prefetchOnPress(v.id)
             .plainClickable { thumbC[0]?.takeIf { it.isAttached }?.let { VideoHost.rememberOrigin(it.boundsInWindow()) }; onClick() }
-            .padding(10.dp)
+            .padding(horizontal = 14.dp, vertical = 9.dp)
     ) {
         Box(
             Modifier
@@ -442,7 +437,7 @@ fun VideoRow(
             Column(Modifier.weight(1f)) {
                 Text(
                     v.title,
-                    color = vt.onContainer,
+                    color = TextPrimary,
                     fontSize = 17.sp,
                     lineHeight = 23.sp,
                     fontWeight = FontWeight.Medium,
@@ -452,12 +447,12 @@ fun VideoRow(
                 val meta = videoMeta(v)
                 if (meta.isNotEmpty()) {
                     Spacer(Modifier.size(5.dp))
-                    Text(meta, color = vt.muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(meta, color = TextMuted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             Box {
                 IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = vt.muted)
+                    Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = TextMuted)
                 }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false; notInterestedOpen = false }) {
                     if (notInterestedOpen) {

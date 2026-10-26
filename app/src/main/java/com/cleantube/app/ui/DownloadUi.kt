@@ -557,8 +557,27 @@ private fun LinkBar(
     }
 }
 
+/** Colours of one card: the video's own colours once its thumbnail is read, the normal app colours until then. */
+private class CardPalette(
+    val container: Color, val onContainer: Color, val muted: Color,
+    val primary: Color, val track: Color, val badge: Color, val onBadge: Color
+)
+
 @Composable
-private fun rememberCardPalette(videoId: String): VideoTint = rememberVideoTint(videoId)
+private fun rememberCardPalette(videoId: String): CardPalette {
+    val s = rememberThumbScheme(videoId)
+    val spec = tween<Color>(500)
+    @Composable fun a(c: Color) = animateColorAsState(c, spec, label = "dlCard").value
+    return CardPalette(
+        container = a(s?.surfaceContainerHigh ?: Card),
+        onContainer = a(s?.onSurface ?: TextPrimary),
+        muted = a(s?.onSurfaceVariant ?: TextMuted),
+        primary = a(s?.primary ?: Accent),
+        track = a(s?.secondaryContainer ?: SecondaryContainer),
+        badge = a(s?.primaryContainer ?: SecondaryContainer),
+        onBadge = a(s?.onPrimaryContainer ?: OnSecondaryContainer)
+    )
+}
 
 /** "720p" out of the label ("720p video + sound", "Up to 1080p"); empty when there is no picture size (audio, "Best"). */
 private fun resolutionOf(d: DownloadItem): String =
