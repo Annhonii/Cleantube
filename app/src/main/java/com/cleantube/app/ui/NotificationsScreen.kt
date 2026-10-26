@@ -147,18 +147,18 @@ fun NotificationsScreen() {
                         val other = shown.filter { !it.isVideo() && !it.isMention() }
                         if (videos.isNotEmpty()) {
                             item(key = "h-videos") { SectionTitle("Video uploads") }
-                            itemsIndexed(videos) { i, n -> NotificationCard(n, groupedCardShape(i, videos.size), onClick = { open(n) }) }
+                            itemsIndexed(videos) { i, n -> NotificationCard(n, groupedCardShape(i, videos.size, 28.dp), onClick = { open(n) }) }
                         }
                         if (mentions.isNotEmpty()) {
                             item(key = "h-mentions") { SectionTitle("Mentions & comments") }
-                            itemsIndexed(mentions) { i, n -> NotificationCard(n, groupedCardShape(i, mentions.size), onClick = { open(n) }) }
+                            itemsIndexed(mentions) { i, n -> NotificationCard(n, groupedCardShape(i, mentions.size, 28.dp), onClick = { open(n) }) }
                         }
                         if (other.isNotEmpty()) {
                             item(key = "h-other") { SectionTitle("Other") }
-                            itemsIndexed(other) { i, n -> NotificationCard(n, groupedCardShape(i, other.size), onClick = { open(n) }) }
+                            itemsIndexed(other) { i, n -> NotificationCard(n, groupedCardShape(i, other.size, 28.dp), onClick = { open(n) }) }
                         }
                     } else {
-                        itemsIndexed(shown) { i, n -> NotificationCard(n, groupedCardShape(i, shown.size), onClick = { open(n) }) }
+                        itemsIndexed(shown) { i, n -> NotificationCard(n, groupedCardShape(i, shown.size, 28.dp), onClick = { open(n) }) }
                     }
                     item(key = "footer") {
                         val err = paged.error
