@@ -684,7 +684,7 @@
 
   /** Official Shorts feed ("reel/reel_watch_sequence"): entries[].command.reelWatchEndpoint, in YouTube's own personalised order. */
   /** Ads sit in the Shorts sequence as ordinary-looking entries: they carry ad parameters / ad containers. */
-  var AD_KEY_RE = /^ad[A-Z]|Ad(Slot|Layout|Renderer|ClientParams|Placement|Params|Info)|[Pp]romoted|[Ss]parkles|^sponsor/;
+  var AD_KEY_RE = /^(adSlotRenderer|adClientParams|adLayout\w*|adPlacement\w*)$|[Pp]romotedSparkles/;
   function isAdEntry(e) {
     var ad = false;
     walk(e, function (x) {
@@ -697,20 +697,22 @@
     return ad;
   }
 
-  function parseReelSequence(j) {
-    var items = [], seen = {}, lastParams = '';
+  function parseReelSequence(j, keepAds) {
+    var items = [], seen = {}, lastParams = '', dropped = 0;
     var entries = (j && j.entries) || [];
     entries.forEach(function (e) {
       var ep = e && e.command && e.command.reelWatchEndpoint;
       if (ep && ep.sequenceParams) lastParams = ep.sequenceParams;   // keep the sequence going even over an ad
       if (!ep || !ep.videoId || seen[ep.videoId]) return;
-      if (isAdEntry(e)) return;                                       // ads never reach the feed
+      if (!keepAds && isAdEntry(e)) { dropped++; return; }            // ads never reach the feed
       seen[ep.videoId] = 1;
       if (ep.sequenceParams) lastParams = ep.sequenceParams;
       var title = txt(findFirst(e, 'reelTitleText')) || txt(findFirst(e, 'headline'));
       var ch = txt(findFirst(e, 'channelTitleText'));
       items.push(mkVideo(ep.videoId, title, ch, browseIdIn(e), -1, '', '', false, true));
     });
+    // the ad filter must never empty a feed: if it removed everything, trust YouTube's list as it is
+    if (!keepAds && !items.length && dropped) return parseReelSequence(j, true);
     var tok = null;
     var ce = j && j.continuationEndpoint && j.continuationEndpoint.continuationCommand;
     if (ce && ce.token) tok = 'c:' + ce.token;

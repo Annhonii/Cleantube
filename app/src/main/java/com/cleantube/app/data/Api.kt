@@ -221,7 +221,7 @@ object Api {
      */
     suspend fun shorts(token: String?, topic: String = ""): Page<VideoItem> {
         // The app's own Shorts engine (Reco) first: subscribed channels' Shorts, reacting to what is watched / swiped.
-        if (!Graph.store.officialReco && topic.isEmpty() && (token == null || token.startsWith("L:"))) {
+        if ((!Graph.store.officialReco || token?.startsWith("L:") == true) && topic.isEmpty() && (token == null || token.startsWith("L:"))) {
             Reco.shortsPage(token)?.let { return it }
             if (token != null) return Page(emptyList(), null)
         }
@@ -250,6 +250,8 @@ object Api {
                 }?.let { if (it.items.isNotEmpty()) return it }
                 return Page(emptyList(), null)
             }
+            // YouTube's feed failed on the first page: the app's own engine still has something to show
+            if (token == null) Reco.shortsPage(null)?.let { return it }
             throw failure ?: ApiException(ApiException.Kind.OTHER, "YouTube sent no Shorts recommendations right now. Try again in a moment.")
         }
         val q = if (topic.isEmpty()) "#shorts" else "#shorts $topic"

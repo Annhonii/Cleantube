@@ -522,8 +522,10 @@ private fun NavRow(
                         // the label shrinks a little when the cell is too narrow for it ("Subscription" in full, never cut)
                         val sidePx = with(density) { 10.dp.toPx() }
                         val iconPx = with(density) { 22.dp.toPx() }
+                        // one size for all three labels: the one that fits the longest label ("Subscription")
+                        val longest = tabs.filterIndexed { j, _ -> !(hasShorts && j == 0) }.maxByOrNull { it.label.length }?.label ?: t.label
                         val natural = measurer.measure(
-                            t.label,
+                            longest,
                             androidx.compose.ui.text.TextStyle(fontSize = labelSp, fontWeight = FontWeight.Medium),
                             maxLines = 1, softWrap = false
                         ).size.width.coerceAtLeast(1)
