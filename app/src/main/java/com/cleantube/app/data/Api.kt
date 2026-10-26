@@ -71,14 +71,18 @@ object Api {
     }
 
     /** Creates a playlist on the signed-in YouTube account, not in local app storage. */
-    suspend fun createYouTubePlaylist(title: String, videoId: String): String {
+    suspend fun createYouTubePlaylist(title: String, videoId: String? = null): String {
         if (!Session.loggedIn) throw IllegalStateException("Sign in to your YouTube account first.")
         val cleanTitle = title.trim()
         if (cleanTitle.isEmpty()) throw IllegalArgumentException("Enter a playlist name.")
-        val ids = JSONArray().put(videoId)
-        val result = Yt.run("createPlaylist", args("title" to cleanTitle, "videoIds" to ids, "privacyStatus" to "PRIVATE"))
+        val ids = JSONArray()
+        videoId?.takeIf { it.isNotBlank() }?.let(ids::put)
+        val result = Yt.run(
+            "createPlaylist",
+            args("title" to cleanTitle, "videoIds" to ids, "privacyStatus" to "PRIVATE")
+        )
         return result.optString("id").takeIf { it.isNotEmpty() }
-            ?: throw IllegalStateException("YouTube did not confirm playlist creation. Check your connection and try again.")
+            ?: throw IllegalStateException("YouTube did not confirm playlist creation. Check the account session and try again.")
     }
 
     private val markedWatched = HashSet<String>()
