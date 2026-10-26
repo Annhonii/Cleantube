@@ -60,6 +60,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
@@ -459,11 +460,11 @@ fun DownloadsScreen() {
             }
             if (active.isNotEmpty()) {
                 item { SectionLabel("Downloading (${active.size})") }
-                items(active, key = { it.id }) { d -> DownloadRow(d) }
+                itemsIndexed(active, key = { _, item -> item.id }) { i, d -> DownloadRow(d, groupedCardShape(i, active.size)) }
             }
             if (finished.isNotEmpty()) {
                 item { SectionLabel("Downloaded") }
-                items(finished, key = { it.id }) { d -> DownloadRow(d) }
+                itemsIndexed(finished, key = { _, item -> item.id }) { i, d -> DownloadRow(d, groupedCardShape(i, finished.size)) }
             }
         }
     }
@@ -580,7 +581,7 @@ private fun resolutionOf(d: DownloadItem): String =
     if (d.audioOnly) "" else Regex("\\d{3,4}p").find(d.label)?.value.orEmpty()
 
 @Composable
-private fun DownloadRow(d: DownloadItem) {
+private fun DownloadRow(d: DownloadItem, groupShape: RoundedCornerShape) {
     val ctx = LocalContext.current
     var confirm by remember(d.id) { mutableStateOf(false) }
     var menu by remember(d.id) { mutableStateOf(false) }
@@ -622,9 +623,9 @@ private fun DownloadRow(d: DownloadItem) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 5.dp)
+            .padding(horizontal = 12.dp)
             .bouncyClickable(enabled = done, pressedScale = 0.98f) { play() }
-            .clip(RoundedCornerShape(20.dp))
+            .clip(groupShape)
             .background(c.container)
             .padding(10.dp)
             .height(IntrinsicSize.Min),
