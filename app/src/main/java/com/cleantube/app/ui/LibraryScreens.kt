@@ -487,15 +487,27 @@ fun PlaylistsScreen() {
                 val p = lists[i]
                 Column(
                     Modifier
-                        .bouncyClickable(pressedScale = 0.975f) { nav.push(Route.LocalList(p.id)) }
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp)
                         .clip(groupedCardShape(i, lists.size, 16.dp))
                         .background(Card)
-                        .padding(16.dp)
                 ) {
-                    Text(p.name, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${p.videos.size} videos", color = TextMuted, fontSize = 12.sp)
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .bouncyClickable(pressedScale = 0.975f) { nav.push(Route.LocalList(p.id)) }
+                            .padding(16.dp)
+                    ) {
+                        Text(p.name, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${p.videos.size} videos", color = TextMuted, fontSize = 12.sp)
+                    }
+                    if (i < lists.lastIndex) {
+                        androidx.compose.material3.HorizontalDivider(
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp),
+                            thickness = 1.dp,
+                            color = TextMuted.copy(alpha = 0.22f)
+                        )
+                    }
                 }
             }
             if (lists.isEmpty()) item { EmptyState("No playlists yet.") }
