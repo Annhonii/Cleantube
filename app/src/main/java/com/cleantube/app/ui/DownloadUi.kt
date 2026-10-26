@@ -460,11 +460,11 @@ fun DownloadsScreen() {
             }
             if (active.isNotEmpty()) {
                 item { SectionLabel("Downloading (${active.size})") }
-                itemsIndexed(active, key = { _, item -> item.id }) { i, d -> DownloadRow(d, groupedCardShape(i, active.size)) }
+                itemsIndexed(active, key = { _, item -> item.id }) { i, d -> DownloadRow(d, groupedCardShape(i, active.size, 20.dp)) }
             }
             if (finished.isNotEmpty()) {
                 item { SectionLabel("Downloaded") }
-                itemsIndexed(finished, key = { _, item -> item.id }) { i, d -> DownloadRow(d, groupedCardShape(i, finished.size)) }
+                itemsIndexed(finished, key = { _, item -> item.id }) { i, d -> DownloadRow(d, groupedCardShape(i, finished.size, 20.dp)) }
             }
         }
     }
