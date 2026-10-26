@@ -1032,6 +1032,17 @@
       await call('feedback', { feedbackTokens: [a.token], isFeedbackTokenUnencrypted: false, shouldMerge: false });
       return { ok: true };
     },
+    /** Creates a real playlist in the signed-in YouTube account and adds the supplied video(s). */
+    createPlaylist: async function (a) {
+      var title = String(a.title || '').trim();
+      if (!title) throw new Error('Enter a playlist name.');
+      var body = { title: title, privacyStatus: a.privacyStatus || 'PRIVATE' };
+      if (Array.isArray(a.videoIds) && a.videoIds.length) body.videoIds = a.videoIds;
+      var r = await call('playlist/create_playlist', body);
+      var id = findFirst(r, 'playlistId') || findFirst(r, 'playlistIdString');
+      if (typeof id !== 'string' || !id) throw new Error('YouTube did not return a playlist ID. Check the account session and try again.');
+      return { id: id, title: title };
+    },
     subscribe: async function (a) {
       await call(a.on ? 'subscription/subscribe' : 'subscription/unsubscribe',
                  a.on ? { channelIds: [a.id], params: 'EgIIAhgA' } : { channelIds: [a.id] });
