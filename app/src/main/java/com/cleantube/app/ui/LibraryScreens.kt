@@ -448,7 +448,7 @@ fun PlaylistsScreen() {
                         if (acc.isEmpty()) item { EmptyState("No playlists on your account.") }
                         items(acc.size) { i ->
                             val p = acc[i]
-                            PlaylistRow(p, onClick = { nav.push(Route.Playlist(p.id, p.title)) })
+                            PlaylistRow(p, onClick = { nav.push(Route.Playlist(p.id, p.title)) }, shape = groupedCardShape(i, acc.size))
                         }
                     }
                     err != null -> item { ErrorBox(err, onRetry = { reload++ }) }
@@ -489,8 +489,8 @@ fun PlaylistsScreen() {
                     Modifier
                         .bouncyClickable(pressedScale = 0.975f) { nav.push(Route.LocalList(p.id)) }
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 5.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .padding(horizontal = 12.dp)
+                        .clip(groupedCardShape(i, lists.size))
                         .background(Card)
                         .padding(16.dp)
                 ) {
