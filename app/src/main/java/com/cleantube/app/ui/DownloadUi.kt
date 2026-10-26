@@ -1,5 +1,11 @@
 package com.cleantube.app.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -399,7 +405,6 @@ fun DownloadsScreen() {
                 DlIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Exit selection", size = 44.dp, iconSize = 22.dp, bg = Card) { selectedIds = emptySet() }
                 Text("${selectedIds.size} selected", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
-                DlIconButton(Icons.Outlined.DeleteOutline, "Delete selected", size = 44.dp, iconSize = 22.dp) { confirmDeleteSelected = true }
             } else {
                 DlIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back", size = 44.dp, iconSize = 22.dp, bg = Card) { nav.back() }
                 Spacer(Modifier.weight(1f))
@@ -411,6 +416,13 @@ fun DownloadsScreen() {
             Box {
                 DlIconButton(Icons.Rounded.MoreVert, "More options", size = 44.dp, iconSize = 24.dp) { overflow = true }
                 DropdownMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
+                    if (selectedIds.isNotEmpty()) {
+                        DropdownMenuItem(
+                            text = { Text("Delete selected (${selectedIds.size})", color = Danger) },
+                            leadingIcon = { Icon(Icons.Outlined.DeleteOutline, contentDescription = null, tint = Danger) },
+                            onClick = { overflow = false; confirmDeleteSelected = true }
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text("Save all in-app videos to storage") },
                         leadingIcon = { Icon(Icons.Rounded.SaveAlt, contentDescription = null) },
@@ -685,6 +697,7 @@ private fun DownloadRow(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 2.dp)
+            .animateContentSize(tween(280, easing = LinearOutSlowInEasing))
             .combinedClickable(
                 onClick = { if (selectionMode) onToggleSelection() else if (done) play() },
                 onLongClick = onLongPress
@@ -695,9 +708,21 @@ private fun DownloadRow(
             .height(IntrinsicSize.Min),
         verticalAlignment = Alignment.Top
     ) {
-        if (selectionMode) {
-            Checkbox(checked = selected, onCheckedChange = { onToggleSelection() }, modifier = Modifier.size(32.dp))
-            Spacer(Modifier.width(4.dp))
+        AnimatedVisibility(
+            visible = selectionMode,
+            enter = fadeIn(tween(180)) + slideInHorizontally(
+                animationSpec = tween(280, easing = LinearOutSlowInEasing),
+                initialOffsetX = { -it / 2 }
+            ),
+            exit = fadeOut(tween(120)) + slideOutHorizontally(
+                animationSpec = tween(200, easing = LinearOutSlowInEasing),
+                targetOffsetX = { -it / 2 }
+            )
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = selected, onCheckedChange = { onToggleSelection() }, modifier = Modifier.size(32.dp))
+                Spacer(Modifier.width(4.dp))
+            }
         }
         // 16:9 thumbnail with the resolution in its bottom-right corner
         Box(Modifier.width(ThumbW).height(ThumbH)) {
