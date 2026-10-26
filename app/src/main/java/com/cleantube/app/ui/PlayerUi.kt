@@ -63,6 +63,7 @@ import androidx.compose.material.icons.rounded.BrightnessMedium
 import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.ClosedCaptionOff
 import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.FitScreen
 import androidx.compose.material.icons.rounded.Forward10
 import androidx.compose.material.icons.rounded.Fullscreen
@@ -579,6 +580,9 @@ fun CtOverlay(
     // long press = play at 2x while the finger is down (like YouTube), back to the old speed on release
     var holdFast by remember { mutableStateOf(false) }
     var speedBeforeHold by remember { mutableFloatStateOf(1f) }
+    // long press on the left half = rewind at 2x (ExoPlayer can't play backwards: pause and step back), right half = 2x forward
+    var holdBack by remember { mutableStateOf(false) }
+    var playBeforeHold by remember { mutableStateOf(true) }
     // volume / brightness / aspect indicator
     var hud by remember { mutableStateOf(CtHud(null, "", null)) }
     var hudOn by remember { mutableStateOf(false) }
@@ -599,6 +603,14 @@ fun CtOverlay(
         if (locked && unlockShown) {
             delay(CtAutoHideMs)
             unlockShown = false
+        }
+    }
+    LaunchedEffect(holdFast, holdBack) {
+        if (holdFast && holdBack) {
+            while (true) {
+                p.seekBy(-200L) // 200 ms every 100 ms = 2x backwards
+                delay(100)
+            }
         }
     }
     LaunchedEffect(skipTick) {
@@ -691,14 +703,27 @@ fun CtOverlay(
                         tryAwaitRelease()
                         if (holdFast) {
                             holdFast = false
-                            p.changeSpeed(speedBeforeHold)
+                            if (holdBack) {
+                                holdBack = false
+                                p.exo.playWhenReady = playBeforeHold
+                            } else {
+                                p.changeSpeed(speedBeforeHold)
+                            }
                         }
                     },
-                    onLongPress = {
-                        if (!locked && p.wantPlay && !p.ended && p.error == null) {
-                            speedBeforeHold = p.speed
-                            holdFast = true
-                            p.changeSpeed(2f)
+                    onLongPress = { off ->
+                        if (!locked && p.error == null) {
+                            if (off.x < size.width / 2f) {
+                                playBeforeHold = p.wantPlay && !p.ended
+                                p.exo.playWhenReady = false
+                                holdBack = true
+                                holdFast = true
+                            } else if (p.wantPlay && !p.ended) {
+                                speedBeforeHold = p.speed
+                                holdBack = false
+                                holdFast = true
+                                p.changeSpeed(2f)
+                            }
                         }
                     },
                     onTap = {
@@ -860,20 +885,21 @@ fun CtOverlay(
                             .padding(start = 16.dp, end = 16.dp, bottom = if (full) 12.dp else 4.dp)
                     ) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            // tap the time: first tap = time left, next tap = time played again
+                            // single tap on the time: remaining time <-> time played (played is the default)
+                            val toggle = Modifier
+                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                    poke++; CtPrefs.showRemaining = !CtPrefs.showRemaining
+                                }
+                                .padding(vertical = 8.dp)
                             val first = if (CtPrefs.showRemaining) "-" + ctTime((p.duration - shownPos).coerceAtLeast(0L)) else ctTime(shownPos)
                             Text(
                                 first, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                                style = ctNumStyle(), maxLines = 1,
-                                modifier = Modifier
-                                    .pointerInput(Unit) { detectTapGestures { poke++; CtPrefs.showRemaining = !CtPrefs.showRemaining } }
-                                    .padding(vertical = 4.dp)
+                                style = ctNumStyle(), maxLines = 1, modifier = toggle
                             )
                             Spacer(Modifier.weight(1f))
                             Text(
                                 ctTime(p.duration), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                                style = ctNumStyle(), maxLines = 1,
-                                modifier = Modifier.padding(vertical = 4.dp)
+                                style = ctNumStyle(), maxLines = 1, modifier = toggle
                             )
                         }
                         CtSeekBar(
@@ -976,7 +1002,7 @@ fun CtOverlay(
             enter = fadeIn(tween(120)) + scaleIn(initialScale = 0.92f),
             exit = fadeOut(tween(160))
         ) {
-            CtHudPill(Icons.Rounded.FastForward, "2x", null)
+            CtHudPill(if (holdBack) Icons.Rounded.FastRewind else Icons.Rounded.FastForward, "2x", null)
         }
 
         // double-tap feedback
