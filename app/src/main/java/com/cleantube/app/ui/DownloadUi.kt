@@ -623,7 +623,7 @@ private fun DownloadRow(d: DownloadItem, groupShape: RoundedCornerShape) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
             .bouncyClickable(enabled = done, pressedScale = 0.98f) { play() }
             .clip(groupShape)
             .background(c.container)
@@ -637,7 +637,7 @@ private fun DownloadRow(d: DownloadItem, groupShape: RoundedCornerShape) {
             val badgeText = if (d.audioOnly) "Audio" else res
             if (badgeText.isNotEmpty()) {
                 Text(
-                    badgeText, color = c.onBadge, fontSize = 10.sp, fontWeight = FontWeight.Medium, maxLines = 1,
+                    badgeText, color = c.onBadge, fontSize = 9.sp, fontWeight = FontWeight.Medium, maxLines = 1,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(5.dp)
@@ -652,7 +652,7 @@ private fun DownloadRow(d: DownloadItem, groupShape: RoundedCornerShape) {
             // title (and, while it is going on, the progress)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    d.title, color = c.onContainer, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold,
+                    d.title, color = c.onContainer, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold,
                     maxLines = 2, overflow = TextOverflow.Ellipsis
                 )
                 if (running && d.phase.isEmpty()) {
@@ -660,11 +660,11 @@ private fun DownloadRow(d: DownloadItem, groupShape: RoundedCornerShape) {
                     Text(
                         listOf(speed, if (d.etaSec >= 0) "${formatEta(d.etaSec)} left" else "calculating time left…")
                             .filter { it.isNotEmpty() }.joinToString("  •  "),
-                        color = c.muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
+                        color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
                 }
                 if (failed) {
-                    Text("Failed: ${d.error}", color = Danger, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text("Failed: ${d.error}", color = Danger, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 if (live) {
                     // the bar glides to each new value instead of jumping
@@ -691,7 +691,7 @@ private fun DownloadRow(d: DownloadItem, groupShape: RoundedCornerShape) {
                     else -> listOf(res, if (d.audioOnly) "Audio" else "Video", sizeText(d.bytes)).filter { it.isNotEmpty() }.joinToString(" • ")
                 }
                 Text(
-                    meta, color = if (failed) Danger else c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    meta, color = if (failed) Danger else c.muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
                 when {
