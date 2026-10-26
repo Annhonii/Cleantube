@@ -576,9 +576,9 @@ fun ChannelRow(c: ChannelItem, onClick: () -> Unit, trailing: (@Composable () ->
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 5.dp)
+            .padding(horizontal = 12.dp)
             .bouncyClickable(pressedScale = 0.97f, onClick = onClick)
-            .clip(RoundedCornerShape(24.dp))
+            .clip(shape)
             .background(Card)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -604,7 +604,11 @@ fun ChannelRow(c: ChannelItem, onClick: () -> Unit, trailing: (@Composable () ->
 }
 
 @Composable
-fun PlaylistRow(p: PlaylistItem, onClick: () -> Unit) {
+fun PlaylistRow(
+    p: PlaylistItem,
+    onClick: () -> Unit,
+    shape: RoundedCornerShape = RoundedCornerShape(24.dp)
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
