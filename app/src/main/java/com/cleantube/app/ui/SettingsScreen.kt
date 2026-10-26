@@ -610,6 +610,18 @@ fun SettingsScreen() {
                             Text("Tell YouTube what I watch", color = TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
                             Switch(checked = store.syncHistory, onCheckedChange = { store.syncHistory = it })
                         }
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Card)
+                                .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text("YouTube's own recommendations", color = TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                            Switch(checked = store.officialReco, onCheckedChange = { store.officialReco = it })
+                        }
+                        Text(
+                            "On: Home and Shorts are exactly what YouTube recommends for your account (sign in and keep \"Tell YouTube what I watch\" on, so it knows your taste). Off: the app's own engine re-ranks them. Pull to refresh after changing.",
+                            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
+                        )
                         var diag by remember { mutableStateOf("") }
                         var diagBusy by remember { mutableStateOf(false) }
                         val diagScope = rememberCoroutineScope()

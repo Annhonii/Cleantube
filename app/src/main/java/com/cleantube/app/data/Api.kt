@@ -127,9 +127,9 @@ object Api {
         videosPage(Yt.run("shorts", args("token" to token)))
 
     suspend fun home(token: String?): Page<VideoItem> {
-        // Home is the app's own recommendation engine (Reco): subscribed channels first, ranked on the phone.
+        // Default: YouTube's own Home feed. With "official recommendations" off, the app's own engine (Reco) ranks on the phone.
         // With no subscriptions at all there is nothing to learn from yet, so YouTube's own feed is shown instead.
-        if (token == null || token.startsWith("L:")) {
+        if (!Graph.store.officialReco) if (token == null || token.startsWith("L:")) {
             Reco.homePage(token)?.let { return it }
             if (token != null) return Page(emptyList(), null)
         }
@@ -221,7 +221,7 @@ object Api {
      */
     suspend fun shorts(token: String?, topic: String = ""): Page<VideoItem> {
         // The app's own Shorts engine (Reco) first: subscribed channels' Shorts, reacting to what is watched / swiped.
-        if (topic.isEmpty() && (token == null || token.startsWith("L:"))) {
+        if (!Graph.store.officialReco && topic.isEmpty() && (token == null || token.startsWith("L:"))) {
             Reco.shortsPage(token)?.let { return it }
             if (token != null) return Page(emptyList(), null)
         }

@@ -25,7 +25,7 @@ fun HomeScreen() {
 
     // The header floats over the list: the feed starts below it and scrolls up underneath while it collapses.
     Box(Modifier.fillMaxSize()) {
-        val paged = TabCache.paged("home:$loggedIn:${Session.handle}") { token -> Api.home(token) }
+        val paged = TabCache.paged("home:$loggedIn:${Session.handle}:${com.cleantube.app.data.Graph.store.officialReco}") { token -> Api.home(token) }
         val headerH = collapsingHeaderHeight(Route.Home)
         PagedColumn(
             paged = paged,
