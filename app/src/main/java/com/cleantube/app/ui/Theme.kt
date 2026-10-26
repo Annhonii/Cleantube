@@ -350,6 +350,31 @@ private fun animatedScheme(t: ColorScheme): ColorScheme {
     )
 }
 
+private val thumbSeedCache = java.util.concurrent.ConcurrentHashMap<String, Color>()
+
+/**
+ * The same video-colour scheme as the app theme, but for ONE video (its own thumbnail), so a list can tint every item
+ * with the colours of its video. Null while the thumbnail is still being read, or when "colours from the video" is off
+ * in Settings: the caller then uses the normal colours.
+ */
+@Composable
+fun rememberThumbScheme(videoId: String): ColorScheme? {
+    if (!Graph.store.videoColor || videoId.isEmpty()) return null
+    val dark = isSystemInDarkTheme()
+    var seed by remember(videoId) { mutableStateOf(thumbSeedCache[videoId]) }
+    LaunchedEffect(videoId) {
+        if (seed == null) {
+            val s = withContext(Dispatchers.IO) { thumbnailSeed(videoId) }
+            if (s != null) {
+                thumbSeedCache[videoId] = s
+                seed = s
+            }
+        }
+    }
+    val s = seed ?: return null
+    return remember(s, dark) { seedScheme(s, dark) }
+}
+
 @Composable
 fun CleanTubeTheme(content: @Composable () -> Unit) {
     val dark = isSystemInDarkTheme()

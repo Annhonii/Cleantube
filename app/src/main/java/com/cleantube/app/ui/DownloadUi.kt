@@ -10,7 +10,38 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.SaveAlt
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.Dp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import com.cleantube.app.data.formatBytes
 import com.cleantube.app.data.formatEta
 import com.cleantube.app.data.formatSpeed
@@ -263,46 +294,179 @@ fun PlaylistDownloadDialog(playlistId: String, title: String, onDone: () -> Unit
     )
 }
 
+// ------------------------------------------------------------------ Downloads screen
+//
+// Flat Material 3: no shadows, no blur, no gradients. Surfaces, spacing and type do all the work.
+// Every card is tinted with the colours of ITS video (the thumbnail's main colour, same pipeline as the app theme),
+// so the list changes colour from one video to the next.
+
+private val ThumbW = 120.dp
+private val ThumbH = ThumbW * 9f / 16f
+
+/** Survives the screen: saving a file to storage must finish (and say so) even when the card scrolls away. */
+private val dlScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+private fun toast(ctx: android.content.Context, text: String) =
+    android.widget.Toast.makeText(ctx, text, android.widget.Toast.LENGTH_SHORT).show()
+
 @Composable
 fun DownloadsScreen() {
     val ctx = LocalContext.current
-    val list = Downloads.items
-    val active = list.filter { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
-    val finished = list.filter { it.status != DlStatus.RUNNING && it.status != DlStatus.QUEUED }
-    var pasted by remember { mutableStateOf<VideoItem?>(null) }
     val nav = LocalNav.current
+    val list = Downloads.items
+    var pasted by remember { mutableStateOf<VideoItem?>(null) }
+    var link by remember { mutableStateOf("") }
+    var searching by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var overflow by remember { mutableStateOf(false) }
+    val searchFocus = remember { FocusRequester() }
+
+    LaunchedEffect(searching) {
+        if (searching) runCatching { searchFocus.requestFocus() }
+    }
+
+    val q = query.trim()
+    val shown = if (searching && q.isNotEmpty()) list.filter { it.title.contains(q, ignoreCase = true) } else list.toList()
+    val active = shown.filter { it.status == DlStatus.RUNNING || it.status == DlStatus.QUEUED }
+    val finished = shown.filter { it.status != DlStatus.RUNNING && it.status != DlStatus.QUEUED }
+    val waiting = list.count { it.status == DlStatus.QUEUED }
+    val inApp = list.filter { it.status == DlStatus.DONE && it.where == "app" }
+
+    fun openLink(text: String) {
+        val uri = Regex("https?://\\S+").find(text)?.value?.let { Uri.parse(it) }
+        val r = uri?.let { routeFromUri(it) }
+        if (r is Route.Video) {
+            pasted = VideoItem(id = r.id, title = "")
+            link = ""
+        } else {
+            toast(ctx, "Only YouTube video links can be downloaded.")
+        }
+    }
+
+    fun saveAll() {
+        val todo = inApp.toList()
+        dlScope.launch {
+            var ok = 0
+            var failed = 0
+            todo.forEach { d ->
+                try {
+                    Downloads.saveToStorage(ctx, d)
+                    ok++
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    failed++
+                }
+            }
+            toast(
+                ctx,
+                if (failed == 0) "Saved $ok video${if (ok == 1) "" else "s"} to storage"
+                else "Saved $ok, couldn't save $failed"
+            )
+        }
+    }
 
     Column(Modifier.fillMaxSize()) {
-        ScreenTitle("Downloads", onBack = { nav.back() })
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = listBottomPad())) {
-            item {
-                Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-                    Pill("Paste YouTube link", icon = Icons.Rounded.ContentPaste, onClick = {
-                        val text = readClipboard(ctx)
-                        val uri = Regex("https?://\\S+").find(text)?.value?.let { Uri.parse(it) }
-                        val r = uri?.let { routeFromUri(it) }
-                        if (r is Route.Video) pasted = VideoItem(id = r.id, title = "")
-                        else android.widget.Toast.makeText(ctx, "Copy a YouTube video link first.", android.widget.Toast.LENGTH_SHORT).show()
-                    })
+        // top bar: back | search, more
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .height(64.dp)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            DlIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back", size = 44.dp, iconSize = 22.dp, bg = Card) { nav.back() }
+            Spacer(Modifier.weight(1f))
+            DlIconButton(Icons.Rounded.Search, "Search downloads", size = 44.dp, iconSize = 24.dp) {
+                searching = !searching
+                if (!searching) query = ""
+            }
+            Box {
+                DlIconButton(Icons.Rounded.MoreVert, "More options", size = 44.dp, iconSize = 24.dp) { overflow = true }
+                DropdownMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Save all in-app videos to storage") },
+                        leadingIcon = { Icon(Icons.Rounded.SaveAlt, contentDescription = null) },
+                        enabled = inApp.isNotEmpty(),
+                        onClick = { overflow = false; saveAll() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Remove all waiting ($waiting)") },
+                        leadingIcon = { Icon(Icons.Rounded.Close, contentDescription = null) },
+                        enabled = waiting > 0,
+                        onClick = { overflow = false; Downloads.removeWaiting() }
+                    )
                 }
             }
+        }
+
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = listBottomPad())) {
+            // large title + count badge
+            item {
+                Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Downloads", color = TextPrimary, fontSize = 32.sp, fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.8).sp, maxLines = 1
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "(${list.size})", color = OnSecondaryContainer, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(SecondaryContainer)
+                            .padding(horizontal = 10.dp, vertical = 3.dp)
+                    )
+                }
+            }
+            if (searching) {
+                item {
+                    PillTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        placeholder = "Search downloads",
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                        leading = { Icon(Icons.Rounded.Search, contentDescription = null, tint = TextMuted, modifier = Modifier.size(22.dp)) },
+                        trailing = {
+                            if (query.isNotEmpty()) {
+                                DlIconButton(Icons.Rounded.Close, "Clear", size = 36.dp, iconSize = 20.dp, tint = TextMuted) { query = "" }
+                            }
+                        },
+                        focusRequester = searchFocus
+                    )
+                }
+            }
+            // URL paste bar
+            item {
+                LinkBar(
+                    value = link,
+                    onValueChange = { link = it },
+                    onPaste = {
+                        val t = readClipboard(ctx).trim()
+                        if (t.isEmpty()) {
+                            toast(ctx, "Clipboard is empty. Copy a link first.")
+                        } else {
+                            link = t
+                            openLink(t)
+                        }
+                    },
+                    onGo = { openLink(link) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)
+                )
+            }
+
             if (list.isEmpty()) {
                 item { EmptyState("Nothing downloaded yet. Open a video or a Short and tap Download, or paste a link above.") }
+            } else if (shown.isEmpty()) {
+                item { EmptyState("No downloads match \"$q\".") }
             }
             if (active.isNotEmpty()) {
-                item { SectionLabel("DOWNLOADING (${active.size})") }
-                val waiting = active.count { it.status == DlStatus.QUEUED }
-                if (waiting > 1) {
-                    item {
-                        Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-                            Pill("Remove all waiting ($waiting)", onClick = { Downloads.removeWaiting() })
-                        }
-                    }
-                }
+                item { SectionLabel("Downloading (${active.size})") }
                 items(active, key = { it.id }) { d -> DownloadRow(d) }
             }
             if (finished.isNotEmpty()) {
-                item { SectionLabel("DOWNLOADED") }
+                item { SectionLabel("Downloaded") }
                 items(finished, key = { it.id }) { d -> DownloadRow(d) }
             }
         }
@@ -313,83 +477,256 @@ fun DownloadsScreen() {
 
 @Composable
 private fun SectionLabel(text: String) {
-    Text(text, color = TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 20.dp, top = 14.dp, bottom = 4.dp))
+    Text(
+        text, color = TextMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+        modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 6.dp)
+    )
 }
+
+/** Round icon-only button: [bg] is transparent unless given. */
+@Composable
+private fun DlIconButton(
+    icon: ImageVector,
+    desc: String,
+    modifier: Modifier = Modifier,
+    size: Dp = 36.dp,
+    iconSize: Dp = 20.dp,
+    tint: Color = TextPrimary,
+    bg: Color = Color.Transparent,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(bg)
+            .bouncyClickable(pressedScale = 0.88f, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = desc, tint = tint, modifier = Modifier.size(iconSize))
+    }
+}
+
+/** Full-width pill with a thin border: link icon, the field, and a tonal "Paste" button inside the right edge. */
+@Composable
+private fun LinkBar(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onPaste: () -> Unit,
+    onGo: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .border(1.dp, Hairline, CircleShape)
+            .clip(CircleShape)
+            .padding(start = 18.dp, end = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Rounded.Link, contentDescription = null, tint = TextMuted, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(12.dp))
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (value.isEmpty()) {
+                Text("Paste YouTube or web link...", color = TextMuted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = TextStyle(color = TextPrimary, fontSize = 14.sp, fontFamily = AppFont),
+                cursorBrush = SolidColor(Accent),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
+                keyboardActions = KeyboardActions(onGo = { onGo() }),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Box(
+            Modifier
+                .height(44.dp)
+                .clip(CircleShape)
+                .background(SecondaryContainer)
+                .bouncyClickable(pressedScale = 0.94f, onClick = onPaste)
+                .padding(horizontal = 20.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("Paste", color = OnSecondaryContainer, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        }
+    }
+}
+
+/** Colours of one card: the video's own colours once its thumbnail is read, the normal app colours until then. */
+private class CardPalette(
+    val container: Color, val onContainer: Color, val muted: Color,
+    val primary: Color, val track: Color, val badge: Color, val onBadge: Color
+)
+
+@Composable
+private fun rememberCardPalette(videoId: String): CardPalette {
+    val s = rememberThumbScheme(videoId)
+    val spec = tween<Color>(500)
+    @Composable fun a(c: Color) = animateColorAsState(c, spec, label = "dlCard").value
+    return CardPalette(
+        container = a(s?.surfaceContainerHigh ?: Card),
+        onContainer = a(s?.onSurface ?: TextPrimary),
+        muted = a(s?.onSurfaceVariant ?: TextMuted),
+        primary = a(s?.primary ?: Accent),
+        track = a(s?.secondaryContainer ?: SecondaryContainer),
+        badge = a(s?.primaryContainer ?: SecondaryContainer),
+        onBadge = a(s?.onPrimaryContainer ?: OnSecondaryContainer)
+    )
+}
+
+/** "720p" out of the label ("720p video + sound", "Up to 1080p"); empty when there is no picture size (audio, "Best"). */
+private fun resolutionOf(d: DownloadItem): String =
+    if (d.audioOnly) "" else Regex("\\d{3,4}p").find(d.label)?.value.orEmpty()
 
 @Composable
 private fun DownloadRow(d: DownloadItem) {
     val nav = LocalNav.current
     val ctx = LocalContext.current
     var confirm by remember(d.id) { mutableStateOf(false) }
+    var menu by remember(d.id) { mutableStateOf(false) }
     val running = d.status == DlStatus.RUNNING
-    val live = running || d.status == DlStatus.QUEUED
+    val queued = d.status == DlStatus.QUEUED
+    val live = running || queued
+    val done = d.status == DlStatus.DONE
+    val failed = d.status == DlStatus.FAILED
+    val cancelled = d.status == DlStatus.CANCELLED
+    val c = rememberCardPalette(d.videoId)
+    val res = resolutionOf(d)
+
+    fun play() {
+        if (Downloads.exists(ctx, d)) nav.push(Route.LocalPlay(Downloads.uriOf(d).toString(), d.title))
+        else android.widget.Toast.makeText(ctx, "The file is gone (deleted or moved).", android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    fun saveToStorage() {
+        dlScope.launch {
+            try {
+                val place = Downloads.saveToStorage(ctx, d)
+                toast(ctx, "Saved to $place")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                toast(ctx, e.message ?: "Couldn't save the file.")
+            }
+        }
+    }
 
     Row(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 5.dp)
-            .bouncyClickable(enabled = d.status == DlStatus.DONE, pressedScale = 0.98f) {
-                if (Downloads.exists(ctx, d)) nav.push(Route.LocalPlay(Downloads.uriOf(d).toString(), d.title))
-                else android.widget.Toast.makeText(ctx, "The file is gone (deleted or moved).", android.widget.Toast.LENGTH_LONG).show()
-            }
-            .clip(RoundedCornerShape(16.dp))
-            .background(Card)
-            .padding(10.dp),
+            .bouncyClickable(enabled = done, pressedScale = 0.98f) { play() }
+            .clip(RoundedCornerShape(20.dp))
+            .background(c.container)
+            .padding(10.dp)
+            .height(IntrinsicSize.Min),
         verticalAlignment = Alignment.Top
     ) {
-        AppImage("https://i.ytimg.com/vi/${d.videoId}/mqdefault.jpg", Modifier.width(120.dp).aspectRatio(16f / 9f))
+        // 16:9 thumbnail with the resolution in its bottom-right corner
+        Box(Modifier.width(ThumbW).height(ThumbH)) {
+            AppImage("https://i.ytimg.com/vi/${d.videoId}/mqdefault.jpg", Modifier.fillMaxSize(), RoundedCornerShape(12.dp))
+            val badgeText = if (d.audioOnly) "Audio" else res
+            if (badgeText.isNotEmpty()) {
+                Text(
+                    badgeText, color = c.onBadge, fontSize = 10.sp, fontWeight = FontWeight.Medium, maxLines = 1,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(5.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(c.badge)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+        }
         Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text(d.title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(
-                listOf(
-                    d.label,
-                    (if (d.where == "phone") "Phone storage" else "In app") + (if (d.folder.isNotEmpty()) " / ${d.folder}" else "")
-                ).joinToString(" • "),
-                color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-
-            when (d.status) {
-                DlStatus.QUEUED -> Text("Waiting in queue…", color = TextMuted, fontSize = 12.sp)
-                DlStatus.RUNNING -> {
-                    if (d.phase.isNotEmpty()) {
-                        Text(d.phase, color = TextPrimary, fontSize = 12.sp)
+        Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.SpaceBetween) {
+            // title (and, while it is going on, the progress)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    d.title, color = c.onContainer, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis
+                )
+                if (running && d.phase.isEmpty()) {
+                    val speed = formatSpeed(d.speed)
+                    Text(
+                        listOf(speed, if (d.etaSec >= 0) "${formatEta(d.etaSec)} left" else "calculating time left…")
+                            .filter { it.isNotEmpty() }.joinToString("  •  "),
+                        color = c.muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (failed) {
+                    Text("Failed: ${d.error}", color = Danger, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                if (live) {
+                    // the bar glides to each new value instead of jumping
+                    val shownProgress by animateFloatAsState(d.progress, tween(500, easing = LinearOutSlowInEasing), label = "dlProgress")
+                    if (running && d.phase.isEmpty() && d.progress > 0f) {
+                        LinearProgressIndicator(progress = { shownProgress }, modifier = Modifier.fillMaxWidth(), color = c.primary, trackColor = c.track)
                     } else {
-                        val pct = (d.progress * 100).toInt()
-                        val sizes = if (d.total > 0) "${sizeText(d.bytes)} of ${sizeText(d.total)}" else sizeText(d.bytes)
-                        Text("$pct%  •  $sizes", color = TextPrimary, fontSize = 12.sp)
-                        val speed = formatSpeed(d.speed)
-                        Text(
-                            listOf(speed, if (d.etaSec >= 0) "${formatEta(d.etaSec)} left" else "calculating time left…")
-                                .filter { it.isNotEmpty() }.joinToString("  •  "),
-                            color = TextMuted, fontSize = 12.sp
-                        )
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = c.primary, trackColor = c.track)
                     }
                 }
-                DlStatus.DONE -> Text(sizeText(d.bytes), color = TextMuted, fontSize = 12.sp)
-                DlStatus.FAILED -> Text("Failed: ${d.error}", color = Danger, fontSize = 12.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
-                DlStatus.CANCELLED -> Text("Cancelled", color = TextMuted, fontSize = 12.sp)
             }
-
-            // the bar glides to each new value instead of jumping
-            val shownProgress by animateFloatAsState(d.progress, tween(500, easing = LinearOutSlowInEasing), label = "dlProgress")
-            if (live) {
-                if (running && d.phase.isEmpty() && d.progress > 0f) {
-                    LinearProgressIndicator(progress = { shownProgress }, modifier = Modifier.fillMaxWidth(), color = Accent, trackColor = SecondaryContainer)
-                } else {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Accent, trackColor = SecondaryContainer)
+            // metadata on the left, compact icon buttons on the right
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                val meta = when {
+                    queued -> "Waiting in queue…"
+                    running && d.phase.isNotEmpty() -> d.phase
+                    running -> {
+                        val pct = (d.progress * 100).toInt()
+                        val sizes = if (d.total > 0) "${sizeText(d.bytes)} of ${sizeText(d.total)}" else sizeText(d.bytes)
+                        "$pct% • $sizes"
+                    }
+                    failed -> "Failed"
+                    cancelled -> "Cancelled"
+                    else -> listOf(res, if (d.audioOnly) "Audio" else "Video", sizeText(d.bytes)).filter { it.isNotEmpty() }.joinToString(" • ")
                 }
-            }
-
-            Row(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    meta, color = if (failed) Danger else c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
                 when {
-                    running -> Pill("Cancel", onClick = { Downloads.cancel(d) })
-                    d.status == DlStatus.QUEUED -> Pill("Remove", onClick = { Downloads.remove(ctx, d, deleteFile = false) })
+                    running -> DlIconButton(Icons.Rounded.Close, "Cancel", size = 32.dp, tint = c.muted) { Downloads.cancel(d) }
+                    queued -> DlIconButton(Icons.Rounded.Close, "Remove", size = 32.dp, tint = c.muted) {
+                        Downloads.remove(ctx, d, deleteFile = false)
+                    }
                     else -> {
-                        if (d.status == DlStatus.FAILED || d.status == DlStatus.CANCELLED) {
-                            Pill("Retry", onClick = { Downloads.retry(ctx, d) }, active = true)
+                        if (failed || cancelled) {
+                            DlIconButton(Icons.Rounded.Refresh, "Retry", size = 32.dp, tint = c.muted) { Downloads.retry(ctx, d) }
                         }
-                        Pill("Delete", onClick = { confirm = true })
+                        DlIconButton(Icons.Outlined.DeleteOutline, "Delete", size = 32.dp, tint = c.muted) { confirm = true }
+                        Box {
+                            DlIconButton(Icons.Rounded.MoreVert, "More options", size = 32.dp, tint = c.muted) { menu = true }
+                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                if (done) {
+                                    DropdownMenuItem(
+                                        text = { Text("Play") },
+                                        leadingIcon = { Icon(Icons.Rounded.PlayArrow, contentDescription = null) },
+                                        onClick = { menu = false; play() }
+                                    )
+                                    if (d.where == "app") {
+                                        DropdownMenuItem(
+                                            text = { Text("Save to storage") },
+                                            leadingIcon = { Icon(Icons.Rounded.SaveAlt, contentDescription = null) },
+                                            onClick = { menu = false; saveToStorage() }
+                                        )
+                                    } else {
+                                        DropdownMenuItem(text = { Text("Saved in phone storage") }, enabled = false, onClick = {})
+                                    }
+                                } else {
+                                    DropdownMenuItem(
+                                        text = { Text("Retry") },
+                                        leadingIcon = { Icon(Icons.Rounded.Refresh, contentDescription = null) },
+                                        onClick = { menu = false; Downloads.retry(ctx, d) }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

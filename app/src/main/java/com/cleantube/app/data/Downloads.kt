@@ -196,6 +196,52 @@ object Downloads {
         save()
     }
 
+    /**
+     * Copies a download that lives inside the app into the phone's public folder (Movies/Voidstream, or Music/Voidstream
+     * for audio, with the playlist's sub-folder if it has one), so the gallery and file manager can see it. The copy
+     * inside the app stays where it is. Returns the folder it was saved to; throws [java.io.IOException] with a
+     * readable message when it can't.
+     */
+    suspend fun saveToStorage(ctx: Context, item: DownloadItem): String = withContext(Dispatchers.IO) {
+        if (item.where == "phone") throw java.io.IOException("This download is already in phone storage.")
+        val src = File(item.location)
+        if (item.location.isEmpty() || !src.exists()) throw java.io.IOException("The file is gone (deleted or moved).")
+        val name = "${safeName(item.title)} [${item.videoId}].${item.ext}"
+        val base = if (item.audioOnly) Environment.DIRECTORY_MUSIC else Environment.DIRECTORY_MOVIES
+        val sub = "Voidstream" + (if (item.folder.isNotEmpty()) "/${item.folder}" else "")
+        if (Build.VERSION.SDK_INT >= 29) {
+            val collection = if (item.audioOnly) MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                put(MediaStore.MediaColumns.MIME_TYPE, item.mime)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, "$base/$sub")
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+            val uri = ctx.contentResolver.insert(collection, values) ?: throw java.io.IOException("Couldn't create the file in phone storage.")
+            try {
+                val out = ctx.contentResolver.openOutputStream(uri) ?: throw java.io.IOException("Couldn't open the file.")
+                out.use { o -> src.inputStream().use { it.copyTo(o, 256 * 1024) } }
+                ctx.contentResolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+            } catch (e: Exception) {
+                runCatching { ctx.contentResolver.delete(uri, null, null) }
+                throw if (e is java.io.IOException) e else java.io.IOException(e.message ?: "Couldn't save the file.")
+            }
+        } else {
+            // Android 9 and older: plain public folder (needs the storage permission)
+            val dir = File(Environment.getExternalStoragePublicDirectory(base), sub)
+            if (!dir.exists() && !dir.mkdirs()) throw java.io.IOException("Couldn't create the folder in phone storage.")
+            val target = File(dir, name)
+            try {
+                src.copyTo(target, overwrite = true)
+            } catch (e: Exception) {
+                runCatching { target.delete() }
+                throw java.io.IOException(e.message ?: "Couldn't save the file.")
+            }
+            runCatching { android.media.MediaScannerConnection.scanFile(ctx, arrayOf(target.absolutePath), arrayOf(item.mime), null) }
+        }
+        "$base/$sub"
+    }
+
     fun uriOf(item: DownloadItem): Uri =
         if (item.location.startsWith("content://")) Uri.parse(item.location) else Uri.fromFile(File(item.location))
 
