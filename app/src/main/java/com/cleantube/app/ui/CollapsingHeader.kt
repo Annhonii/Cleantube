@@ -496,17 +496,19 @@ private fun NavRow(
                     Icon(t.icon, contentDescription = t.label, tint = tint, modifier = Modifier.size(22.dp))
                 }
             }
+            // three EQUAL cells: a tab never changes the place of the others, only its own label opens inside its cell
+            val measurer = androidx.compose.ui.text.rememberTextMeasurer()
             Row(
                 Modifier.weight(1f).fillMaxHeight().padding(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 tabs.forEachIndexed { i, t ->
                     if (hasShorts && i == 0) return@forEachIndexed
                     val k = (1f - kotlin.math.abs(pos - i)).coerceIn(0f, 1f)
                     val tint = lerp(idle, onSel, k)
-                    Box(
+                    androidx.compose.foundation.layout.BoxWithConstraints(
                         Modifier
+                            .weight(1f)
                             .fillMaxHeight()
                             .onGloballyPositioned { c ->
                                 if (i < bX.size) {
@@ -517,10 +519,20 @@ private fun NavRow(
                             .bouncyClickable(pressedScale = 0.94f, onClick = { if (nav.current != t.route) nav.selectTab(t.route) }),
                         contentAlignment = Alignment.Center
                     ) {
-                        Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        // the label shrinks a little when the cell is too narrow for it ("Subscription" in full, never cut)
+                        val sidePx = with(density) { 10.dp.toPx() }
+                        val iconPx = with(density) { 22.dp.toPx() }
+                        val natural = measurer.measure(
+                            t.label,
+                            androidx.compose.ui.text.TextStyle(fontSize = labelSp, fontWeight = FontWeight.Medium),
+                            maxLines = 1, softWrap = false
+                        ).size.width.coerceAtLeast(1)
+                        val avail = with(density) { maxWidth.toPx() } - 2 * sidePx - iconPx - gapPx
+                        val fit = (avail / natural).coerceIn(0.7f, 1f)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(t.icon, contentDescription = t.label, tint = tint, modifier = Modifier.size(22.dp))
                             Text(
-                                t.label, color = tint, fontSize = labelSp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false,
+                                t.label, color = tint, fontSize = labelSp * fit, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false,
                                 modifier = Modifier
                                     .layout { m, c ->
                                         val kk = (1f - kotlin.math.abs(pagerPosition() - i)).coerceIn(0f, 1f)
