@@ -137,6 +137,18 @@ internal fun parseVtt(text: String): List<CaptionCue> {
     return out
 }
 
+/** How the picture is fitted into the player area (the aspect-ratio button cycles through these). */
+enum class CtResize(val label: String) {
+    /** Whole picture visible, black bars where the ratios differ. */
+    Fit("Fit"),
+
+    /** Stretched to the whole area (the picture may distort). */
+    Fill("Fill"),
+
+    /** Scaled up until it covers the area, the overflow is cropped. */
+    Zoom("Zoom")
+}
+
 /**
  * Voidstream's own video player: ExoPlayer fed with the NewPipe stream links. Everything the UI needs
  * (playing, buffering, position, quality...) is exposed as Compose state.
@@ -194,6 +206,15 @@ class CtPlayer(
         if (preferredQuality >= 0) preferredQuality else settingsQuality(app, shorts)
     ); private set
     var currentHeight by mutableIntStateOf(0); private set
+
+    /** Fit / Fill / Zoom, shared by every surface that shows this player (page and fullscreen). */
+    var resizeMode by mutableStateOf(CtResize.Fit); private set
+
+    fun cycleResize(): CtResize {
+        val all = CtResize.values()
+        resizeMode = all[(resizeMode.ordinal + 1) % all.size]
+        return resizeMode
+    }
 
     init { if (speed != 1f) exo.setPlaybackSpeed(speed) }
 
