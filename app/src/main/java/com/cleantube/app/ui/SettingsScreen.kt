@@ -366,7 +366,7 @@ private val IconPurple = Color(0xFF6E5780)
 private fun SettingsGroup(items: List<SettingsItem>, onOpen: (SettingsPage) -> Unit) {
     Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
         items.forEachIndexed { i, it ->
-            val shape = groupedCardShape(i, items.size, outer)
+            val shape = groupedCardShape(i, items.size)
             SettingsRow(it.icon, it.iconBg, it.page.title, it.subtitle, shape) { onOpen(it.page) }
         }
     }
