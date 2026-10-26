@@ -490,7 +490,7 @@ fun PlaylistsScreen() {
                         .bouncyClickable(pressedScale = 0.975f) { nav.push(Route.LocalList(p.id)) }
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp)
-                        .clip(groupedCardShape(i, lists.size))
+                        .clip(groupedCardShape(i, lists.size, 16.dp))
                         .background(Card)
                         .padding(16.dp)
                 ) {
