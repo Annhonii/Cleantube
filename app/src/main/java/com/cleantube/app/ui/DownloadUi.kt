@@ -4,6 +4,7 @@ import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import android.net.Uri
+import android.content.Intent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -19,6 +20,8 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SaveAlt
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material3.Checkbox
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -47,6 +50,7 @@ import com.cleantube.app.data.formatEta
 import com.cleantube.app.data.formatSpeed
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -316,6 +320,8 @@ fun DownloadsScreen() {
     var searching by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var overflow by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var confirmDeleteSelected by remember { mutableStateOf(false) }
     val searchFocus = remember { FocusRequester() }
 
     LaunchedEffect(searching) {
@@ -373,8 +379,15 @@ fun DownloadsScreen() {
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            DlIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back", size = 44.dp, iconSize = 22.dp, bg = Card) { nav.back() }
-            Spacer(Modifier.weight(1f))
+            if (selectedIds.isNotEmpty()) {
+                DlIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Exit selection", size = 44.dp, iconSize = 22.dp, bg = Card) { selectedIds = emptySet() }
+                Text("${selectedIds.size} selected", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                DlIconButton(Icons.Outlined.DeleteOutline, "Delete selected", size = 44.dp, iconSize = 22.dp) { confirmDeleteSelected = true }
+            } else {
+                DlIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back", size = 44.dp, iconSize = 22.dp, bg = Card) { nav.back() }
+                Spacer(Modifier.weight(1f))
+            }
             DlIconButton(Icons.Rounded.Search, "Search downloads", size = 44.dp, iconSize = 24.dp) {
                 searching = !searching
                 if (!searching) query = ""
@@ -460,15 +473,41 @@ fun DownloadsScreen() {
             }
             if (active.isNotEmpty()) {
                 item { SectionLabel("Downloading (${active.size})") }
-                itemsIndexed(active, key = { _, item -> item.id }) { i, d -> DownloadRow(d, groupedCardShape(i, active.size, 20.dp)) }
+                itemsIndexed(active, key = { _, item -> item.id }) { i, d ->
+                    DownloadRow(d, groupedCardShape(i, active.size, 20.dp), selected = d.id in selectedIds,
+                        selectionMode = selectedIds.isNotEmpty(),
+                        onLongPress = { selectedIds = selectedIds + d.id },
+                        onToggleSelection = { selectedIds = if (d.id in selectedIds) selectedIds - d.id else selectedIds + d.id })
+                }
             }
             if (finished.isNotEmpty()) {
                 item { SectionLabel("Downloaded") }
-                itemsIndexed(finished, key = { _, item -> item.id }) { i, d -> DownloadRow(d, groupedCardShape(i, finished.size, 20.dp)) }
+                itemsIndexed(finished, key = { _, item -> item.id }) { i, d ->
+                    DownloadRow(d, groupedCardShape(i, finished.size, 20.dp), selected = d.id in selectedIds,
+                        selectionMode = selectedIds.isNotEmpty(),
+                        onLongPress = { selectedIds = selectedIds + d.id },
+                        onToggleSelection = { selectedIds = if (d.id in selectedIds) selectedIds - d.id else selectedIds + d.id })
+                }
             }
         }
     }
 
+    if (confirmDeleteSelected) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteSelected = false },
+            containerColor = Card,
+            title = { Text("Delete ${selectedIds.size} downloads?") },
+            text = { Text("The selected files will be removed from your device.", color = TextMuted) },
+            confirmButton = {
+                TextButton(onClick = {
+                    list.filter { it.id in selectedIds }.toList().forEach { Downloads.remove(ctx, it, deleteFile = true) }
+                    selectedIds = emptySet()
+                    confirmDeleteSelected = false
+                }) { Text("Delete", color = Danger) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDeleteSelected = false }) { Text("Cancel", color = TextPrimary) } }
+        )
+    }
     pasted?.let { v -> DownloadDialog(v) { pasted = null } }
 }
 
@@ -579,7 +618,14 @@ private fun resolutionOf(d: DownloadItem): String =
     if (d.audioOnly) "" else Regex("\\d{3,4}p").find(d.label)?.value.orEmpty()
 
 @Composable
-private fun DownloadRow(d: DownloadItem, groupShape: RoundedCornerShape) {
+private fun DownloadRow(
+    d: DownloadItem,
+    groupShape: RoundedCornerShape,
+    selected: Boolean,
+    selectionMode: Boolean,
+    onLongPress: () -> Unit,
+    onToggleSelection: () -> Unit
+) {
     val ctx = LocalContext.current
     var confirm by remember(d.id) { mutableStateOf(false) }
     var menu by remember(d.id) { mutableStateOf(false) }
@@ -622,13 +668,20 @@ private fun DownloadRow(d: DownloadItem, groupShape: RoundedCornerShape) {
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
-            .bouncyClickable(enabled = done, pressedScale = 0.98f) { play() }
+            .combinedClickable(
+                onClick = { if (selectionMode) onToggleSelection() else if (done) play() },
+                onLongClick = onLongPress
+            )
             .clip(groupShape)
-            .background(c.container)
+            .background(if (selected) SecondaryContainer else c.container)
             .padding(10.dp)
             .height(IntrinsicSize.Min),
         verticalAlignment = Alignment.Top
     ) {
+        if (selectionMode) {
+            Checkbox(checked = selected, onCheckedChange = { onToggleSelection() }, modifier = Modifier.size(32.dp))
+            Spacer(Modifier.width(4.dp))
+        }
         // 16:9 thumbnail with the resolution in its bottom-right corner
         Box(Modifier.width(ThumbW).height(ThumbH)) {
             AppImage("https://i.ytimg.com/vi/${d.videoId}/mqdefault.jpg", Modifier.fillMaxSize(), RoundedCornerShape(12.dp))
@@ -701,11 +754,29 @@ private fun DownloadRow(d: DownloadItem, groupShape: RoundedCornerShape) {
                         if (failed || cancelled) {
                             DlIconButton(Icons.Rounded.Refresh, "Retry", size = 32.dp, tint = c.muted) { Downloads.retry(ctx, d) }
                         }
-                        DlIconButton(Icons.Outlined.DeleteOutline, "Delete", size = 32.dp, tint = c.muted) { confirm = true }
                         Box {
                             DlIconButton(Icons.Rounded.MoreVert, "More options", size = 32.dp, tint = c.muted) { menu = true }
                             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                                 if (done) {
+                                    DropdownMenuItem(
+                                        text = { Text("Share") },
+                                        leadingIcon = { Icon(Icons.Rounded.Share, contentDescription = null) },
+                                        onClick = {
+                                            menu = false
+                                            try {
+                                                val share = Intent(Intent.ACTION_SEND).apply {
+                                                    type = if (d.audioOnly) "audio/*" else "video/*"
+                                                    putExtra(Intent.EXTRA_STREAM, Downloads.uriOf(d))
+                                                    putExtra(Intent.EXTRA_TITLE, d.title)
+                                                    putExtra(Intent.EXTRA_SUBJECT, d.title)
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                                ctx.startActivity(Intent.createChooser(share, "Share video"))
+                                            } catch (e: Exception) {
+                                                toast(ctx, "Couldn't share this download.")
+                                            }
+                                        }
+                                    )
                                     DropdownMenuItem(
                                         text = { Text("Play") },
                                         leadingIcon = { Icon(Icons.Rounded.PlayArrow, contentDescription = null) },
