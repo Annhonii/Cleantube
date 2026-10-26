@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.cleantube.app.data.Api
 import com.cleantube.app.data.ApiException
 import com.cleantube.app.data.DlStatus
 import com.cleantube.app.data.DownloadItem
@@ -155,6 +156,113 @@ fun DownloadDialog(video: VideoItem, onDone: () -> Unit) {
     )
 }
 
+/**
+ * "Download all" of a playlist: loads every video of it, asks for one quality for all of them and where to save,
+ * then queues them. They end up together in a folder named after the playlist.
+ */
+@Composable
+fun PlaylistDownloadDialog(playlistId: String, title: String, onDone: () -> Unit) {
+    val ctx = LocalContext.current
+    val store = Graph.store
+    var videos by remember(playlistId) { mutableStateOf<List<VideoItem>?>(null) }
+    var found by remember(playlistId) { mutableStateOf(0) }
+    var error by remember(playlistId) { mutableStateOf<String?>(null) }
+    var attempt by remember(playlistId) { mutableStateOf(0) }
+    // 0 = best, a height = at most that tall, -1 = audio only
+    var quality by remember { mutableStateOf(0) }
+    // this choice is not saved: the setting for single downloads stays as it is
+    var where by remember { mutableStateOf("phone") }
+    var threads by remember { mutableStateOf(store.downloadThreads) }
+    val folder = remember(title) { Downloads.folderName(title) }
+
+    LaunchedEffect(playlistId, attempt) {
+        error = null
+        videos = null
+        found = 0
+        try {
+            videos = Api.allPlaylistVideos(playlistId) { found = it }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            error = e.message ?: "Couldn't load the playlist."
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDone,
+        containerColor = Card,
+        title = { Text("Download all") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val list = videos
+                val err = error
+                when {
+                    err != null -> {
+                        Text(err, color = Danger, fontSize = 13.sp)
+                        Row(Modifier.padding(top = 4.dp)) { Pill("Retry", onClick = { attempt++ }, active = true) }
+                    }
+                    list == null -> {
+                        Text(
+                            if (found > 0) "Loading the playlist… $found videos found" else "Loading the playlist…",
+                            color = TextMuted, fontSize = 13.sp
+                        )
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Accent, trackColor = SecondaryContainer)
+                    }
+                    list.isEmpty() -> Text("This playlist has no videos to download.", color = TextMuted, fontSize = 13.sp)
+                    else -> {
+                        Text(
+                            "\"$folder\" · ${list.size} video${if (list.size == 1) "" else "s"}",
+                            color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium
+                        )
+                        Text("Quality (the same for every video)", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(0 to "Best", 1080 to "1080p", 720 to "720p", 480 to "480p", 360 to "360p", -1 to "Audio only").forEach { (q, label) ->
+                                Pill(label, onClick = { quality = q }, active = quality == q)
+                            }
+                        }
+                        Text("Save to", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Pill("In app", onClick = { where = "app" }, active = where == "app")
+                            Pill("Phone storage", onClick = { where = "phone" }, active = where == "phone")
+                        }
+                        Text("Connections (threads)", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(1, 4, 8, 16, 32).forEach { n ->
+                                Pill("$n", onClick = { threads = n }, active = threads == n)
+                            }
+                        }
+                        Text(
+                            if (where == "phone") {
+                                "Saved in ${if (quality < 0) "Music" else "Movies"}/Voidstream/$folder, visible to your gallery and file manager."
+                            } else {
+                                "Saved in a \"$folder\" folder inside the app. Removed if you uninstall the app."
+                            },
+                            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)
+                        )
+                        Text(
+                            "Videos download one after another. Each video's link is fetched when its turn comes.",
+                            color = TextMuted, fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            val list = videos
+            if (list != null && list.isNotEmpty()) {
+                TextButton(onClick = {
+                    Downloads.enqueuePlaylist(ctx, title, list, audioOnly = quality < 0, maxHeight = quality.coerceAtLeast(0), where = where, threads = threads)
+                    android.widget.Toast.makeText(
+                        ctx, "${list.size} video${if (list.size == 1) "" else "s"} added to Downloads", android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    onDone()
+                }) { Text("Download ${list.size}", color = Accent) }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDone) { Text("Cancel", color = TextPrimary) } }
+    )
+}
+
 @Composable
 fun DownloadsScreen() {
     val ctx = LocalContext.current
@@ -183,6 +291,14 @@ fun DownloadsScreen() {
             }
             if (active.isNotEmpty()) {
                 item { SectionLabel("DOWNLOADING (${active.size})") }
+                val waiting = active.count { it.status == DlStatus.QUEUED }
+                if (waiting > 1) {
+                    item {
+                        Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                            Pill("Remove all waiting ($waiting)", onClick = { Downloads.removeWaiting() })
+                        }
+                    }
+                }
                 items(active, key = { it.id }) { d -> DownloadRow(d) }
             }
             if (finished.isNotEmpty()) {
@@ -226,7 +342,10 @@ private fun DownloadRow(d: DownloadItem) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(d.title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(
-                listOf(d.label, if (d.where == "phone") "Phone storage" else "In app").joinToString(" • "),
+                listOf(
+                    d.label,
+                    (if (d.where == "phone") "Phone storage" else "In app") + (if (d.folder.isNotEmpty()) " / ${d.folder}" else "")
+                ).joinToString(" • "),
                 color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
             )
 

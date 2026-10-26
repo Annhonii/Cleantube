@@ -668,11 +668,77 @@
     return { items: items, next: token };
   }
 
-  /** Playlist page: header title + videos. */
+  /**
+   * Owner, video count, views, last update and cover of a playlist page. YouTube serves two header layouts
+   * (the older playlistHeaderRenderer + sidebar, the newer pageHeaderViewModel) so every field is optional;
+   * the app shows what it gets and works without the rest.
+   */
+  function parsePlaylistHeader(j) {
+    var h = { owner: '', thumb: '', count: '', views: '', updated: '' };
+    function classify(t) {
+      t = (t || '').trim();
+      if (!t) return;
+      // "Updated today" has no number, the other two always do
+      if (/updated/i.test(t)) { if (!h.updated) h.updated = t; return; }
+      if (!/\d/.test(t)) return;
+      if (/\bvideos?\b/i.test(t)) { if (!h.count) h.count = t; }
+      else if (/\bviews?\b/i.test(t)) { if (!h.views) h.views = t; }
+    }
+    function firstImage(root_) {
+      var u = '';
+      walk(root_ || {}, function (x) {
+        if (u) return true;
+        if (x.thumbnails || x.sources) { u = lastThumb(x); return !!u; }
+        return false;
+      });
+      return u;
+    }
+    try {
+      // older layout
+      var ph = findFirst(j, 'playlistHeaderRenderer');
+      if (ph) {
+        h.owner = txt(ph.ownerText);
+        classify(txt(ph.numVideosText));
+        classify(txt(ph.viewCountText));
+        h.thumb = firstImage(ph.playlistHeaderBanner);
+      }
+      var side = findFirst(j, 'playlistSidebarPrimaryInfoRenderer');
+      if (side) {
+        (side.stats || []).forEach(function (s) { classify(txt(s)); });
+        if (!h.thumb) h.thumb = firstImage(side.thumbnailRenderer);
+      }
+      var sec = findFirst(j, 'playlistSidebarSecondaryInfoRenderer');
+      if (sec && !h.owner) {
+        var vo = findFirst(sec, 'videoOwnerRenderer');
+        if (vo) h.owner = txt(vo.title);
+      }
+      // newer layout
+      var pv = findFirst(j, 'pageHeaderViewModel');
+      if (pv) {
+        var cm = pv.metadata && pv.metadata.contentMetadataViewModel;
+        ((cm && cm.metadataRows) || []).forEach(function (row) {
+          (row.metadataParts || []).forEach(function (part) {
+            var av = part.avatarStack && part.avatarStack.avatarStackViewModel;
+            if (av) { if (!h.owner) h.owner = txt(av.text); }
+            else classify(txt(part.text));
+          });
+        });
+        if (!h.thumb) h.thumb = firstImage(pv.heroImage);
+      }
+      h.owner = (h.owner || '').replace(/^by\s+/i, '').trim();
+    } catch (e) { /* the header is a nicety: the videos below must still load */ }
+    return h;
+  }
+
+  /** Playlist page: header title + facts + videos. */
   function parsePlaylist(j) {
     var title = (j.metadata && j.metadata.playlistMetadataRenderer && j.metadata.playlistMetadataRenderer.title) || '';
     var list = parseItems(j, j.contents || j.onResponseReceivedActions || j);
-    return { title: title, items: list.items.filter(function (i) { return i.t === 'v'; }), next: list.next };
+    var h = parsePlaylistHeader(j);
+    return {
+      title: title, owner: h.owner, thumb: h.thumb, count: h.count, views: h.views, updated: h.updated,
+      items: list.items.filter(function (i) { return i.t === 'v'; }), next: list.next
+    };
   }
 
   function parseAccount(j) {

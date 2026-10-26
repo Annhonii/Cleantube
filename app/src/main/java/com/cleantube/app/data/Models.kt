@@ -40,7 +40,10 @@ data class PlaylistItem(
     val channelTitle: String = "",
     val thumb: String = "",
     val count: Int = -1,
-    val countText: String = ""
+    val countText: String = "",
+    /** Only filled for a playlist's own page ("76 views", "Updated today"); empty in lists. */
+    val viewsText: String = "",
+    val updatedText: String = ""
 )
 
 data class Comment(

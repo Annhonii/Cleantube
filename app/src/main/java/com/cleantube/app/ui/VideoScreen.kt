@@ -211,8 +211,11 @@ fun VideoScreen(route: Route.Video) {
             else Api.related(token)
         }
     }
-    // the player's "next" button plays the first Up next video
-    LaunchedEffect(details) { VideoHost.nextItem = details?.related?.firstOrNull { it.id != route.id && !it.isShortLike() } }
+    // the player's "next" button plays the next video of the playlist being played, otherwise the first Up next video
+    LaunchedEffect(details) {
+        VideoHost.nextItem = VideoHost.queueNext(route.id)
+            ?: details?.related?.firstOrNull { it.id != route.id && !it.isShortLike() }
+    }
     val comments = remember(route.id) {
         Paged(scope) { token -> Api.comments(route.id, token) }
     }
