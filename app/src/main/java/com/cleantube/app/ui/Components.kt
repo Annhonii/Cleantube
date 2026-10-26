@@ -650,7 +650,6 @@ fun PlaylistRow(
 
 @Composable
 fun SaveToPlaylistDialog(video: VideoItem, onDismiss: () -> Unit) {
-    val store = Graph.store
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var newName by remember { mutableStateOf("") }
@@ -659,47 +658,15 @@ fun SaveToPlaylistDialog(video: VideoItem, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color.Black,
-        title = { Text("Save to playlist", color = Color.White) },
+        title = { Text("Create YouTube playlist", color = Color.White) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                store.playlists.forEachIndexed { index, p ->
-                    val inList = p.videos.any { it.id == video.id }
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable { store.toggleInPlaylist(p.id, video) }
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = inList,
-                            onCheckedChange = { store.toggleInPlaylist(p.id, video) },
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = Accent,
-                                uncheckedColor = Color.LightGray,
-                                checkmarkColor = Color.Black
-                            )
-                        )
-                        Text(p.name, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    if (index < store.playlists.lastIndex) {
-                        Box(Modifier.fillMaxWidth().padding(start = 12.dp).height(1.dp).background(Color(0xFF303030)))
-                    }
-                }
-                Spacer(Modifier.size(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PillTextField(newName, { newName = it }, "New local playlist", Modifier.weight(1f))
-                    Pill(
-                        "Add locally",
-                        onClick = {
-                            if (newName.isNotBlank()) {
-                                store.createPlaylist(newName.trim(), video)
-                                newName = ""
-                            }
-                        },
-                        active = true
-                    )
-                }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "The playlist will be saved to your signed-in YouTube account and appear in the official YouTube app.",
+                    color = Color(0xFFBDBDBD),
+                    fontSize = 13.sp
+                )
+                PillTextField(newName, { newName = it }, "Playlist name", Modifier.fillMaxWidth())
                 Pill(
                     if (creatingYouTube) "Creating on YouTube…" else "Create on YouTube",
                     onClick = {
