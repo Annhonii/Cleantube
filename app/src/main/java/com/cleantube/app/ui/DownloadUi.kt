@@ -562,17 +562,15 @@ private class CardPalette(
 
 @Composable
 private fun rememberCardPalette(videoId: String): CardPalette {
-    val s = rememberThumbScheme(videoId)
-    val spec = tween<Color>(500)
-    @Composable fun a(c: Color) = animateColorAsState(c, spec, label = "dlCard").value
+    // Keep download rows neutral; thumbnail-derived colours made each row look inconsistent.
     return CardPalette(
-        container = a(s?.surfaceContainerHigh ?: Card),
-        onContainer = a(s?.onSurface ?: TextPrimary),
-        muted = a(s?.onSurfaceVariant ?: TextMuted),
-        primary = a(s?.primary ?: Accent),
-        track = a(s?.secondaryContainer ?: SecondaryContainer),
-        badge = a(s?.primaryContainer ?: SecondaryContainer),
-        onBadge = a(s?.onPrimaryContainer ?: OnSecondaryContainer)
+        container = Card,
+        onContainer = TextPrimary,
+        muted = TextMuted,
+        primary = Accent,
+        track = SecondaryContainer,
+        badge = SecondaryContainer,
+        onBadge = OnSecondaryContainer
     )
 }
 
