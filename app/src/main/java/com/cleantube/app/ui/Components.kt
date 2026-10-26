@@ -612,9 +612,9 @@ fun PlaylistRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 5.dp)
+            .padding(horizontal = 12.dp)
             .bouncyClickable(pressedScale = 0.97f, onClick = onClick)
-            .clip(RoundedCornerShape(24.dp))
+            .clip(shape)
             .background(Card)
             .padding(10.dp),
         verticalAlignment = Alignment.Top
