@@ -649,25 +649,32 @@ fun SaveToPlaylistDialog(video: VideoItem, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Card,
-        title = { Text("Save to playlist") },
+        containerColor = Color.Black,
+        title = { Text("Save to playlist", color = Color.White) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                store.playlists.forEach { p ->
+                store.playlists.forEachIndexed { index, p ->
                     val inList = p.videos.any { it.id == video.id }
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable { store.toggleInPlaylist(p.id, video) },
+                            .clickable { store.toggleInPlaylist(p.id, video) }
+                            .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Checkbox(
                             checked = inList,
                             onCheckedChange = { store.toggleInPlaylist(p.id, video) },
-                            colors = CheckboxDefaults.colors(checkedColor = Accent)
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = Accent,
+                                uncheckedColor = Color.LightGray,
+                                checkmarkColor = Color.Black
+                            )
                         )
-                        Text(p.name, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(p.name, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (index < store.playlists.lastIndex) {
+                        Box(Modifier.fillMaxWidth().padding(start = 12.dp).height(1.dp).background(Color(0xFF303030)))
                     }
                 }
                 Spacer(Modifier.size(6.dp))
@@ -686,7 +693,7 @@ fun SaveToPlaylistDialog(video: VideoItem, onDismiss: () -> Unit) {
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done", color = TextPrimary) } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done", color = Color.White) } }
     )
 }
 
