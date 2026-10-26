@@ -210,7 +210,8 @@ private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit, onBac
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (subscribed) {
+            if (subscribed && !com.cleantube.app.data.Session.loggedIn) {
+                // signed out only: signed in, the bell on YouTube itself decides (the app reads the same inbox)
                 // YouTube-style bell: tap to get a notification for this channel's new videos
                 val belled = store.isBelled(ch.id)
                 Box(

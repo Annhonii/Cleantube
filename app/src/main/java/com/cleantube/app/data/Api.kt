@@ -133,7 +133,29 @@ object Api {
             Reco.homePage(token)?.let { return it }
             if (token != null) return Page(emptyList(), null)
         }
-        return videosPage(Yt.run("home", args("token" to token)), dropShorts = true)
+        val p = videosPage(Yt.run("home", args("token" to token)), dropShorts = true)
+        return if (Graph.store.officialReco) Page(spreadChannels(p.items, first = token == null), p.next) else p
+    }
+
+    private val recentHomeChannelIds = ArrayDeque<String>()
+
+    /**
+     * YouTube's feed sometimes puts several videos of one channel together. Keep the order, but show a channel only once
+     * per page and not again within the last 12 channels shown. (If that would leave a tiny page, the dropped ones refill it.)
+     */
+    private fun spreadChannels(list: List<VideoItem>, first: Boolean): List<VideoItem> = synchronized(recentHomeChannelIds) {
+        if (first) recentHomeChannelIds.clear()
+        val used = HashSet<String>()
+        val kept = ArrayList<VideoItem>()
+        val dropped = ArrayList<VideoItem>()
+        for (v in list) {
+            val ch = v.channelId.ifEmpty { v.channelTitle }
+            if (ch.isNotEmpty() && (ch in used || ch in recentHomeChannelIds)) dropped += v else { kept += v; if (ch.isNotEmpty()) used += ch }
+        }
+        if (kept.size < 5) dropped.take(5 - kept.size).forEach { kept += it }
+        kept.forEach { v -> v.channelId.ifEmpty { v.channelTitle }.takeIf { it.isNotEmpty() }?.let { recentHomeChannelIds.addLast(it) } }
+        while (recentHomeChannelIds.size > 12) recentHomeChannelIds.removeFirst()
+        kept
     }
 
     /** Trending tab: YouTube has no trending feed any more, so this is a search for what is popular today (no Shorts). */

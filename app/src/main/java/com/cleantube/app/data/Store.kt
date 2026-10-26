@@ -221,6 +221,23 @@ class Store(context: Context) {
             sp.edit().putLong("alerts_last_run", value).apply()
         }
 
+    /** Ids of YouTube inbox notifications already shown as a phone notification (null = never checked: first run only records). */
+    fun seenInbox(): MutableSet<String>? {
+        val raw = sp.getString("alerts_inbox_seen", null) ?: return null
+        return try {
+            val a = JSONArray(raw)
+            (0 until a.length()).mapTo(LinkedHashSet()) { a.optString(it) }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun saveSeenInbox(ids: Collection<String>) {
+        val a = JSONArray()
+        ids.toList().takeLast(300).forEach { a.put(it) }
+        sp.edit().putString("alerts_inbox_seen", a.toString()).apply()
+    }
+
     private val bellState = mutableStateOf(readStrings("bells").toSet())
     val bellIds: Set<String> get() = bellState.value
 

@@ -40,7 +40,8 @@ object UploadAlerts {
     fun sync(ctx: Context, replace: Boolean = true) {
         val wm = WorkManager.getInstance(ctx.applicationContext)
         val store = Graph.store
-        if (!store.alertsEnabled || store.bellIds.isEmpty()) {
+        // signed in: the official YouTube bell decides (its inbox is read); signed out: the bells set in the app
+        if (!store.alertsEnabled || (!Session.loggedIn && store.bellIds.isEmpty())) {
             wm.cancelUniqueWork(WORK)
             return
         }
@@ -79,6 +80,7 @@ class ChannelCheckWorker(ctx: Context, params: WorkerParameters) : CoroutineWork
     override suspend fun doWork(): Result {
         val store = Graph.store
         if (!store.alertsEnabled) return Result.success()
+        if (Session.loggedIn) return checkInbox()
         val channels = store.subscriptions.filter { store.isBelled(it.id) }
         var failed = 0
         for (ch in channels) {
@@ -100,6 +102,59 @@ class ChannelCheckWorker(ctx: Context, params: WorkerParameters) : CoroutineWork
         store.lastAlertCheck = System.currentTimeMillis()
         // every channel failing usually means no real connection: let WorkManager try again soon
         return if (channels.isNotEmpty() && failed == channels.size) Result.retry() else Result.success()
+    }
+
+    /**
+     * Signed in: YouTube already decides which channels notify (the bell on its own channel page), so the app reads the
+     * same notification inbox as the Notification screen and shows the new uploads / live streams as phone notifications.
+     */
+    private suspend fun checkInbox(): Result {
+        val store = Graph.store
+        val items = try {
+            Api.notifications(null).items
+        } catch (e: Exception) {
+            return Result.retry()
+        }
+        val seen = store.seenInbox()
+        val videos = items.filter { it.kind == "upload" || it.kind == "live" || it.kind == "premiere" }
+        if (seen != null) {
+            videos.filter { it.id !in seen }.take(8).forEach { notifyInbox(it) }
+        }
+        // first run only records what is already there, so old notifications never flood the phone
+        val all = (seen ?: LinkedHashSet()).also { s -> videos.forEach { s.add(it.id) } }
+        store.saveSeenInbox(all)
+        store.lastAlertCheck = System.currentTimeMillis()
+        return Result.success()
+    }
+
+    private fun notifyInbox(n: NotificationItem) {
+        val ctx = applicationContext
+        if (!NotificationManagerCompat.from(ctx).areNotificationsEnabled()) return
+        UploadAlerts.ensureChannel(ctx)
+        val url = when {
+            n.videoId.isNotEmpty() -> "https://www.youtube.com/watch?v=${n.videoId}"
+            n.channelId.isNotEmpty() -> "https://www.youtube.com/channel/${n.channelId}"
+            else -> null
+        }
+        val open = Intent(ctx, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        if (url != null) open.setAction(Intent.ACTION_VIEW).setData(Uri.parse(url))
+        val pi = PendingIntent.getActivity(
+            ctx, n.id.hashCode(), open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val b = NotificationCompat.Builder(ctx, UploadAlerts.CHANNEL)
+            .setSmallIcon(com.cleantube.app.R.drawable.ic_launcher_monochrome)
+            .setContentTitle(if (n.kind == "live") "Live now" else "New video")
+            .setContentText(n.message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(n.message))
+            .setAutoCancel(true)
+            .setGroup("uploads")
+            .setContentIntent(pi)
+        try {
+            NotificationManagerCompat.from(ctx).notify(3000 + (n.id.hashCode() and 0xFFFFF), b.build())
+        } catch (e: SecurityException) {
+            // permission revoked
+        }
     }
 
     private suspend fun fetch(channelId: String): List<Upload> = withContext(Dispatchers.IO) {

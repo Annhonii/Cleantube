@@ -553,7 +553,10 @@ fun SettingsScreen() {
                                 com.cleantube.app.data.UploadAlerts.sync(ctxN)
                             })
                         }
-                        Text(
+                        if (com.cleantube.app.data.Session.loggedIn) Text(
+                            "Signed in: the app uses the notification bell you set on YouTube itself (official app or website). Every new upload or live stream YouTube notifies you about also shows up as a phone notification here. Nothing to set per channel.",
+                            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
+                        ) else Text(
                             "Tap the bell next to Subscribe on a channel. In the background the app then looks for new videos from those channels and shows a notification, like NewPipe does. No account needed.",
                             color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
                         )
@@ -571,15 +574,15 @@ fun SettingsScreen() {
                             color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
                         )
                         Text(
-                            "Channels with bell on: $belled" + if (store.lastAlertCheck > 0)
-                                "\nLast checked: " + android.text.format.DateUtils.getRelativeTimeSpanString(
+                            (if (com.cleantube.app.data.Session.loggedIn) "" else "Channels with bell on: $belled\n") + if (store.lastAlertCheck > 0)
+                                "Last checked: " + android.text.format.DateUtils.getRelativeTimeSpanString(
                                     store.lastAlertCheck, System.currentTimeMillis(), android.text.format.DateUtils.MINUTE_IN_MILLIS
-                                ) else "\nNot checked yet",
+                                ) else "Not checked yet",
                             color = TextPrimary, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp)
                         )
                         Pill("Check now", onClick = {
                             com.cleantube.app.data.UploadAlerts.checkNow(ctxN)
-                            Toast.makeText(ctxN, if (belled == 0) "No channel has the bell on yet" else "Checking…", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(ctxN, if (belled == 0 && !com.cleantube.app.data.Session.loggedIn) "No channel has the bell on yet" else "Checking…", Toast.LENGTH_SHORT).show()
                         }, modifier = Modifier.fillMaxWidth())
                     }
                 }
