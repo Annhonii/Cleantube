@@ -192,6 +192,37 @@ class Store(context: Context) {
             sp.edit().putString("app_font", value).apply()
         }
 
+    // ---------------------------------------------------------------- "Not interested"
+
+    private val hiddenVideos = readStrings("hidden_videos").toMutableSet()
+    private val blockedChannels = readStrings("blocked_channels").toMutableSet()
+
+    private fun saveSet(name: String, set: Set<String>) {
+        val a = JSONArray()
+        set.toList().takeLast(3000).forEach { a.put(it) }
+        sp.edit().putString(name, a.toString()).apply()
+    }
+
+    private fun channelKey(v: VideoItem) = v.channelId.ifEmpty { v.channelTitle }
+
+    /** "Don't like this video": it never shows up in Home / Shorts again. */
+    fun hideVideo(id: String) {
+        synchronized(hiddenVideos) { hiddenVideos.add(id); saveSet("hidden_videos", hiddenVideos) }
+    }
+
+    /** "Don't recommend this channel": none of its videos show up in Home / Shorts again. */
+    fun blockChannel(v: VideoItem) {
+        val k = channelKey(v)
+        if (k.isEmpty()) return
+        synchronized(blockedChannels) { blockedChannels.add(k); saveSet("blocked_channels", blockedChannels) }
+    }
+
+    fun isHidden(v: VideoItem): Boolean {
+        if (synchronized(hiddenVideos) { v.id in hiddenVideos }) return true
+        val k = channelKey(v)
+        return k.isNotEmpty() && synchronized(blockedChannels) { k in blockedChannels || v.channelTitle in blockedChannels }
+    }
+
     // ---------------------------------------------------------------- new-upload alerts (bell icon)
 
     private val alertsOnState = mutableStateOf(sp.getBoolean("alerts_on", true))

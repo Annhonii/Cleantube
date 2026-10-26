@@ -79,6 +79,11 @@ class Paged<T>(
     private fun dedupe(list: List<T>): List<T> =
         list.distinctBy { if (it is VideoItem) it.id else it }
 
+    /** Takes items out of the list right away (e.g. "Not interested"). */
+    fun removeWhere(pred: (T) -> Boolean) {
+        items = items.filterNot(pred)
+    }
+
     /** Puts one item at the top of the list (e.g. a comment that was just posted). */
     fun prepend(item: T) {
         items = listOf(item) + items

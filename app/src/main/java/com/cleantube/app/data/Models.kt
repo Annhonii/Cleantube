@@ -17,7 +17,10 @@ data class VideoItem(
     val ageText: String = "",
     val short: Boolean = false,
     /** Channel logo when the feed carried it (empty otherwise; the UI then looks it up). */
-    val channelThumb: String = ""
+    val channelThumb: String = "",
+    /** YouTube feedback tokens from the feed menu: "Not interested" / "Don't recommend channel" (empty when none). */
+    val notInterestedToken: String = "",
+    val dontRecommendChannelToken: String = ""
 ) {
     val thumb: String get() = "https://i.ytimg.com/vi/$id/mqdefault.jpg"
 }

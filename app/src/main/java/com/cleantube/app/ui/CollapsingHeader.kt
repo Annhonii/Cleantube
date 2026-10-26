@@ -519,7 +519,7 @@ private fun NavRow(
                             .bouncyClickable(pressedScale = 0.94f, onClick = { if (nav.current != t.route) nav.selectTab(t.route) }),
                         contentAlignment = Alignment.Center
                     ) {
-                        // full-size labels (never shrunk); a slightly smaller icon and gap make "Subscription" fit its cell
+                        // full-size labels (never shrunk); all three labels are short enough for their equal cells
                         Row(
                             Modifier.wrapContentWidth(unbounded = true),
                             verticalAlignment = Alignment.CenterVertically

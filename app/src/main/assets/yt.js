@@ -234,6 +234,31 @@
     return tok;
   }
 
+  /**
+   * The "Not interested" / "Don't recommend channel" feedback tokens in a feed entry's menu (classic menu or the newer
+   * list-item sheet). Sent to YouTube's feedback endpoint they teach its recommender, exactly like the official app.
+   */
+  function attachFeedback(it, node) {
+    if (!it || it.t !== 'v') return;
+    walk(node, function (x) {
+      var label = '', token = '', icon = '';
+      if (x.menuServiceItemRenderer) {
+        var m = x.menuServiceItemRenderer;
+        label = txt(m.text); icon = (m.icon && m.icon.iconType) || '';
+        token = findFirst(m.serviceEndpoint || m, 'feedbackToken') || '';
+      } else if (x.listItemViewModel) {
+        var l = x.listItemViewModel;
+        label = txt(l.title);
+        token = findFirst(l, 'feedbackToken') || '';
+      } else return false;
+      if (typeof token === 'string' && token) {
+        if (/not interested/i.test(label) || icon === 'NOT_INTERESTED') { if (!it.ni) it.ni = token; }
+        else if (/(don.?t|do not) recommend|channel/i.test(label) && /recommend/i.test(label) || icon === 'REMOVE_CIRCLE') { if (!it.nc) it.nc = token; }
+      }
+      return true;
+    });
+  }
+
   /** Every video / channel / playlist in a response, in document order, plus the next page token. */
   function parseItems(json, scope) {
     var items = [], seen = {};
@@ -253,6 +278,7 @@
       else if (x.gridPlaylistRenderer) it = parsePlaylistRenderer(x.gridPlaylistRenderer);
       else return false;
       if (it) {
+        attachFeedback(it, x);
         var key = it.t + ':' + it.id;
         if (!seen[key]) { seen[key] = 1; items.push(it); }
       }
@@ -935,6 +961,11 @@
     },
     comments: async function (a) { return parseComments(await call('next', { continuation: a.token })); },
     account: async function () { return parseAccount(await call('account/account_menu', {})); },
+    /** Sends a feedback token ("Not interested" / "Don't recommend channel") to YouTube. */
+    feedback: async function (a) {
+      await call('feedback', { feedbackTokens: [a.token], isFeedbackTokenUnencrypted: false, shouldMerge: false });
+      return { ok: true };
+    },
     subscribe: async function (a) {
       await call(a.on ? 'subscription/subscribe' : 'subscription/unsubscribe',
                  a.on ? { channelIds: [a.id], params: 'EgIIAhgA' } : { channelIds: [a.id] });

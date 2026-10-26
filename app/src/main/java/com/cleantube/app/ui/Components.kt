@@ -354,11 +354,14 @@ fun VideoRow(
     v: VideoItem,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onRemove: (() -> Unit)? = null
+    onRemove: (() -> Unit)? = null,
+    /** Home feed only: "Not interested" -> true = don't recommend this channel, false = don't like this video. */
+    onNotInterested: ((Boolean) -> Unit)? = null
 ) {
     val nav = LocalNav.current
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
+    var notInterestedOpen by remember { mutableStateOf(false) }
     var saveDialog by remember { mutableStateOf(false) }
     // the channel logo: from the feed when it has it, otherwise looked up once per channel
     val avatar by produceState(ChannelAvatars.known(v.channelId, v.channelThumb), v.channelId, v.channelThumb) {
@@ -451,26 +454,43 @@ fun VideoRow(
                 IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = TextMuted)
                 }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Save to playlist") },
-                        onClick = { menu = false; saveDialog = true }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Share") },
-                        onClick = { menu = false; shareVideo(ctx, v.id) }
-                    )
-                    if (v.channelId.isNotEmpty()) {
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false; notInterestedOpen = false }) {
+                    if (notInterestedOpen) {
                         DropdownMenuItem(
-                            text = { Text("Go to channel") },
-                            onClick = { menu = false; nav.push(Route.Channel(v.channelId)) }
+                            text = { Text("Don't like this video") },
+                            onClick = { menu = false; notInterestedOpen = false; onNotInterested?.invoke(false) }
                         )
-                    }
-                    if (onRemove != null) {
                         DropdownMenuItem(
-                            text = { Text("Remove") },
-                            onClick = { menu = false; onRemove() }
+                            text = { Text("Don't recommend this channel") },
+                            onClick = { menu = false; notInterestedOpen = false; onNotInterested?.invoke(true) }
                         )
+                    } else {
+                        DropdownMenuItem(
+                            text = { Text("Save to playlist") },
+                            onClick = { menu = false; saveDialog = true }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Share") },
+                            onClick = { menu = false; shareVideo(ctx, v.id) }
+                        )
+                        if (v.channelId.isNotEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("Go to channel") },
+                                onClick = { menu = false; nav.push(Route.Channel(v.channelId)) }
+                            )
+                        }
+                        if (onNotInterested != null) {
+                            DropdownMenuItem(
+                                text = { Text("Not interested") },
+                                onClick = { notInterestedOpen = true }
+                            )
+                        }
+                        if (onRemove != null) {
+                            DropdownMenuItem(
+                                text = { Text("Remove") },
+                                onClick = { menu = false; onRemove() }
+                            )
+                        }
                     }
                 }
             }

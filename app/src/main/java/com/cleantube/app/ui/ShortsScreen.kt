@@ -269,7 +269,8 @@ fun ShortsScreen() {
                     // never again: Shorts already watched here, in this app's history or in the account's history
                     val fresh = page.items.filter {
                         !Graph.store.isShortSeen(it.id) && !Graph.store.isInHistory(it.id) &&
-                            !com.cleantube.app.data.Reco.isWatched(it.id)
+                            !com.cleantube.app.data.Reco.isWatched(it.id) &&
+                            !com.cleantube.app.data.Graph.store.isHidden(it)
                     }
                     result = Page(fresh, page.next)
                     tries++
@@ -542,7 +543,10 @@ private fun cleanShortTitle(t: String): String {
     val link = s.startsWith("http", ignoreCase = true) || s.startsWith("//") ||
         s.contains("ytimg.com") || s.contains("googleusercontent") || s.contains("ggpht") ||
         (!s.contains(' ') && s.contains('/') && s.contains('.'))
-    return if (link) "" else s
+    // credit lines creators put in the title ("img source: ...", "photo credit ...") are not a title
+    val credit = Regex("^(img|image|photo|pic|picture|video|clip)s?\\s*(source|credit|courtesy|from|by)\\b|^(source|credit|courtesy)\\s*[:\\-]", RegexOption.IGNORE_CASE)
+        .containsMatchIn(s)
+    return if (link || credit) "" else s
 }
 
 private fun captionText(text: String): AnnotatedString = buildAnnotatedString {

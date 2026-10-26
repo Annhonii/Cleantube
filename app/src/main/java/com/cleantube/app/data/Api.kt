@@ -29,7 +29,9 @@ object Api {
         viewsText = optString("views"),
         ageText = optString("age"),
         short = optBoolean("short"),
-        channelThumb = optString("chThumb")
+        channelThumb = optString("chThumb"),
+        notInterestedToken = optString("ni"),
+        dontRecommendChannelToken = optString("nc")
     )
 
     private fun JSONObject.channelItem(): ChannelItem = ChannelItem(
@@ -130,11 +132,12 @@ object Api {
         // Default: YouTube's own Home feed. With "official recommendations" off, the app's own engine (Reco) ranks on the phone.
         // With no subscriptions at all there is nothing to learn from yet, so YouTube's own feed is shown instead.
         if (!Graph.store.officialReco) if (token == null || token.startsWith("L:")) {
-            Reco.homePage(token)?.let { return it }
+            Reco.homePage(token)?.let { return Page(it.items.filter { v -> !Graph.store.isHidden(v) }, it.next) }
             if (token != null) return Page(emptyList(), null)
         }
         val p = videosPage(Yt.run("home", args("token" to token)), dropShorts = true)
-        return if (Graph.store.officialReco) Page(spreadChannels(p.items, first = token == null), p.next) else p
+        val clean = p.items.filter { !Graph.store.isHidden(it) }
+        return if (Graph.store.officialReco) Page(spreadChannels(clean, first = token == null), p.next) else Page(clean, p.next)
     }
 
     private val recentHomeChannelIds = ArrayDeque<String>()
@@ -213,6 +216,18 @@ object Api {
             token = j.nextToken()
         } while (token != null && ++pages < 10)
         return out
+    }
+
+    /** Tells YouTube "Not interested" / "Don't recommend channel" with the token of a feed entry (best effort, signed-in only). */
+    suspend fun sendFeedback(token: String) {
+        if (token.isEmpty() || !Session.loggedIn) return
+        try {
+            Yt.run("feedback", args("token" to token))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // the local block below still applies
+        }
     }
 
     suspend fun subscribe(channelId: String, on: Boolean) {

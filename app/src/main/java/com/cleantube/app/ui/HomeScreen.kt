@@ -22,6 +22,7 @@ fun HomeScreen() {
     val nav = LocalNav.current
     val scope = rememberCoroutineScope()
     val loggedIn = Session.loggedIn
+    val ctx = androidx.compose.ui.platform.LocalContext.current
 
     // The header floats over the list: the feed starts below it and scrolls up underneath while it collapses.
     Box(Modifier.fillMaxSize()) {
@@ -33,7 +34,29 @@ fun HomeScreen() {
             contentPadding = PaddingValues(top = headerH + 12.dp, bottom = listBottomPad()),
             refreshIndicatorTop = headerH,
             itemCount = paged.items.size,
-            indexRow = { i -> paged.items.getOrNull(i)?.let { v -> VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) }) } }
+            indexRow = { i ->
+                paged.items.getOrNull(i)?.let { v ->
+                    VideoRow(
+                        v,
+                        onClick = { nav.push(Route.Video(v.id, v)) },
+                        onNotInterested = { channel ->
+                            // gone for good: never shown again here, and YouTube is told too, like in its own app
+                            val store = com.cleantube.app.data.Graph.store
+                            if (channel) store.blockChannel(v) else store.hideVideo(v.id)
+                            val token = if (channel) v.dontRecommendChannelToken else v.notInterestedToken
+                            if (token.isNotEmpty()) scope.launch { Api.sendFeedback(token) }
+                            paged.removeWhere { x ->
+                                if (channel) (x.channelId.ifEmpty { x.channelTitle }) == (v.channelId.ifEmpty { v.channelTitle }) else x.id == v.id
+                            }
+                            android.widget.Toast.makeText(
+                                ctx,
+                                if (channel) "Won't recommend ${v.channelTitle} again" else "Won't recommend this video again",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    )
+                }
+            }
         ) { }
         // the card itself is drawn once for the whole app (App.kt); this only tells it how far the feed is scrolled
         TrackHeaderScroll(paged.listState, Route.Home)
