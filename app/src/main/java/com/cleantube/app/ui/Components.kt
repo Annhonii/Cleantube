@@ -578,7 +578,7 @@ fun ChannelRow(c: ChannelItem, onClick: () -> Unit, trailing: (@Composable () ->
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
             .bouncyClickable(pressedScale = 0.97f, onClick = onClick)
-            .clip(shape)
+            .clip(RoundedCornerShape(24.dp))
             .background(Card)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
