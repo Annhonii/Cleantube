@@ -824,6 +824,11 @@ private fun DownloadRow(
                                         leadingIcon = { Icon(Icons.Rounded.PlayArrow, contentDescription = null) },
                                         onClick = { menu = false; play() }
                                     )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete", color = Danger) },
+                                        leadingIcon = { Icon(Icons.Outlined.DeleteOutline, contentDescription = null, tint = Danger) },
+                                        onClick = { menu = false; confirm = true }
+                                    )
                                     if (d.where == "app") {
                                         DropdownMenuItem(
                                             text = { Text("Save to storage") },
