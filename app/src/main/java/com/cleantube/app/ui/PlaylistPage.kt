@@ -1,6 +1,5 @@
 package com.cleantube.app.ui
 
-import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -40,10 +39,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -74,6 +71,7 @@ fun PlaylistScreen(route: Route.Playlist) {
     val scope = rememberCoroutineScope()
     var info by remember(route.id) { mutableStateOf<PlaylistItem?>(null) }
     var downloadAll by remember(route.id) { mutableStateOf(false) }
+    var savePlaylist by remember(route.id) { mutableStateOf(false) }
 
     LaunchedEffect(route.id) {
         try {
@@ -120,6 +118,7 @@ fun PlaylistScreen(route: Route.Playlist) {
                         },
                         onShare = { shareText(ctx, link) },
                         onDownloadAll = { downloadAll = true },
+                        onSavePlaylist = { savePlaylist = true },
                         onOpenYouTube = { openUrl(ctx, link) }
                     )
                 }
@@ -148,6 +147,7 @@ fun PlaylistScreen(route: Route.Playlist) {
     }
 
     if (downloadAll) PlaylistDownloadDialog(route.id, title) { downloadAll = false }
+    if (savePlaylist) SavePlaylistDialog(route.id, title) { savePlaylist = false }
 }
 
 @Composable
@@ -161,22 +161,12 @@ private fun PlaylistHeader(
     onPlayAll: () -> Unit,
     onShare: () -> Unit,
     onDownloadAll: () -> Unit,
+    onSavePlaylist: () -> Unit,
     onOpenYouTube: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
-    // the playlist's own cover when YouTube gave one, else the first video's picture
-    val backdrop = coverUrl.ifEmpty { if (firstVideoId.isNotEmpty()) "https://i.ytimg.com/vi/$firstVideoId/mqdefault.jpg" else "" }
-
+    // Keep the playlist header crisp; do not blur artwork behind the title.
     Box(Modifier.fillMaxWidth().background(HeaderBase)) {
-        // blur needs Android 12; below that the header is just the dark tint
-        if (backdrop.isNotEmpty() && Build.VERSION.SDK_INT >= 31) {
-            AppImage(backdrop, Modifier.matchParentSize().blur(40.dp), RectangleShape)
-        }
-        Box(
-            Modifier
-                .matchParentSize()
-                .background(Brush.verticalGradient(listOf(Color(0x80000000), Color(0x99000000), Bg)))
-        )
 
         Column(
             Modifier
@@ -237,6 +227,10 @@ private fun PlaylistHeader(
                 Box {
                     HeaderButton(Icons.Rounded.MoreVert, "More") { menu = true }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Save playlist") },
+                            onClick = { menu = false; onSavePlaylist() }
+                        )
                         DropdownMenuItem(
                             text = { Text("Download all") },
                             leadingIcon = { Icon(Icons.Rounded.Download, contentDescription = null) },
