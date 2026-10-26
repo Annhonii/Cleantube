@@ -3,6 +3,7 @@ package com.cleantube.app.ui
 import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,7 +42,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -57,6 +57,7 @@ import com.cleantube.app.data.Paged
 import com.cleantube.app.data.PlaylistItem
 import com.cleantube.app.data.VideoItem
 import com.cleantube.app.data.formatDuration
+import kotlinx.coroutines.launch
 
 private val HeaderBase = Color(0xFF30343C)
 private val OnHeader = Color.White
@@ -357,4 +358,83 @@ private fun PlaylistVideoRow(v: VideoItem, onClick: () -> Unit) {
     }
     if (save) SaveToPlaylistDialog(v) { save = false }
     if (download) DownloadDialog(v) { download = false }
+}
+
+
+/** Save every video in a YouTube playlist into one of CleanTube's local playlists. */
+@Composable
+private fun SavePlaylistDialog(playlistId: String, title: String, onDismiss: () -> Unit) {
+    val store = Graph.store
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var newName by remember(playlistId) { mutableStateOf(title) }
+    var saving by remember(playlistId) { mutableStateOf(false) }
+    var progress by remember(playlistId) { mutableStateOf(0) }
+
+    fun saveInto(targetId: String? = null, createName: String? = null) {
+        if (saving) return
+        saving = true
+        scope.launch {
+            try {
+                val videos = Api.allPlaylistVideos(playlistId) { progress = it }
+                if (videos.isEmpty()) {
+                    Toast.makeText(ctx, "No videos could be loaded from this playlist.", Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+                val destinationId = targetId ?: store.createPlaylist(createName.orEmpty()).id
+                store.addVideosToPlaylist(destinationId, videos)
+                Toast.makeText(ctx, "Saved ${videos.size} videos to playlist.", Toast.LENGTH_SHORT).show()
+                onDismiss()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Toast.makeText(ctx, "Couldn't save playlist: ${e.message ?: "try again"}", Toast.LENGTH_LONG).show()
+            } finally {
+                saving = false
+            }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = { if (!saving) onDismiss() },
+        containerColor = Card,
+        title = { Text("Save playlist") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    if (saving) "Loading and saving videos… $progress loaded" else "Choose an existing playlist or create a new one.",
+                    color = TextMuted,
+                    fontSize = 13.sp
+                )
+                store.playlists.forEach { playlist ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable(enabled = !saving) { saveInto(targetId = playlist.id) }
+                            .padding(horizontal = 8.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(playlist.name, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("${playlist.videos.size} videos", color = TextMuted, fontSize = 12.sp)
+                        }
+                        Text("Save", color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    }
+                }
+                Spacer(Modifier.size(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PillTextField(newName, { newName = it }, "New playlist name", Modifier.weight(1f))
+                    Pill(
+                        if (saving) "Saving…" else "Create",
+                        onClick = { if (newName.isNotBlank() && !saving) saveInto(createName = newName.trim()) },
+                        active = true
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss, enabled = !saving) { Text("Done", color = TextPrimary) }
+        }
+    )
 }

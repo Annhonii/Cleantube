@@ -447,6 +447,20 @@ class Store(context: Context) {
         save("playlists", playlists) { it.toJson() }
     }
 
+    /** Append a batch of videos without removing existing entries or introducing duplicates. */
+    fun addVideosToPlaylist(playlistId: String, videos: List<VideoItem>) {
+        if (videos.isEmpty()) return
+        playlists = playlists.map { p ->
+            if (p.id != playlistId) p
+            else {
+                val known = p.videos.mapTo(HashSet<String>()) { it.id }
+                val additions = videos.filter { it.id.isNotEmpty() && known.add(it.id) }
+                p.copy(videos = p.videos + additions)
+            }
+        }
+        save("playlists", playlists) { it.toJson() }
+    }
+
     fun deletePlaylist(id: String) {
         playlists = playlists.filter { it.id != id }
         save("playlists", playlists) { it.toJson() }
