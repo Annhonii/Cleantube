@@ -51,6 +51,7 @@ import com.cleantube.app.data.formatSpeed
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -618,6 +619,7 @@ private fun resolutionOf(d: DownloadItem): String =
     if (d.audioOnly) "" else Regex("\\d{3,4}p").find(d.label)?.value.orEmpty()
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun DownloadRow(
     d: DownloadItem,
     groupShape: RoundedCornerShape,
@@ -667,7 +669,7 @@ private fun DownloadRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .padding(horizontal = 12.dp, vertical = 2.dp)
             .combinedClickable(
                 onClick = { if (selectionMode) onToggleSelection() else if (done) play() },
                 onLongClick = onLongPress
