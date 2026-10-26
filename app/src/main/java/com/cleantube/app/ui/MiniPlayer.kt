@@ -119,6 +119,25 @@ object VideoHost {
     var prevItem by mutableStateOf<VideoItem?>(null)
     var nextItem by mutableStateOf<VideoItem?>(null)
 
+    /**
+     * The videos of the playlist that "Play all" (or a tap on one of its rows) started: the previous / next buttons
+     * walk through it. Opening any video that is not in it drops the queue.
+     */
+    var queue by mutableStateOf<List<VideoItem>>(emptyList())
+        private set
+
+    fun playQueue(list: List<VideoItem>, start: Int = 0) {
+        val first = list.getOrNull(start) ?: return
+        queue = list
+        open(first.id, first)
+    }
+
+    /** The video after [id] in the queue (null when there is no queue, or [id] is its last video). */
+    fun queueNext(id: String): VideoItem? {
+        val i = queue.indexOfFirst { it.id == id }
+        return if (i >= 0) queue.getOrNull(i + 1) else null
+    }
+
     /** 1 = full page, 0 = mini player card, below 0 = the card is being swiped away. */
     val p = Animatable(0f)
 
@@ -158,6 +177,14 @@ object VideoHost {
         }
         videoId = id
         seed = s
+        // inside the playlist queue: previous / next are the neighbours in the playlist; outside it: no queue any more
+        val qi = queue.indexOfFirst { it.id == id }
+        if (qi >= 0) {
+            prevItem = queue.getOrNull(qi - 1)
+            nextItem = queue.getOrNull(qi + 1)
+        } else {
+            queue = emptyList()
+        }
         openTick++
     }
 
@@ -170,6 +197,7 @@ object VideoHost {
         seed = null
         prevItem = null
         nextItem = null
+        queue = emptyList()
         title = ""
         channel = ""
         expanded = false

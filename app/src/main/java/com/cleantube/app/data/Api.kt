@@ -523,12 +523,37 @@ object Api {
         val j = Yt.run("playlist", args("id" to id))
         val t = j.optString("title")
         playlistTitles[id] = t
-        return PlaylistItem(id = id, title = t)
+        val count = j.optString("count")
+        return PlaylistItem(
+            id = id,
+            title = t,
+            channelTitle = j.optString("owner"),
+            thumb = j.optString("thumb"),
+            count = Regex("(\\d[\\d,]*)").find(count)?.value?.replace(",", "")?.toIntOrNull() ?: -1,
+            countText = count,
+            viewsText = j.optString("views"),
+            updatedText = j.optString("updated")
+        )
     }
 
     suspend fun playlistVideos(id: String, token: String?): Page<VideoItem> {
         val j = Yt.run("playlist", args("id" to id, "token" to token))
         return videosPage(j)
+    }
+
+    /** Every video of a playlist (all pages, repeats dropped), for "Download all". [onProgress] gets the running count. */
+    suspend fun allPlaylistVideos(id: String, onProgress: (Int) -> Unit = {}): List<VideoItem> {
+        val out = LinkedHashMap<String, VideoItem>()
+        var token: String? = null
+        var pages = 0
+        do {
+            val page = playlistVideos(id, token)
+            page.items.forEach { out.putIfAbsent(it.id, it) }
+            onProgress(out.size)
+            token = page.next
+            pages++
+        } while (token != null && pages < 200)
+        return out.values.toList()
     }
 
     // ---------------------------------------------------------------- local subscriptions feed (not signed in)

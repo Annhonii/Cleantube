@@ -324,32 +324,6 @@ private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit, onBac
     }
 }
 
-@Composable
-fun PlaylistScreen(route: Route.Playlist) {
-    val nav = LocalNav.current
-    val scope = rememberCoroutineScope()
-    var info by remember(route.id) { mutableStateOf<PlaylistItem?>(null) }
-
-    LaunchedEffect(route.id) {
-        try {
-            info = Api.playlist(route.id)
-        } catch (e: ApiException) {
-            // the title we already have is enough
-        }
-    }
-
-    val paged = remember(route.id) {
-        Paged<VideoItem>(scope) { token -> Api.playlistVideos(route.id, token) }
-    }
-
-    Column(Modifier.fillMaxSize()) {
-        ScreenTitle(info?.title ?: route.title.ifEmpty { "Playlist" }, onBack = { nav.back() })
-        PagedColumn(paged, emptyText = "This playlist is empty or private.") { v ->
-            VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
-        }
-    }
-}
-
 /** One post of a channel: author line, text, picture / shared video / poll options, counts. */
 @Composable
 private fun PostCard(post: Post) {

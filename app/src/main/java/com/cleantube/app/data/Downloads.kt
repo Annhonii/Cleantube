@@ -35,23 +35,29 @@ class DownloadItem(
     val id: String,
     val videoId: String,
     val title: String,
-    val label: String,
-    val ext: String,
-    val mime: String,
+    var label: String,
+    var ext: String,
+    var mime: String,
     val audioOnly: Boolean,
     val where: String,
     var url: String,
     var userAgent: String,
-    val size: Long,
+    var size: Long,
     var audioUrl: String = "",
-    val audioSize: Long = 0,
-    val merge: Boolean = false,
+    var audioSize: Long = 0,
+    var merge: Boolean = false,
     val threads: Int = 1,
     status: DlStatus = DlStatus.QUEUED,
     var location: String = "",
     bytes: Long = 0,
     var error: String = "",
-    var audioUserAgent: String = ""
+    var audioUserAgent: String = "",
+    /** Sub-folder (named after the playlist) inside Voidstream's folder; empty for a single video. */
+    val folder: String = "",
+    /** Playlist items are queued without links: this is the tallest picture wanted (0 = best) when they are looked up. */
+    val maxHeight: Int = 0,
+    /** Queue order: the lowest waiting number goes first. */
+    val seq: Long = Downloads.nextSeq()
 ) {
     var status by mutableStateOf(status)
     var progress by mutableFloatStateOf(0f)
@@ -84,7 +90,8 @@ object Downloads {
                 DownloadItem(
                     o.optString("id"), o.optString("vid"), o.optString("title"), o.optString("label"),
                     o.optString("ext"), o.optString("mime"), o.optBoolean("audio"), o.optString("where"),
-                    "", "", o.optLong("size"), "", 0, false, 1, DlStatus.DONE, o.optString("loc"), o.optLong("size")
+                    "", "", o.optLong("size"), "", 0, false, 1, DlStatus.DONE, o.optString("loc"), o.optLong("size"),
+                    folder = o.optString("folder")
                 ).also { it.progress = 1f }
             )
         }
@@ -96,10 +103,53 @@ object Downloads {
             a.put(
                 JSONObject().put("id", it.id).put("vid", it.videoId).put("title", it.title).put("label", it.label)
                     .put("ext", it.ext).put("mime", it.mime).put("audio", it.audioOnly).put("where", it.where)
-                    .put("size", it.bytes).put("loc", it.location).put("status", "DONE")
+                    .put("size", it.bytes).put("loc", it.location).put("status", "DONE").put("folder", it.folder)
             )
         }
         sp.edit().putString("items", a.toString()).apply()
+    }
+
+    private val seqCounter = AtomicLong(0)
+    fun nextSeq(): Long = seqCounter.incrementAndGet()
+
+    /** Folder name for a playlist: no characters a file system refuses, no ".." tricks, never empty. */
+    fun folderName(playlistTitle: String): String {
+        val cleaned = playlistTitle.replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"), "_")
+            .trim().trim('.', ' ').take(80).trim().trim('.')
+        return cleaned.ifEmpty { "Playlist" }
+    }
+
+    /**
+     * Queues every video of a playlist, saved in its own folder (Movies/Voidstream/<playlist>, or Music/ for audio).
+     * The download links are NOT looked up now: a long playlist takes hours and links expire, and asking YouTube for
+     * hundreds of videos at once gets the network blocked. Each item gets its link when its turn comes (see [run]).
+     * [maxHeight] 0 = best quality.
+     */
+    fun enqueuePlaylist(
+        context: Context, playlistTitle: String, videos: List<VideoItem>,
+        audioOnly: Boolean, maxHeight: Int, where: String, threads: Int
+    ) {
+        val folder = folderName(playlistTitle)
+        val label = when {
+            audioOnly -> "Audio only"
+            maxHeight > 0 -> "Up to ${maxHeight}p"
+            else -> "Best quality"
+        }
+        val made = videos.map { v ->
+            DownloadItem(
+                UUID.randomUUID().toString(), v.id, v.title.ifEmpty { v.id }, label,
+                if (audioOnly) "m4a" else "mp4", if (audioOnly) "audio/mp4" else "video/mp4", audioOnly, where,
+                "", "", -1, threads = threads.coerceIn(1, 32), folder = folder, maxHeight = maxHeight
+            )
+        }
+        items.addAll(0, made) // shown in playlist order; the first video has the lowest queue number
+        startService(context)
+    }
+
+    /** Drops every download that has not started yet (a big playlist is otherwise removed one by one). */
+    fun removeWaiting() {
+        items.removeAll { it.status == DlStatus.QUEUED }
+        save()
     }
 
     fun enqueue(context: Context, videoId: String, title: String, o: StreamOption, where: String, threads: Int) {
@@ -166,7 +216,9 @@ object Downloads {
         val usePhone = item.where == "phone"
         if (usePhone && Build.VERSION.SDK_INT >= 29) {
             val collection = if (item.audioOnly) MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-            val folder = (if (item.audioOnly) Environment.DIRECTORY_MUSIC else Environment.DIRECTORY_MOVIES) + "/Voidstream"
+            // a playlist gets its own sub-folder (Movies/Voidstream/<playlist>); a single video stays directly in Voidstream
+            val folder = (if (item.audioOnly) Environment.DIRECTORY_MUSIC else Environment.DIRECTORY_MOVIES) + "/Voidstream" +
+                (if (item.folder.isNotEmpty()) "/${item.folder}" else "")
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, name)
                 put(MediaStore.MediaColumns.MIME_TYPE, item.mime)
@@ -193,8 +245,9 @@ object Downloads {
         } else {
             File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "downloads")
         }
-        if (!dir.exists() && !dir.mkdirs()) throw java.io.IOException("Couldn't create the folder. Try \"In app\" storage.")
-        val f = File(dir, name)
+        val place = if (item.folder.isNotEmpty()) File(dir, item.folder) else dir
+        if (!place.exists() && !place.mkdirs()) throw java.io.IOException("Couldn't create the folder. Try \"In app\" storage.")
+        val f = File(place, name)
         return Target(f.outputStream(), f.absolutePath, finish = {}, abort = { f.delete() })
     }
 
@@ -413,6 +466,48 @@ object Downloads {
         }
     }
 
+    /** YouTube is refusing this network: stop asking for the links of the other waiting playlist items. */
+    private fun pauseWaiting(except: DownloadItem) {
+        items.filter { it !== except && it.status == DlStatus.QUEUED && it.url.isEmpty() }.forEach {
+            it.error = "Paused: YouTube is refusing this network right now. Tap Retry in a few minutes."
+            it.status = DlStatus.FAILED
+        }
+    }
+
+    /** Playlist items are queued without links; this finds them (and the real size / format) when the item's turn comes. */
+    private suspend fun resolveLinks(item: DownloadItem, onProgress: () -> Unit) {
+        item.phase = "Getting the link…"
+        onProgress()
+        val info = try {
+            Streams.fetch(item.videoId)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            val msg = e.message ?: "Couldn't get the download link."
+            if (Streams.isBlock(msg)) pauseWaiting(item)
+            throw java.io.IOException(msg)
+        }
+        if (item.cancelled) throw DlCancelled()
+        val o = if (item.audioOnly) info.options.firstOrNull { it.audioOnly }
+        else Playback.pick(info, if (item.maxHeight > 0) item.maxHeight else Int.MAX_VALUE)
+        if (o == null) {
+            throw java.io.IOException(
+                if (item.audioOnly) "YouTube offers no audio file for this video." else "YouTube offers no video file for this video."
+            )
+        }
+        item.label = o.label
+        item.ext = o.ext
+        item.mime = o.mime
+        item.size = o.size
+        item.url = o.url
+        item.userAgent = o.userAgent
+        item.audioUrl = o.audioUrl
+        item.audioSize = o.audioSize
+        item.audioUserAgent = o.audioUserAgent
+        item.merge = o.merge
+        item.phase = ""
+    }
+
     /** Asks the NewPipe engine for fresh links of the same quality (links expire or get refused). */
     private suspend fun refreshLinks(item: DownloadItem): Boolean = try {
         val info = Streams.fetch(item.videoId)
@@ -491,6 +586,7 @@ object Downloads {
         try {
             work.deleteRecursively()
             work.mkdirs()
+            if (item.url.isEmpty()) resolveLinks(item, onProgress) // playlist item: its turn has come
             var source: File
             try {
                 source = transfer(item, work, onProgress)

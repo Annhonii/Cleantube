@@ -45,7 +45,8 @@ class DownloadService : Service() {
         if (worker?.isActive != true) {
             worker = scope.launch {
                 while (true) {
-                    val next = Downloads.items.lastOrNull { it.status == DlStatus.QUEUED } ?: break
+                    // oldest first; a playlist is queued in its own order
+                    val next = Downloads.items.filter { it.status == DlStatus.QUEUED }.minByOrNull { it.seq } ?: break
                     Downloads.run(applicationContext, next) { notifyProgress(next) }
                     postResult(next)
                 }
