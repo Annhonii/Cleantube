@@ -1,5 +1,7 @@
 package com.cleantube.app.ui
 
+import android.widget.Toast
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -61,6 +63,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import kotlinx.coroutines.sync.withPermit
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.boundsInWindow
@@ -83,16 +86,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.cleantube.app.data.Api
 import com.cleantube.app.data.ApiException
 import com.cleantube.app.data.ChannelItem
 import com.cleantube.app.data.Graph
 import com.cleantube.app.data.Paged
 import com.cleantube.app.data.PlaylistItem
 import com.cleantube.app.data.Playback
+import com.cleantube.app.data.Session
 import com.cleantube.app.data.VideoItem
 import com.cleantube.app.data.formatCount
 import com.cleantube.app.data.formatDuration
 import com.cleantube.app.data.timeAgo
+import kotlinx.coroutines.launch
 
 // ------------------------------------------------------------------ basics
 
@@ -645,7 +651,10 @@ fun PlaylistRow(
 @Composable
 fun SaveToPlaylistDialog(video: VideoItem, onDismiss: () -> Unit) {
     val store = Graph.store
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
     var newName by remember { mutableStateOf("") }
+    var creatingYouTube by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -679,18 +688,47 @@ fun SaveToPlaylistDialog(video: VideoItem, onDismiss: () -> Unit) {
                 }
                 Spacer(Modifier.size(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PillTextField(newName, { newName = it }, "New playlist", Modifier.weight(1f))
+                    PillTextField(newName, { newName = it }, "New local playlist", Modifier.weight(1f))
                     Pill(
-                        "Add",
+                        "Add locally",
                         onClick = {
                             if (newName.isNotBlank()) {
-                                store.createPlaylist(newName, video)
+                                store.createPlaylist(newName.trim(), video)
                                 newName = ""
                             }
                         },
                         active = true
                     )
                 }
+                Pill(
+                    if (creatingYouTube) "Creating on YouTube…" else "Create on YouTube",
+                    onClick = {
+                        if (newName.isBlank() || creatingYouTube) {
+                            if (newName.isBlank()) Toast.makeText(ctx, "Enter a playlist name first.", Toast.LENGTH_SHORT).show()
+                        } else if (!Session.loggedIn) {
+                            Toast.makeText(ctx, "Sign in to your YouTube account first.", Toast.LENGTH_LONG).show()
+                        } else {
+                            val title = newName.trim()
+                            creatingYouTube = true
+                            scope.launch {
+                                try {
+                                    val id = Api.createYouTubePlaylist(title, video.id)
+                                    Toast.makeText(ctx, "Created on YouTube: $title", Toast.LENGTH_LONG).show()
+                                    newName = ""
+                                    onDismiss()
+                                } catch (e: kotlinx.coroutines.CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    Toast.makeText(ctx, "YouTube playlist failed: ${e.message ?: "try again"}", Toast.LENGTH_LONG).show()
+                                } finally {
+                                    creatingYouTube = false
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    active = false
+                )
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done", color = Color.White) } }
