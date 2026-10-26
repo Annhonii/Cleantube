@@ -361,12 +361,12 @@ private val IconBlue = Color(0xFF4A5D8E)
 private val IconGrey = Color(0xFF5A5F70)
 private val IconPurple = Color(0xFF6E5780)
 
-/** A group of rows: big rounded corners on the outside of the group, small ones between the rows. */
+/** A group of rows with rounded outside corners and square joined inner edges. */
 @Composable
 private fun SettingsGroup(items: List<SettingsItem>, onOpen: (SettingsPage) -> Unit) {
     Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
         items.forEachIndexed { i, it ->
-            val shape = groupedCardShape(i, items.size)
+            val shape = groupedCardShape(i, items.size, 28.dp)
             SettingsRow(it.icon, it.iconBg, it.page.title, it.subtitle, shape) { onOpen(it.page) }
         }
     }
