@@ -400,7 +400,7 @@ private fun SavePlaylistDialog(playlistId: String, title: String, onDismiss: () 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     if (saving) "Loading and saving videos… $progress loaded" else "Choose an existing playlist or create a new one.",
-                    color = TextMuted,
+                    color = Color(0xFFBDBDBD),
                     fontSize = 13.sp
                 )
                 store.playlists.forEachIndexed { index, playlist ->
