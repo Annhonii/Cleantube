@@ -22,6 +22,8 @@ import androidx.compose.material.icons.rounded.SaveAlt
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Slider
+import kotlin.math.roundToInt
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -158,11 +160,24 @@ fun DownloadDialog(video: VideoItem, onDone: () -> Unit) {
                             Pill("In app", onClick = { where = "app" }, active = where == "app")
                             Pill("Phone storage", onClick = { where = "phone" }, active = where == "phone")
                         }
-                        Text("Connections (threads)", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
-                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf(1, 4, 8, 16, 32).forEach { n ->
-                                Pill("$n", onClick = { threads = n }, active = threads == n)
-                            }
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Connections (threads)", color = TextMuted, fontSize = 12.sp)
+                            Text("$threads", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Slider(
+                            value = threads.toFloat(),
+                            onValueChange = { threads = it.roundToInt().coerceIn(1, 50) },
+                            valueRange = 1f..50f,
+                            steps = 48
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("1", color = TextMuted, fontSize = 11.sp)
+                            Text("25", color = TextMuted, fontSize = 11.sp)
+                            Text("50", color = TextMuted, fontSize = 11.sp)
                         }
                         Text(
                             if (where == "app") "Private to Voidstream, shown in its Downloads list. Removed if you uninstall the app."
