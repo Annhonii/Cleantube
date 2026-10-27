@@ -100,22 +100,22 @@ private fun dayLabel(ms: Long): String {
 }
 
 /**
- * Newest first. Per day: heading, then that day's Shorts as one shelf, then that day's long videos.
- * Neighbouring entries with the same heading are one day.
+ * All the Shorts of the history as ONE shelf at the very top (newest first), then the long videos day by day
+ * (heading, then that day's videos). Neighbouring entries with the same heading are one day.
  */
 private fun buildRows(entries: List<Pair<String, VideoItem>>): List<HistRow> {
     val out = ArrayList<HistRow>()
+    val shorts = entries.map { it.second }.filter { it.short }
+    if (shorts.isNotEmpty()) out += HistRow.Shelf(shorts, 0)
+    val longs = entries.filter { !it.second.short }
     var i = 0
     var n = 0
-    while (i < entries.size) {
-        val label = entries[i].first
+    while (i < longs.size) {
+        val label = longs[i].first
         var j = i
-        while (j < entries.size && entries[j].first == label) j++
-        val group = entries.subList(i, j).map { it.second }
+        while (j < longs.size && longs[j].first == label) j++
         out += HistRow.Day(label, n)
-        val shorts = group.filter { it.short }
-        if (shorts.isNotEmpty()) out += HistRow.Shelf(shorts, n)
-        group.filter { !it.short }.forEach { out += HistRow.Video(it) }
+        longs.subList(i, j).forEach { out += HistRow.Video(it.second) }
         n++
         i = j
     }
@@ -123,8 +123,8 @@ private fun buildRows(entries: List<Pair<String, VideoItem>>): List<HistRow> {
 }
 
 /**
- * Watch history like YouTube's: day by day (today first, then the days before). Each day shows its Shorts as a
- * shelf, then its videos. Signed in = your YouTube account's history, otherwise this app's own.
+ * Watch history like YouTube's: the Shorts as one shelf on top, then the videos day by day (today first, then the
+ * days before). Signed in = your YouTube account's history, otherwise this app's own.
  */
 @Composable
 fun HistoryScreen() {
@@ -299,7 +299,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.historyRows(
     }
 }
 
-/** The Shorts of one day: logo + "Shorts" title, then tall cards that scroll sideways. */
+/** The Shorts of the history: logo + "Shorts" title, then tall cards that scroll sideways. */
 @Composable
 private fun HistoryShortsShelf(shorts: List<VideoItem>, onOpen: (VideoItem) -> Unit, onRemove: (VideoItem) -> Unit) {
     val nav = LocalNav.current
