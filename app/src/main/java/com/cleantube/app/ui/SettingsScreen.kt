@@ -540,14 +540,14 @@ fun SettingsScreen() {
                                 .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
-                            Text("Check for new videos", color = TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                            Text(if (com.cleantube.app.data.Session.loggedIn) "Show YouTube notifications on this phone" else "Check for new videos", color = TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
                             Switch(checked = store.alertsEnabled, onCheckedChange = {
                                 store.alertsEnabled = it
                                 com.cleantube.app.data.UploadAlerts.sync(ctxN)
                             })
                         }
                         if (com.cleantube.app.data.Session.loggedIn) Text(
-                            "Signed in: the app uses the notification bell you set on YouTube itself (official app or website). Every new upload or live stream YouTube notifies you about also shows up as a phone notification here. Nothing to set per channel.",
+                            "Signed in: everything your YouTube notification bell shows (new uploads, live streams, premieres, comments, replies, mentions) is fetched from YouTube and shown as a phone notification here. The bell on a channel changes it on YouTube itself.",
                             color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp)
                         ) else Text(
                             "Tap the bell next to Subscribe on a channel. In the background the app then looks for new videos from those channels and shows a notification, like NewPipe does. No account needed.",

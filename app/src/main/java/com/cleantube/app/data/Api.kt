@@ -237,6 +237,18 @@ object Api {
         return Page(j.pick("n") { it.notification() }, j.nextToken())
     }
 
+    /** Signed in: sets the channel's bell on YouTube itself (All / None). Best effort; false when YouTube didn't take it. */
+    suspend fun setChannelBell(channelId: String, on: Boolean): Boolean {
+        if (!Session.loggedIn || channelId.isEmpty()) return false
+        return try {
+            Yt.run("channelNotify", args("id" to channelId, "on" to on)).optBoolean("ok")
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     /** The channels the signed-in account is subscribed to (up to ~10 pages). */
     suspend fun accountChannels(): List<ChannelItem> {
         val out = ArrayList<ChannelItem>()

@@ -1198,6 +1198,38 @@
       out.ok = (typeof out.playbackStatus === 'number' && out.playbackStatus < 300) || out.playbackStatus === 'sent-no-cors';
       return out;
     },
+    /**
+     * The bell of a subscribed channel on YouTube itself: a.on = true -> "All", false -> "None". Reads the options of the
+     * channel page's notification menu and sends the params of the matching one.
+     */
+    channelNotify: async function (a) {
+      var j = await call('browse', { browseId: a.id });
+      var want = a.on ? /^all$/i : /^none$/i, params = '';
+      walk(j, function (x) {
+        if (params) return true;
+        var e = x.modifyChannelNotificationPreferenceEndpoint;
+        if (e && e.params) {
+          var label = txt(x.title) || txt(x.text) || '';
+          if (!label && x.serviceItemRenderer) label = txt(x.serviceItemRenderer.text);
+          if (want.test(label.trim())) { params = e.params; return true; }
+        }
+        return false;
+      });
+      if (!params) {
+        // fall back: the menu items keep their label next to the endpoint
+        walk(j, function (x) {
+          if (params) return true;
+          var s = x.serviceItemRenderer;
+          if (s && s.serviceEndpoint && s.serviceEndpoint.modifyChannelNotificationPreferenceEndpoint && want.test(txt(s.text).trim())) {
+            params = s.serviceEndpoint.modifyChannelNotificationPreferenceEndpoint.params; return true;
+          }
+          return false;
+        });
+      }
+      if (!params) return { ok: false, error: 'no bell menu' };
+      await call('notification/modify_channel_preference', { params: params });
+      return { ok: true };
+    },
     /** YouTube's notification bell (signed-in only). a.token = continuation of the next page. */
     notifications: async function (a) {
       var body = a.token ? { ctoken: a.token } : { notificationsMenuRequestType: 'NOTIFICATIONS_MENU_REQUEST_TYPE_INBOX' };

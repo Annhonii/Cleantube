@@ -16,6 +16,7 @@ import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
@@ -157,6 +158,8 @@ internal fun SubscribedPill(ch: ChannelItem, compact: Boolean = false, bg: Color
         if (store.isBelled(ch.id) != on) store.toggleBell(ch.id)
         if (on && !store.alertsEnabled) store.alertsEnabled = true
         com.cleantube.app.data.UploadAlerts.sync(ctx)
+        // signed in: the bell is changed on YouTube itself, and its notifications arrive as phone notifications
+        if (com.cleantube.app.data.Session.loggedIn) scope.launch { com.cleantube.app.data.Api.setChannelBell(ch.id, on) }
         Toast.makeText(
             ctx,
             if (on) "You'll get notified about new videos from ${ch.title}" else "Notifications off for ${ch.title}",
