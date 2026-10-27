@@ -29,12 +29,6 @@ fun HomeScreen() {
     Box(Modifier.fillMaxSize()) {
         val paged = TabCache.paged("home:$loggedIn:${Session.handle}:${com.cleantube.app.data.Graph.store.officialReco}") { token -> Api.home(token) }
         val headerH = collapsingHeaderHeight(Route.Home)
-        // Shorts shelf after the first 3 videos: the same feed the Shorts tab shows, so a tapped Short opens there
-        val shorts = shortsFeed("")
-        androidx.compose.runtime.LaunchedEffect(shorts) { if (shorts.items.isEmpty() && !shorts.loading) shorts.refresh() }
-        val shelf = remember(shorts.items) { shorts.items.distinctBy { it.id }.take(4) }
-        val showShelf = shelf.size >= 2 && paged.items.isNotEmpty()
-        val shelfAt = minOf(3, paged.items.size)
         PagedColumn(
             paged = paged,
             emptyText = "Nothing to show right now. Pull down to retry, or check your connection.",
@@ -43,10 +37,9 @@ fun HomeScreen() {
             // Quick picks: newest unwatched videos of your subscribed channels, shown first on Home
             header = { item { Column { Spacer(Modifier.height(1.dp)); QuickPicksSection() } } },
             onRefresh = { QuickPicks.request(force = true) },
-            itemCount = paged.items.size + if (showShelf) 1 else 0,
+            itemCount = paged.items.size,
             indexRow = { i ->
-                if (showShelf && i == shelfAt) HomeShortsShelf(shelf)
-                else paged.items.getOrNull(if (showShelf && i > shelfAt) i - 1 else i)?.let { v ->
+                paged.items.getOrNull(i)?.let { v ->
                     VideoRow(
                         v,
                         onClick = { nav.push(Route.Video(v.id, v)) },
