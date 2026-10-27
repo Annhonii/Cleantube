@@ -66,8 +66,8 @@ private val OnHeader = Color.White
 private val OnHeaderMuted = Color(0xCCFFFFFF)
 
 /**
- * A playlist: a big cover with the title, owner and facts on a blurred backdrop, a Play all button with Share and a
- * three-dot menu (Download playlist, Open in YouTube), and the videos as compact rows below.
+ * A playlist: a big cover with the title, owner and facts on a plain grey-to-black gradient (no blur), a Play all
+ * button with Save, Share and a three-dot menu (Download playlist, Open in YouTube), and the videos as compact rows below.
  */
 @Composable
 fun PlaylistScreen(route: Route.Playlist) {
