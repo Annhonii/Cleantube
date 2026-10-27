@@ -448,7 +448,7 @@ private fun NavRow(
     var root by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     val pos = pagerPosition().coerceIn(0f, (n - 1).coerceAtLeast(0).toFloat())
     // text that never gets cut ("Library" in full): the label size ignores the phone's font scale
-    val labelSp = (13f / density.fontScale).sp
+    val labelSp = (15f / density.fontScale).sp
     val navH = NavH
 
     Box(Modifier.fillMaxSize().onGloballyPositioned { root = it.positionInWindow() }) {
