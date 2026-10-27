@@ -24,6 +24,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -52,6 +55,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,6 +79,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.cleantube.app.data.Api
+import com.cleantube.app.data.Comment
+import com.cleantube.app.data.Paged
 import com.cleantube.app.data.Post
 import com.cleantube.app.data.VideoItem
 
@@ -99,6 +107,28 @@ fun mixHome(videos: List<VideoItem>, posts: List<Post>): List<HomeEntry> {
         out += HomeEntry.Video(v)
         if ((i + 1) % POST_EVERY == 0 && next < posts.size) out += HomeEntry.PostEntry(posts[next++])
     }
+    return out
+}
+
+/**
+ * The New tab: the subscription videos (newest first) with the channels' posts slotted in by age. A post goes in front of
+ * the first video that is at least as old. While more videos can still load, posts older than the last loaded video wait,
+ * so rows already on screen never move when the next page arrives.
+ */
+fun mixFeedByTime(videos: List<VideoItem>, posts: List<Post>, finished: Boolean): List<HomeEntry> {
+    if (posts.isEmpty()) return videos.map { HomeEntry.Video(it) }
+    val limit = if (finished || videos.isEmpty()) Long.MAX_VALUE
+    else videos.last().let { com.cleantube.app.data.Api.ageMinutes(it.ageText) }
+    val pending = posts.map { it to com.cleantube.app.data.Api.ageMinutes(it.age) }
+        .filter { it.second <= limit }.sortedBy { it.second }
+    val out = ArrayList<HomeEntry>(videos.size + pending.size)
+    var next = 0
+    for (v in videos) {
+        val age = com.cleantube.app.data.Api.ageMinutes(v.ageText)
+        while (next < pending.size && pending[next].second <= age) out += HomeEntry.PostEntry(pending[next++].first)
+        out += HomeEntry.Video(v)
+    }
+    while (next < pending.size) out += HomeEntry.PostEntry(pending[next++].first)
     return out
 }
 
@@ -310,10 +340,26 @@ fun HomePostCard(post: Post, modifier: Modifier = Modifier) {
                         modifier = Modifier.padding(top = 12.dp).clip(RoundedCornerShape(16.dp)).background(Card).padding(14.dp).fillMaxWidth()
                     )
                 }
-                Text(
-                    "YouTube doesn't give the comments of a community post to apps, so they are read and written on YouTube.",
-                    color = TextMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 12.dp)
-                )
+                val scope = rememberCoroutineScope()
+                val thread = remember(post.id) { Paged<Comment>(scope) { t -> Api.postComments(post, t) } }
+                val listState = rememberLazyListState()
+                LaunchedEffect(thread) { if (thread.items.isEmpty() && !thread.loading) thread.loadMore() }
+                LoadMoreEffect(listState, thread)
+                when {
+                    thread.items.isNotEmpty() -> LazyColumn(
+                        state = listState,
+                        modifier = Modifier.padding(top = 12.dp).fillMaxWidth().heightIn(max = 380.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        items(thread.items.size) { i -> PostCommentRow(thread.items[i]) }
+                        if (thread.loading) item { Loading() }
+                    }
+                    thread.loading || (!thread.finished && thread.error == null) -> Loading()
+                    else -> Text(
+                        "No comments to show here. You can read and write them on YouTube.",
+                        color = TextMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 12.dp)
+                    )
+                }
                 Row(
                     Modifier
                         .padding(top = 16.dp)
@@ -329,6 +375,26 @@ fun HomePostCard(post: Post, modifier: Modifier = Modifier) {
                     Spacer(Modifier.width(8.dp))
                     Text("View comments on YouTube", color = OnAccent, style = MaterialTheme.typography.labelLarge)
                 }
+            }
+        }
+    }
+}
+
+/** One comment under a post: photo, name • time, text, likes. */
+@Composable
+private fun PostCommentRow(c: Comment) {
+    Row(Modifier.fillMaxWidth()) {
+        if (c.avatar.isNotEmpty()) AppImage(c.avatar, Modifier.size(32.dp), CircleShape)
+        else Box(Modifier.size(32.dp).clip(CircleShape).background(TertiaryContainer))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                listOf(c.author, c.publishedAt).filter { it.isNotEmpty() }.joinToString(" • "),
+                color = TextMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            Text(c.text, color = TextPrimary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
+            if (c.likesText.isNotEmpty()) {
+                Text("${c.likesText} likes", color = TextMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 2.dp))
             }
         }
     }

@@ -537,7 +537,27 @@ object Api {
                 video = it.optString("video"),
                 videoTitle = it.optString("videoTitle"),
                 poll = it.optString("poll"),
-                channelId = id
+                channelId = id,
+                commentsBrowseId = it.optString("cb"),
+                commentsParams = it.optString("cp")
+            )
+        }
+        return Page(list, j.nextToken())
+    }
+
+    /** The comments of a community post (read only), page by page. */
+    suspend fun postComments(post: Post, page: String?): Page<Comment> {
+        if (page == null && post.commentsParams.isEmpty()) return Page(emptyList(), null)
+        val j = Yt.run("postComments", args("token" to page, "cb" to post.commentsBrowseId, "cp" to post.commentsParams))
+        val list = (j.optJSONArray("items") ?: JSONArray()).mapObjects {
+            Comment(
+                author = it.optString("author"),
+                avatar = it.optString("avatar"),
+                text = it.optString("text"),
+                likes = 0,
+                publishedAt = it.optString("age"),
+                replies = 0,
+                likesText = it.optString("likes")
             )
         }
         return Page(list, j.nextToken())

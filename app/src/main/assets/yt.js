@@ -672,6 +672,7 @@
         }
         var rb = findFirst(post, 'replyButton');
         var comments = rb ? txt(findFirst(rb, 'text') || rb) : '';
+        var be = rb ? findFirst(rb, 'browseEndpoint') : null;
         items.push({
           t: 'p', id: id,
           author: txt(post.authorText),
@@ -680,7 +681,8 @@
           age: txt(post.publishedTimeText),
           likes: txt(post.voteCount) || (post.voteStatus ? '' : ''),
           comments: comments,
-          image: image, video: vid, videoTitle: vtitle, poll: poll
+          image: image, video: vid, videoTitle: vtitle, poll: poll,
+          cb: (be && be.browseId) || '', cp: (be && be.params) || ''
         });
         return true;
       }
@@ -1069,6 +1071,25 @@
       return { items: r.items.filter(function (i) { return i.t === 'v'; }), next: r.next };
     },
     comments: async function (a) { return parseComments(await call('next', { continuation: a.token })); },
+    /** Comments of a community post: first call opens the post page (a.cb / a.cp from the Posts tab), the next ones use a.token. */
+    postComments: async function (a) {
+      async function thread(tok) {
+        try { return parseComments(await call('next', { continuation: tok })); }
+        catch (e) { return parseComments(await call('browse', { continuation: tok })); }
+      }
+      if (a.token) return thread(a.token);
+      if (!a.cp) return { items: [], next: null };
+      var j = await call('browse', { browseId: a.cb || 'FEpost_detail', params: a.cp });
+      var tok = null;
+      walk(j, function (x) {
+        if (tok) return true;
+        var s = x.itemSectionRenderer;
+        if (s && s.sectionIdentifier === 'comment-item-section') { tok = lastToken(s); return true; }
+        return false;
+      });
+      if (!tok) return { items: [], next: null };
+      return thread(tok);
+    },
     account: async function () { return parseAccount(await call('account/account_menu', {})); },
     /** Sends a feedback token ("Not interested" / "Don't recommend channel") to YouTube. */
     feedback: async function (a) {

@@ -116,7 +116,7 @@ fun ChannelScreen(route: Route.Channel) {
                 1 -> PagedColumn(live, emptyText = "No live streams.", header = head) { v ->
                     VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
                 }
-                2 -> PagedColumn(posts, emptyText = "No posts on this channel.", header = head) { post -> PostCard(post) }
+                2 -> PagedColumn(posts, emptyText = "No posts on this channel.", header = head) { post -> HomePostCard(post.copy(channelId = ch.id)) }
                 3 -> PagedColumn(lists, emptyText = "No playlists.", header = head) { pl ->
                     PlaylistRow(pl, onClick = { nav.push(Route.Playlist(pl.id, pl.title)) })
                 }
@@ -336,64 +336,6 @@ private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit, onBac
                 }
             }
         }
-    }
-}
-
-/** One post of a channel: author line, text, picture / shared video / poll options, counts. */
-@Composable
-private fun PostCard(post: Post) {
-    val nav = LocalNav.current
-    var open by remember(post.id) { mutableStateOf(false) }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Card)
-            .padding(14.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (post.avatar.isNotEmpty()) {
-                AppImage(post.avatar, Modifier.size(36.dp), CircleShape)
-                Spacer(Modifier.width(10.dp))
-            }
-            Column(Modifier.weight(1f)) {
-                Text(post.author, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (post.age.isNotEmpty()) Text(post.age, color = TextMuted, fontSize = 12.sp)
-            }
-        }
-        if (post.text.isNotBlank()) {
-            Text(
-                post.text, color = TextPrimary, fontSize = 14.sp, lineHeight = 20.sp,
-                maxLines = if (open) Int.MAX_VALUE else 8, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp)
-                    .animateContentSize(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow))
-                    .clickable { open = !open }
-            )
-        }
-        if (post.image.isNotEmpty()) {
-            val modifier = Modifier.fillMaxWidth().padding(top = 10.dp).aspectRatio(16f / 9f)
-            Box(
-                if (post.video.isNotEmpty()) modifier.clickable { nav.push(Route.Video(post.video)) } else modifier
-            ) {
-                AppImage(post.image, Modifier.matchParentSize(), RoundedCornerShape(12.dp))
-            }
-        }
-        if (post.video.isNotEmpty() && post.videoTitle.isNotEmpty()) {
-            Text(
-                post.videoTitle, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 6.dp).clickable { nav.push(Route.Video(post.video)) }
-            )
-        }
-        if (post.poll.isNotEmpty()) {
-            Text("Poll: ${post.poll}", color = TextMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
-        }
-        val counts = listOf(post.likes.takeIf { it.isNotEmpty() }?.let { "$it likes" }, post.comments.takeIf { it.isNotEmpty() }?.let { "$it comments" })
-            .filterNotNull().joinToString("  •  ")
-        if (counts.isNotEmpty()) Text(counts, color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
     }
 }
 

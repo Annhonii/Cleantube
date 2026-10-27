@@ -180,5 +180,8 @@ data class Post(
     val videoTitle: String,
     val poll: String,
     /** The channel the post belongs to (set when it comes from a channel's Posts tab). */
-    val channelId: String = ""
+    val channelId: String = "",
+    /** Where the post's comments are opened (from the post's reply button); empty when YouTube gave nothing. */
+    val commentsBrowseId: String = "",
+    val commentsParams: String = ""
 )
