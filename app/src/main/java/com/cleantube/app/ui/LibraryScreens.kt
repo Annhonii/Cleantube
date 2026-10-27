@@ -226,36 +226,25 @@ private fun LibSection(text: String) {
     )
 }
 
-/** Big square tile of the Library dashboard: icon, a large number and a label. [hero] = filled mint. */
+/** One plain row of the Library list: round icon, title, arrow. No card behind it. */
 @Composable
-private fun StatTile(
-    icon: ImageVector,
-    label: String,
-    count: String,
-    hero: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val shape = RoundedCornerShape(30.dp)
-    val fg = if (hero) OnAccent else TextPrimary
-    val sub = if (hero) OnAccent.copy(alpha = 0.8f) else TextMuted
-    Column(
-        modifier
-            .aspectRatio(1.25f)
-            .clip(shape)
-            .background(if (hero) Accent else Card)
-            .bouncyClickable(pressedScale = 0.95f, onClick = onClick)
-            .padding(18.dp),
-        verticalArrangement = Arrangement.SpaceBetween
+private fun LibListRow(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .bouncyClickable(pressedScale = 0.98f, onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(42.dp).clip(CircleShape).background(if (hero) OnAccent.copy(alpha = 0.2f) else SecondaryContainer),
+            Modifier.size(44.dp).clip(CircleShape).background(SecondaryContainer),
             contentAlignment = Alignment.Center
-        ) { Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(22.dp)) }
-        Column {
-            Text(label, color = fg, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-            if (count.isNotEmpty()) Text(count, color = sub, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-        }
+        ) { Icon(icon, contentDescription = null, tint = OnSecondaryContainer, modifier = Modifier.size(22.dp)) }
+        Text(
+            label, color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Medium, maxLines = 1,
+            modifier = Modifier.weight(1f).padding(horizontal = 16.dp)
+        )
+        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = TextMuted)
     }
 }
 
@@ -271,39 +260,15 @@ fun LibraryScreen() {
             Modifier.fillMaxSize(), state = listState,
             contentPadding = PaddingValues(top = headerH + 12.dp, bottom = listBottomPad())
         ) {
-            // 2 x 2 bento dashboard
+            // plain list: Playlists, Liked videos, History, Downloads
             item {
-                Column(
-                    Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        StatTile(
-                            Icons.Rounded.History, "History",
-                            "",
-                            hero = true, onClick = { nav.push(Route.History) }, modifier = Modifier.weight(1f)
-                        )
-                        StatTile(
-                            Icons.Rounded.Download, "Downloads", "",
-                            hero = false, onClick = { nav.push(Route.Downloads) }, modifier = Modifier.weight(1f)
-                        )
+                Column(Modifier.fillMaxWidth()) {
+                    LibListRow(Icons.AutoMirrored.Rounded.PlaylistPlay, "Playlists") { nav.push(Route.Playlists) }
+                    LibListRow(Icons.Rounded.ThumbUp, if (Session.loggedIn) "Liked videos" else "Subscribed") {
+                        if (Session.loggedIn) nav.push(Route.Playlist("LL", "Liked videos")) else nav.push(Route.Settings)
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        StatTile(
-                            Icons.AutoMirrored.Rounded.PlaylistPlay, "Playlists",
-                            "",
-                            hero = false, onClick = { nav.push(Route.Playlists) }, modifier = Modifier.weight(1f)
-                        )
-                        StatTile(
-                            Icons.Rounded.ThumbUp, if (Session.loggedIn) "Liked" else "Subscribed",
-                            "",
-                            hero = false,
-                            onClick = {
-                                if (Session.loggedIn) nav.push(Route.Playlist("LL", "Liked videos")) else nav.push(Route.Settings)
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    LibListRow(Icons.Rounded.History, "History") { nav.push(Route.History) }
+                    LibListRow(Icons.Rounded.Download, "Downloads") { nav.push(Route.Downloads) }
                 }
             }
         }
