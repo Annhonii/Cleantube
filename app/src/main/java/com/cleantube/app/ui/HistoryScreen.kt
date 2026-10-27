@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -339,7 +340,30 @@ private fun HistoryShortsShelf(shorts: List<VideoItem>, onRemove: (VideoItem) ->
 @Composable
 private fun HistoryShortCard(v: VideoItem, onClick: () -> Unit, onRemove: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
-    val title = cleanShortTitle(v.title).ifEmpty { v.channelTitle }
+    val title by produceState(
+        initialValue = cleanShortTitle(v.title).ifEmpty { v.channelTitle },
+        key1 = v.id,
+        key2 = v.title
+    ) {
+        val parsed = cleanShortTitle(v.title)
+        if (parsed.isNotEmpty()) {
+            value = parsed
+        } else {
+            // History entries for Shorts can arrive without their title in YouTube's history response.
+            // Resolve it from the watch endpoint instead of leaving a blank thumbnail card.
+            value = v.channelTitle
+            try {
+                val details = Api.videoDetails(v.id)
+                value = cleanShortTitle(details.video.title)
+                    .ifEmpty { details.video.channelTitle }
+                    .ifEmpty { v.channelTitle }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Keep the channel fallback if YouTube's watch endpoint is unavailable.
+            }
+        }
+    }
     Box(
         Modifier
             .width(112.dp)
