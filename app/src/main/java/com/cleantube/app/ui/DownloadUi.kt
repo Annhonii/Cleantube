@@ -245,7 +245,7 @@ fun PlaylistDownloadDialog(playlistId: String, title: String, onDone: () -> Unit
     AlertDialog(
         onDismissRequest = onDone,
         containerColor = Card,
-        title = { Text("Download all") },
+        title = { Text("Download playlist") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val list = videos

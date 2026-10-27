@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -42,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
@@ -65,7 +67,7 @@ private val OnHeaderMuted = Color(0xCCFFFFFF)
 
 /**
  * A playlist: a big cover with the title, owner and facts on a blurred backdrop, a Play all button with Share and a
- * three-dot menu (Download all, Open in YouTube), and the videos as compact rows below.
+ * three-dot menu (Download playlist, Open in YouTube), and the videos as compact rows below.
  */
 @Composable
 fun PlaylistScreen(route: Route.Playlist) {
@@ -100,7 +102,8 @@ fun PlaylistScreen(route: Route.Playlist) {
     // the account's own lists (liked videos, watch later) have no public page to share
     val shareable = route.id != "LL" && route.id != "WL"
 
-    Box(Modifier.fillMaxSize()) {
+    // always dark, like the header, so the rows under the gradient fade into black in light mode too
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
         PagedColumn(
             paged,
             emptyText = "This playlist is empty or private.",
@@ -168,8 +171,8 @@ private fun PlaylistHeader(
     onOpenYouTube: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
-    // Keep the playlist header crisp; do not blur artwork behind the title.
-    Box(Modifier.fillMaxWidth().background(HeaderBase)) {
+    // Keep the playlist header crisp; do not blur artwork behind the title. A plain grey -> black gradient only.
+    Box(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(HeaderBase, Color.Black)))) {
 
         Column(
             Modifier
@@ -178,7 +181,7 @@ private fun PlaylistHeader(
                 .padding(top = 68.dp, start = 16.dp, end = 16.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            val heroShape = RoundedCornerShape(16.dp)
+            val heroShape = RoundedCornerShape(12.dp)
             if (coverUrl.isNotEmpty()) {
                 AppImage(coverUrl, Modifier.fillMaxWidth().aspectRatio(16f / 9f), heroShape)
             } else {
@@ -226,16 +229,13 @@ private fun PlaylistHeader(
                     Spacer(Modifier.width(8.dp))
                     Text("Play all", color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 }
+                HeaderButton(Icons.Rounded.BookmarkBorder, "Save playlist", onSavePlaylist)
                 if (shareable) HeaderButton(Icons.Rounded.Share, "Share", onShare)
                 Box {
                     HeaderButton(Icons.Rounded.MoreVert, "More") { menu = true }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(
-                            text = { Text("Save playlist") },
-                            onClick = { menu = false; onSavePlaylist() }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Download all") },
+                            text = { Text("Download playlist") },
                             leadingIcon = { Icon(Icons.Rounded.Download, contentDescription = null) },
                             onClick = { menu = false; onDownloadAll() }
                         )
@@ -317,7 +317,7 @@ private fun PlaylistVideoRow(v: VideoItem, onClick: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(
                 v.title,
-                color = TextPrimary,
+                color = Color.White,
                 fontSize = 15.sp,
                 lineHeight = 20.sp,
                 fontWeight = FontWeight.Medium,
@@ -336,12 +336,12 @@ private fun PlaylistVideoRow(v: VideoItem, onClick: () -> Unit) {
             }
             val meta = videoMeta(v)
             if (meta.isNotEmpty()) {
-                Text(meta, color = TextMuted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(meta, color = Color(0xFFAAAAAA), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         Box {
             IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = TextMuted)
+                Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = Color.White)
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Download") }, onClick = { menu = false; download = true })
