@@ -133,10 +133,27 @@ fun PlaylistScreen(route: Route.Playlist) {
                 }
             }
         ) { v ->
-            PlaylistVideoRow(v, onClick = {
-                // tapping a row plays the playlist from that video on
-                VideoHost.playQueue(paged.items, paged.items.indexOfFirst { it.id == v.id }.coerceAtLeast(0))
-            })
+            PlaylistVideoRow(
+                v,
+                onClick = {
+                    // tapping a row plays the playlist from that video on
+                    VideoHost.playQueue(paged.items, paged.items.indexOfFirst { it.id == v.id }.coerceAtLeast(0))
+                },
+                // Liked videos only: takes the like back on YouTube and drops the row
+                onRemoveLike = if (route.id == "LL") ({
+                    scope.launch {
+                        try {
+                            Api.rate(v.id, "none")
+                            paged.removeWhere { it.id == v.id }
+                            Toast.makeText(ctx, "Removed from liked videos", Toast.LENGTH_SHORT).show()
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Toast.makeText(ctx, "Couldn't remove the like: ${e.message ?: "try again"}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }) else null
+            )
         }
 
         // stays on top while the list scrolls
@@ -275,7 +292,7 @@ private fun HeaderButton(icon: androidx.compose.ui.graphics.vector.ImageVector, 
 
 /** Compact row: thumbnail with the length on the left, title / channel / views on the right, menu at the end. */
 @Composable
-private fun PlaylistVideoRow(v: VideoItem, onClick: () -> Unit) {
+private fun PlaylistVideoRow(v: VideoItem, onClick: () -> Unit, onRemoveLike: (() -> Unit)? = null) {
     val nav = LocalNav.current
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
@@ -356,6 +373,9 @@ private fun PlaylistVideoRow(v: VideoItem, onClick: () -> Unit) {
                 DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; shareVideo(ctx, v.id) })
                 if (v.channelId.isNotEmpty()) {
                     DropdownMenuItem(text = { Text("Go to channel") }, onClick = { menu = false; nav.push(Route.Channel(v.channelId)) })
+                }
+                if (onRemoveLike != null) {
+                    DropdownMenuItem(text = { Text("Remove from liked videos") }, onClick = { menu = false; onRemoveLike() })
                 }
             }
         }
