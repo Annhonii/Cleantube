@@ -118,7 +118,13 @@
     });
     var views = txt(r.viewCountText) || txt(r.shortViewCountText);
     var short = !!r.reelWatchEndpoint || /\/shorts\//.test(JSON.stringify(r.navigationEndpoint || '').slice(0, 400));
-    return mkVideo(r.videoId, txt(r.title) || txt(r.headline), ch, chId, durSeconds(lenText),
+    var title = txt(r.title) || txt(r.headline);
+    if (!title && r.accessibility && r.accessibility.accessibilityData) {
+      title = r.accessibility.accessibilityData.label || '';
+      // Accessibility labels often append channel / duration metadata after the actual title.
+      title = title.split(/\\s+by\\s+/i)[0].replace(/\\s+[-·]\\s+.*$/, '').trim();
+    }
+    return mkVideo(r.videoId, title, ch, chId, durSeconds(lenText),
                    views, txt(r.publishedTimeText), live, short, avatarIn(r.channelThumbnailSupportedRenderers));
   }
 
@@ -191,7 +197,13 @@
               s.inlinePlayerData.onVisible.innertubeCommand.watchEndpoint.videoId);
     if (!id) return null;
     var om = s.overlayMetadata || {};
-    return mkVideo(id, txt(om.primaryText), '', '', -1, txt(om.secondaryText), '', false, true);
+    var meta = s.metadata && s.metadata.lockupMetadataViewModel;
+    var title = txt(om.primaryText) || (meta && txt(meta.title)) || txt(s.accessibilityText);
+    if (!title && s.accessibility && s.accessibility.accessibilityData) {
+      title = s.accessibility.accessibilityData.label || '';
+      title = title.split(/\\s+by\\s+/i)[0].replace(/\\s+[-·]\\s+.*$/, '').trim();
+    }
+    return mkVideo(id, title, '', '', -1, txt(om.secondaryText), '', false, true);
   }
 
   function parseChannelRenderer(c) {
