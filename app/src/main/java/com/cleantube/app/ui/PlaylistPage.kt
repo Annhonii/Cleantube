@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.BookmarkBorder
-import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Share
@@ -123,6 +122,10 @@ fun PlaylistScreen(route: Route.Playlist) {
                             else VideoHost.playQueue(videos, 0)
                         },
                         onShare = { shareText(ctx, link) },
+                        onShuffle = {
+                            if (videos.isEmpty()) Toast.makeText(ctx, "The playlist is still loading.", Toast.LENGTH_SHORT).show()
+                            else VideoHost.playQueue(videos.shuffled(), 0)
+                        },
                         onDownloadAll = { downloadAll = true },
                         onSavePlaylist = { savePlaylist = true },
                         onOpenYouTube = { openUrl(ctx, link) }
@@ -166,6 +169,7 @@ private fun PlaylistHeader(
     shareable: Boolean,
     onPlayAll: () -> Unit,
     onShare: () -> Unit,
+    onShuffle: () -> Unit,
     onDownloadAll: () -> Unit,
     onSavePlaylist: () -> Unit,
     onOpenYouTube: () -> Unit
@@ -235,8 +239,11 @@ private fun PlaylistHeader(
                     HeaderButton(Icons.Rounded.MoreVert, "More") { menu = true }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(
+                            text = { Text("Shuffle") },
+                            onClick = { menu = false; onShuffle() }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Download playlist") },
-                            leadingIcon = { Icon(Icons.Rounded.Download, contentDescription = null) },
                             onClick = { menu = false; onDownloadAll() }
                         )
                         if (shareable) {
