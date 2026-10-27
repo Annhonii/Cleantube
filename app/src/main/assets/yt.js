@@ -1043,6 +1043,14 @@
       if (typeof id !== 'string' || !id) throw new Error('YouTube did not return a playlist ID. Check the account session and try again.');
       return { id: id, title: title };
     },
+    /** Removes one of the signed-in account's own playlists (never Liked videos / Watch later). */
+    deletePlaylist: async function (a) {
+      var id = String(a.id || '');
+      if (!id || id === 'LL' || id === 'WL') throw new Error('This list cannot be removed.');
+      var r = await call('playlist/delete', { playlistId: id });
+      if (r && r.errors && r.errors.length) throw new Error('YouTube refused to remove the playlist.');
+      return { ok: true };
+    },
     subscribe: async function (a) {
       await call(a.on ? 'subscription/subscribe' : 'subscription/unsubscribe',
                  a.on ? { channelIds: [a.id], params: 'EgIIAhgA' } : { channelIds: [a.id] });

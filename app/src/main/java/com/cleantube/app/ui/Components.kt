@@ -613,7 +613,11 @@ fun ChannelRow(c: ChannelItem, onClick: () -> Unit, trailing: (@Composable () ->
 fun PlaylistRow(
     p: PlaylistItem,
     onClick: () -> Unit,
-    shape: RoundedCornerShape = RoundedCornerShape(24.dp)
+    shape: RoundedCornerShape = RoundedCornerShape(24.dp),
+    /** When any of these is set the row gets a three-dot menu with the matching items. */
+    onShuffle: (() -> Unit)? = null,
+    onDownload: (() -> Unit)? = null,
+    onRemove: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
@@ -642,6 +646,19 @@ fun PlaylistRow(
             )
             Spacer(Modifier.size(4.dp))
             Text(p.channelTitle, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (onShuffle != null || onDownload != null || onRemove != null) {
+            var menu by remember { mutableStateOf(false) }
+            Box {
+                IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = TextMuted)
+                }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    if (onShuffle != null) DropdownMenuItem(text = { Text("Shuffle") }, onClick = { menu = false; onShuffle() })
+                    if (onDownload != null) DropdownMenuItem(text = { Text("Download playlist") }, onClick = { menu = false; onDownload() })
+                    if (onRemove != null) DropdownMenuItem(text = { Text("Remove playlist", color = Danger) }, onClick = { menu = false; onRemove() })
+                }
+            }
         }
     }
 }

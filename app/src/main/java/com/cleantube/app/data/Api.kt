@@ -85,6 +85,12 @@ object Api {
             ?: throw IllegalStateException("YouTube did not confirm playlist creation. Check the account session and try again.")
     }
 
+    /** Removes a playlist from the signed-in YouTube account. */
+    suspend fun deleteYouTubePlaylist(id: String) {
+        if (!Session.loggedIn) throw IllegalStateException("Sign in to your YouTube account first.")
+        Yt.run("deletePlaylist", args("id" to id))
+    }
+
     private val markedWatched = HashSet<String>()
 
     /** Asks YouTube whether it treats this app as a signed-in account (shown by Settings > Player > Connection check). */

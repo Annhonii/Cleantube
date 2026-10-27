@@ -383,6 +383,25 @@ fun PlaylistsScreen() {
     var reload by remember { mutableIntStateOf(0) }
     var newName by remember { mutableStateOf("") }
     var creating by remember { mutableStateOf(false) }
+    var downloadFor by remember { mutableStateOf<PlaylistItem?>(null) }
+    var removeFor by remember { mutableStateOf<PlaylistItem?>(null) }
+    var removing by remember { mutableStateOf(false) }
+
+    // plays the whole playlist in a random order
+    fun shufflePlaylist(p: PlaylistItem) {
+        Toast.makeText(ctx, "Loading playlist…", Toast.LENGTH_SHORT).show()
+        scope.launch {
+            try {
+                val vids = Api.allPlaylistVideos(p.id)
+                if (vids.isEmpty()) Toast.makeText(ctx, "This playlist is empty.", Toast.LENGTH_SHORT).show()
+                else VideoHost.playQueue(vids.shuffled(), 0)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Toast.makeText(ctx, "Couldn't load the playlist: ${e.message ?: "try again"}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     LaunchedEffect(loggedIn, reload) {
         if (!loggedIn) {
@@ -405,13 +424,6 @@ fun PlaylistsScreen() {
         ScreenTitle("Playlists", onBack = { nav.back() })
         LazyColumn(Modifier.fillMaxSize(), contentPadding = listPadding) {
             if (loggedIn) {
-                item {
-                    Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-                        LibEntry(Icons.Rounded.ThumbUp, "Liked videos", "Videos you liked") {
-                            nav.push(Route.Playlist("LL", "Liked videos"))
-                        }
-                    }
-                }
                 item {
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
@@ -462,7 +474,14 @@ fun PlaylistsScreen() {
                         if (acc.isEmpty()) item { EmptyState("No playlists on your YouTube account yet.") }
                         items(acc.size) { i ->
                             val p = acc[i]
-                            PlaylistRow(p, onClick = { nav.push(Route.Playlist(p.id, p.title)) }, shape = groupedCardShape(i, acc.size))
+                            PlaylistRow(
+                                p,
+                                onClick = { nav.push(Route.Playlist(p.id, p.title)) },
+                                shape = groupedCardShape(i, acc.size),
+                                onShuffle = { shufflePlaylist(p) },
+                                onDownload = { downloadFor = p },
+                                onRemove = { removeFor = p }
+                            )
                         }
                     }
                     err != null -> item { ErrorBox(err, onRetry = { reload++ }) }
@@ -474,6 +493,40 @@ fun PlaylistsScreen() {
                 }
             }
         }
+    }
+
+    downloadFor?.let { p -> PlaylistDownloadDialog(p.id, p.title) { downloadFor = null } }
+
+    removeFor?.let { p ->
+        AlertDialog(
+            onDismissRequest = { if (!removing) removeFor = null },
+            containerColor = Card,
+            title = { Text("Remove playlist?") },
+            text = { Text("\"${p.title}\" will be removed from your YouTube account. The videos in it are not deleted.") },
+            confirmButton = {
+                TextButton(
+                    enabled = !removing,
+                    onClick = {
+                        removing = true
+                        scope.launch {
+                            try {
+                                Api.deleteYouTubePlaylist(p.id)
+                                account = account?.filter { it.id != p.id }
+                                Toast.makeText(ctx, "Playlist removed.", Toast.LENGTH_SHORT).show()
+                                removeFor = null
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Toast.makeText(ctx, "Couldn't remove the playlist: ${e.message ?: "try again"}", Toast.LENGTH_LONG).show()
+                            } finally {
+                                removing = false
+                            }
+                        }
+                    }
+                ) { Text(if (removing) "Removing…" else "Remove", color = Danger) }
+            },
+            dismissButton = { TextButton(onClick = { removeFor = null }, enabled = !removing) { Text("Cancel") } }
+        )
     }
 }
 
