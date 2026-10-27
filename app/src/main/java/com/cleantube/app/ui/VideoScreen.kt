@@ -378,6 +378,10 @@ fun VideoScreen(route: Route.Video) {
                                 }
                             }
                             Spacer(Modifier.width(8.dp))
+                            if (subscribed) {
+                                ChannelBellButton(ch, size = 36.dp, iconSize = 18.dp, idleBg = SecondaryContainer)
+                                Spacer(Modifier.width(8.dp))
+                            }
                             Text(
                                 if (subscribed) "Subscribed" else "Subscribe",
                                 color = subFg,

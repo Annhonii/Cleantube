@@ -40,7 +40,7 @@ object UploadAlerts {
     fun sync(ctx: Context, replace: Boolean = true) {
         val wm = WorkManager.getInstance(ctx.applicationContext)
         val store = Graph.store
-        // signed in: the official YouTube bell decides (its inbox is read); signed out: the bells set in the app
+        // signed in: YouTube's own inbox is read AND the bells set in the app are checked; signed out: the app's bells
         if (!store.alertsEnabled || (!Session.loggedIn && store.bellIds.isEmpty())) {
             wm.cancelUniqueWork(WORK)
             return
@@ -80,7 +80,10 @@ class ChannelCheckWorker(ctx: Context, params: WorkerParameters) : CoroutineWork
     override suspend fun doWork(): Result {
         val store = Graph.store
         if (!store.alertsEnabled) return Result.success()
-        if (Session.loggedIn) return checkInbox()
+        if (Session.loggedIn) {
+            val r = checkInbox()
+            if (r is Result.Retry) return r
+        }
         val channels = store.subscriptions.filter { store.isBelled(it.id) }
         var failed = 0
         for (ch in channels) {
@@ -95,7 +98,7 @@ class ChannelCheckWorker(ctx: Context, params: WorkerParameters) : CoroutineWork
             val newest = uploads.maxOf { it.publishedMs }
             if (last > 0) {
                 // oldest first, at most 5 per channel per check so a long break doesn't flood the shade
-                uploads.filter { it.publishedMs > last }.sortedBy { it.publishedMs }.takeLast(5).forEach { notifyUpload(ch, it) }
+                uploads.filter { it.publishedMs > last && it.id !in inboxVideoIds }.sortedBy { it.publishedMs }.takeLast(5).forEach { notifyUpload(ch, it) }
             }
             if (newest > last) store.setLastSeen(ch.id, newest)
         }
@@ -108,6 +111,9 @@ class ChannelCheckWorker(ctx: Context, params: WorkerParameters) : CoroutineWork
      * Signed in: YouTube already decides which channels notify (the bell on its own channel page), so the app reads the
      * same notification inbox as the Notification screen and shows the new uploads / live streams as phone notifications.
      */
+    /** Videos the YouTube inbox already announced in this run, so a channel with both bells on notifies once. */
+    private val inboxVideoIds = HashSet<String>()
+
     private suspend fun checkInbox(): Result {
         val store = Graph.store
         val items = try {
@@ -117,6 +123,7 @@ class ChannelCheckWorker(ctx: Context, params: WorkerParameters) : CoroutineWork
         }
         val seen = store.seenInbox()
         val videos = items.filter { it.kind == "upload" || it.kind == "live" || it.kind == "premiere" }
+        videos.forEach { if (it.videoId.isNotEmpty()) inboxVideoIds.add(it.videoId) }
         if (seen != null) {
             videos.filter { it.id !in seen }.take(8).forEach { notifyInbox(it) }
         }

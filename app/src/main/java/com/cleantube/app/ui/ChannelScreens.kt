@@ -136,6 +136,51 @@ private fun statParts(t: String): Pair<String, String> {
     return if (i < 0) t to "" else t.substring(0, i) to t.substring(i + 1)
 }
 
+/**
+ * The bell next to a Subscribe button, shown for every subscribed channel (signed in or not): tap to get a phone
+ * notification for the channel's new videos. [onDark] is for the Shorts overlay (white on dark glass).
+ */
+@Composable
+internal fun ChannelBellButton(
+    ch: ChannelItem,
+    modifier: Modifier = Modifier,
+    size: androidx.compose.ui.unit.Dp = 48.dp,
+    iconSize: androidx.compose.ui.unit.Dp = 24.dp,
+    onDark: Boolean = false,
+    idleBg: Color = Card
+) {
+    val store = Graph.store
+    val ctx = LocalContext.current
+    val belled = store.isBelled(ch.id)
+    val bg = if (onDark) (if (belled) Color.White else Color(0x4DFFFFFF)) else (if (belled) TextPrimary else idleBg)
+    val fg = if (onDark) (if (belled) Color.Black else Color.White) else (if (belled) Bg else TextPrimary)
+    Box(
+        modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(bg)
+            .bouncyClickable(pressedScale = 0.9f, onClick = {
+                store.toggleBell(ch.id)
+                if (store.isBelled(ch.id) && !store.alertsEnabled) store.alertsEnabled = true
+                com.cleantube.app.data.UploadAlerts.sync(ctx)
+                Toast.makeText(
+                    ctx,
+                    if (store.isBelled(ch.id)) "You'll get notified about new videos from ${ch.title}"
+                    else "Notifications off for ${ch.title}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            if (belled) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsNone,
+            contentDescription = if (belled) "Turn off notifications" else "Notify me about new videos",
+            tint = fg,
+            modifier = Modifier.size(iconSize)
+        )
+    }
+}
+
 @Composable
 private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit, onBack: () -> Unit, onAbout: () -> Unit) {
     val store = Graph.store
@@ -210,37 +255,7 @@ private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit, onBac
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (subscribed && !com.cleantube.app.data.Session.loggedIn) {
-                // signed out only: signed in, the bell on YouTube itself decides (the app reads the same inbox)
-                // YouTube-style bell: tap to get a notification for this channel's new videos
-                val belled = store.isBelled(ch.id)
-                Box(
-                    Modifier
-                        .padding(end = 10.dp)
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(if (belled) TextPrimary else Card)
-                        .bouncyClickable(pressedScale = 0.9f, onClick = {
-                            store.toggleBell(ch.id)
-                            if (store.isBelled(ch.id) && !store.alertsEnabled) store.alertsEnabled = true
-                            com.cleantube.app.data.UploadAlerts.sync(ctx)
-                            Toast.makeText(
-                                ctx,
-                                if (store.isBelled(ch.id)) "You'll get notified about new videos from ${ch.title}"
-                                else "Notifications off for ${ch.title}",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        if (belled) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsNone,
-                        contentDescription = if (belled) "Turn off notifications" else "Notify me about new videos",
-                        tint = if (belled) Bg else TextPrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
+            if (subscribed) ChannelBellButton(ch, Modifier.padding(end = 10.dp))
             Box(
                 Modifier
                     .height(48.dp)

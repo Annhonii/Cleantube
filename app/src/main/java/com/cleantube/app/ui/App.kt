@@ -65,7 +65,13 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
     val visibleRoutes = visible.map { it.route }
     val navState = rememberUpdatedState(nav)
     // right after signing in: read the history and learn the interests (once; the overlay shows the progress)
-    LaunchedEffect(Session.loggedIn) { if (Session.loggedIn) com.cleantube.app.data.Reco.requestSeed() }
+    LaunchedEffect(Session.loggedIn) {
+        if (Session.loggedIn) {
+            com.cleantube.app.data.Reco.requestSeed()
+            // the channels the account is already subscribed to show as "Subscribed" here too
+            com.cleantube.app.data.Api.syncSubscriptionsFromAccount()
+        }
+    }
     val visibleState = rememberUpdatedState(visible)
 
     // The tab screens live in a pager: they follow the finger while you swipe, both pages are visible side by

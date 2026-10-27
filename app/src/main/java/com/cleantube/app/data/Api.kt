@@ -250,6 +250,21 @@ object Api {
         return out
     }
 
+    /** Signed in: the channels the Google / YouTube account is already subscribed to become subscriptions here too. */
+    suspend fun syncSubscriptionsFromAccount() {
+        if (!Session.loggedIn) return
+        val list = try {
+            accountChannels()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return
+        }
+        if (list.isEmpty()) return
+        Graph.store.importChannels(list)
+        Graph.store.refreshSubscriptions(list)
+    }
+
     /** Tells YouTube "Not interested" / "Don't recommend channel" with the token of a feed entry (best effort, signed-in only). */
     suspend fun sendFeedback(token: String) {
         if (token.isEmpty() || !Session.loggedIn) return
