@@ -121,7 +121,7 @@ fun ChannelScreen(route: Route.Channel) {
                     PlaylistRow(pl, onClick = { nav.push(Route.Playlist(pl.id, pl.title)) })
                 }
                 else -> PagedColumn(shorts, emptyText = "No Shorts.", header = head) { v ->
-                    VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
+                    VideoRow(v, onClick = { openInShorts(nav, v, shorts.items) })
                 }
             }
         }

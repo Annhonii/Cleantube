@@ -160,6 +160,20 @@ object ShortsUi {
 
     /** A Short picked on Home: the Shorts tab scrolls to it once it is on screen, then clears this. */
     var openId by mutableStateOf<String?>(null)
+
+    /**
+     * Shorts picked somewhere else (a channel's Shorts tab, the history, search): they are put in front of the "For you"
+     * feed, so the Shorts player plays them and the swipe goes on with the ones that followed in that list.
+     */
+    var pinned by mutableStateOf<List<VideoItem>>(emptyList())
+}
+
+/** Plays [start] in the Shorts player; the Shorts after it in [queue] come next, then the normal feed. */
+fun openInShorts(nav: Nav, start: VideoItem, queue: List<VideoItem> = emptyList()) {
+    val from = queue.indexOfFirst { it.id == start.id }
+    ShortsUi.pinned = if (from >= 0) queue.drop(from).filter { it.id.isNotEmpty() } else listOf(start)
+    ShortsUi.openId = start.id
+    nav.selectTab(Route.Shorts)
 }
 
 /**
@@ -292,7 +306,8 @@ fun ShortsScreen() {
             // kept between tab switches: the feed and the Short you were on stay as they were
             val feed = shortsFeed(t)
             LaunchedEffect(feed) { if (feed.items.isEmpty() && !feed.loading) feed.refresh() }
-            val items = remember(feed.items) { feed.items.distinctBy { it.id } }
+            val pinned = ShortsUi.pinned
+            val items = remember(feed.items, pinned, t) { (if (t.isEmpty()) pinned + feed.items else feed.items).distinctBy { it.id } }
             val itemsNow = rememberUpdatedState(items)
             val pager = rememberPagerState(initialPage = TabCache.shortsPage[t] ?: 0) { itemsNow.value.size }
             SideEffect { TabCache.shortsPage[t] = pager.currentPage }

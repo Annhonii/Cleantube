@@ -193,7 +193,7 @@ fun SearchScreen(route: Route.Search) {
             }
             PagedColumn(paged, emptyText = "No results for \"$submitted\"") { item ->
                 when (item) {
-                    is VideoItem -> VideoRow(item, onClick = { nav.push(Route.Video(item.id, item)) })
+                    is VideoItem -> VideoRow(item, onClick = { if (item.short) openInShorts(nav, item) else nav.push(Route.Video(item.id, item)) })
                     is ChannelItem -> ChannelRow(item, onClick = { nav.push(Route.Channel(item.id, item)) })
                     is PlaylistItem -> PlaylistRow(item, onClick = { nav.push(Route.Playlist(item.id, item.title)) })
                     else -> {}

@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.AlertDialog
@@ -167,7 +166,6 @@ fun HistoryScreen() {
                     )
                     DropdownMenuItem(
                         text = { Text("Clear all watch history", color = Danger) },
-                        leadingIcon = { Icon(Icons.Rounded.Delete, contentDescription = null, tint = Danger) },
                         onClick = { topMenu = false; confirm = true }
                     )
                 }
@@ -288,7 +286,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.historyRows(
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 14.dp, top = 16.dp, bottom = 4.dp)
             )
-            is HistRow.Shelf -> HistoryShortsShelf(row.shorts, onOpen, onRemove)
+            is HistRow.Shelf -> HistoryShortsShelf(row.shorts, onRemove)
             is HistRow.Video -> VideoRow(
                 row.v,
                 onClick = { onOpen(row.v) },
@@ -301,7 +299,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.historyRows(
 
 /** The Shorts of the history: logo + "Shorts" title, then tall cards that scroll sideways. */
 @Composable
-private fun HistoryShortsShelf(shorts: List<VideoItem>, onOpen: (VideoItem) -> Unit, onRemove: (VideoItem) -> Unit) {
+private fun HistoryShortsShelf(shorts: List<VideoItem>, onRemove: (VideoItem) -> Unit) {
     val nav = LocalNav.current
     var menu by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 6.dp)) {
@@ -333,7 +331,7 @@ private fun HistoryShortsShelf(shorts: List<VideoItem>, onOpen: (VideoItem) -> U
             contentPadding = PaddingValues(horizontal = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(shorts, key = { it.id }) { v -> HistoryShortCard(v, { onOpen(v) }, { onRemove(v) }) }
+            items(shorts, key = { it.id }) { v -> HistoryShortCard(v, { openInShorts(nav, v, shorts) }, { onRemove(v) }) }
         }
     }
 }
