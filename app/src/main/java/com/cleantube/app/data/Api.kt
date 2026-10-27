@@ -31,7 +31,9 @@ object Api {
         short = optBoolean("short"),
         channelThumb = optString("chThumb"),
         notInterestedToken = optString("ni"),
-        dontRecommendChannelToken = optString("nc")
+        dontRecommendChannelToken = optString("nc"),
+        historyDay = optString("day"),
+        removeFromHistoryToken = optString("rm")
     )
 
     private fun JSONObject.channelItem(): ChannelItem = ChannelItem(
@@ -108,7 +110,7 @@ object Api {
      * recommendations keep learning from what is watched in this app. Signed in only, once per video per run.
      */
     suspend fun markWatched(videoId: String, durationSec: Long = 0): Boolean {
-        if (!Graph.store.syncHistory || videoId.isEmpty()) return true
+        if (!Graph.store.syncHistory || Graph.store.historyPaused || videoId.isEmpty()) return true
         if (!Session.loggedIn) { lastWatchPing = "not signed in (Session.loggedIn is false)"; return true }
         if (Playback.isBlocked()) { lastWatchPing = "paused: network is blocked"; return false }
         val first = synchronized(markedWatched) { markedWatched.add(videoId) }
@@ -193,6 +195,15 @@ object Api {
 
     suspend fun accountHistory(token: String?): Page<VideoItem> =
         videosPage(Yt.run("history", args("token" to token)))
+
+    /** Clears the signed-in account's whole YouTube watch history. True when YouTube accepted it. */
+    suspend fun clearAccountHistory(): Boolean = try {
+        Yt.run("clearHistory", args()).optBoolean("ok")
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        false
+    }
 
     /** The playlists the signed-in account owns / saved (YouTube's "Playlists" library page, up to ~6 pages). */
     suspend fun accountPlaylists(): List<PlaylistItem> {

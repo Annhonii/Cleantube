@@ -252,7 +252,8 @@
         token = findFirst(l, 'feedbackToken') || '';
       } else return false;
       if (typeof token === 'string' && token) {
-        if (/not interested/i.test(label) || icon === 'NOT_INTERESTED') { if (!it.ni) it.ni = token; }
+        if (/remove from (your )?(watch )?history/i.test(label)) { if (!it.rm) it.rm = token; }
+        else if (/not interested/i.test(label) || icon === 'NOT_INTERESTED') { if (!it.ni) it.ni = token; }
         else if (/(don.?t|do not) recommend|channel/i.test(label) && /recommend/i.test(label) || icon === 'REMOVE_CIRCLE') { if (!it.nc) it.nc = token; }
       }
       return true;
@@ -957,7 +958,49 @@
     locale: async function (a) { LOCALE = { hl: a.hl || 'en', gl: a.gl || 'IN' }; ENV = null; return {}; },
     home: async function (a) { return parseItems(await browse('FEwhat_to_watch', a.token)); },
     feed: async function (a) { return parseItems(await browse('FEsubscriptions', a.token)); },
-    history: async function (a) { return parseItems(await browse('FEhistory', a.token)); },
+    /** Watch history. Every entry carries the day heading YouTube put above it ("Today", "Yesterday", "Sunday", "Oct 20"). */
+    history: async function (a) {
+      var j = await browse('FEhistory', a.token);
+      var sections = [];
+      walk(j, function (x) {
+        if (x.itemSectionRenderer) { sections.push(x.itemSectionRenderer); return true; }
+        return false;
+      });
+      var items = [], seen = {};
+      sections.forEach(function (s) {
+        var h = s.header && (s.header.itemSectionHeaderRenderer || s.header.richSectionHeaderRenderer);
+        var day = h ? txt(h.title) : '';
+        parseItems(j, s).items.forEach(function (it) {
+          var key = it.t + ':' + it.id;
+          if (seen[key]) return;
+          seen[key] = 1;
+          if (day) it.day = day;
+          items.push(it);
+        });
+      });
+      if (!items.length) return parseItems(j);
+      return { items: items, next: lastToken(j) };
+    },
+    /** Clears the whole watch history of the signed-in account (uses the token of YouTube's own "Clear all watch history" button). */
+    clearHistory: async function () {
+      var j = await browse('FEhistory');
+      var token = '';
+      walk(j, function (x) {
+        if (token) return true;
+        var d = x.confirmDialogRenderer;
+        if (d) {
+          var t = txt(d.title) + ' ' + txt(d.dialogMessages && d.dialogMessages[0]);
+          if (/history/i.test(t) && /clear/i.test(t)) {
+            var f = findFirst(d.confirmButton || d, 'feedbackToken');
+            if (f) { token = f; return true; }
+          }
+        }
+        return false;
+      });
+      if (!token) return { ok: false, error: 'no clear token' };
+      await call('feedback', { feedbackTokens: [token], isFeedbackTokenUnencrypted: false, shouldMerge: false });
+      return { ok: true };
+    },
     playlists: async function (a) { return parseItems(await browse('FEplaylist_aggregation', a.token)); },
     channels: async function (a) { return parseItems(await browse('FEchannels', a.token)); },
     search: async function (a) {

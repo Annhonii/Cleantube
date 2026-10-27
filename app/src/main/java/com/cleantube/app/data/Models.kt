@@ -20,7 +20,13 @@ data class VideoItem(
     val channelThumb: String = "",
     /** YouTube feedback tokens from the feed menu: "Not interested" / "Don't recommend channel" (empty when none). */
     val notInterestedToken: String = "",
-    val dontRecommendChannelToken: String = ""
+    val dontRecommendChannelToken: String = "",
+    /** History only: when it was watched in this app (epoch ms; 0 = unknown). Used to group the history by day. */
+    val watchedAt: Long = 0L,
+    /** History only: the day heading YouTube put above this entry ("Today", "Sunday", "Oct 20"); empty when unknown. */
+    val historyDay: String = "",
+    /** History only: YouTube feedback token of "Remove from watch history" (empty when none). */
+    val removeFromHistoryToken: String = ""
 ) {
     val thumb: String get() = "https://i.ytimg.com/vi/$id/mqdefault.jpg"
 }
@@ -118,7 +124,7 @@ class ApiException(val kind: Kind, message: String) : Exception(message) {
 fun VideoItem.toJson(): JSONObject = JSONObject()
     .put("id", id).put("title", title).put("cid", channelId).put("ct", channelTitle)
     .put("pub", publishedAt).put("dur", durationSec).put("views", views).put("live", live)
-    .put("vt", viewsText).put("at", ageText).put("short", short)
+    .put("vt", viewsText).put("at", ageText).put("short", short).put("wa", watchedAt)
 
 fun JSONObject.toVideo(): VideoItem = VideoItem(
     id = optString("id"),
@@ -131,7 +137,8 @@ fun JSONObject.toVideo(): VideoItem = VideoItem(
     live = optBoolean("live", false),
     viewsText = optString("vt"),
     ageText = optString("at"),
-    short = optBoolean("short", false)
+    short = optBoolean("short", false),
+    watchedAt = optLong("wa", 0L)
 )
 
 fun ChannelItem.toJson(): JSONObject = JSONObject()

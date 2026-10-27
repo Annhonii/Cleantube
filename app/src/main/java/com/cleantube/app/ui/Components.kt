@@ -361,6 +361,7 @@ fun VideoRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onRemove: (() -> Unit)? = null,
+    removeLabel: String = "Remove",
     /** Home feed only: "Not interested" -> true = don't recommend this channel, false = don't like this video. */
     onNotInterested: ((Boolean) -> Unit)? = null
 ) {
@@ -493,7 +494,7 @@ fun VideoRow(
                         }
                         if (onRemove != null) {
                             DropdownMenuItem(
-                                text = { Text("Remove") },
+                                text = { Text(removeLabel) },
                                 onClick = { menu = false; onRemove() }
                             )
                         }

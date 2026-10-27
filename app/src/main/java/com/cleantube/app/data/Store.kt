@@ -362,8 +362,18 @@ class Store(context: Context) {
 
     // -------------------------------------------------------------- history
 
+    /** "Pause watch history": while on, nothing watched is added to the history and no watch ping goes to YouTube. */
+    private val historyPausedState = mutableStateOf(sp.getBoolean("history_paused", false))
+    var historyPaused: Boolean
+        get() = historyPausedState.value
+        set(value) {
+            historyPausedState.value = value
+            sp.edit().putBoolean("history_paused", value).apply()
+        }
+
     fun addHistory(v: VideoItem) {
-        history = (listOf(v) + history.filter { it.id != v.id }).take(500)
+        if (historyPaused) return
+        history = (listOf(v.copy(watchedAt = System.currentTimeMillis())) + history.filter { it.id != v.id }).take(500)
         save("history", history) { it.toJson() }
     }
 
