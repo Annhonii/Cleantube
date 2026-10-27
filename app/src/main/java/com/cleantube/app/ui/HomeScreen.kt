@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import com.cleantube.app.data.Api
+import com.cleantube.app.data.QuickPicks
 import com.cleantube.app.data.TabCache
 import com.cleantube.app.data.Session
 import kotlinx.coroutines.launch
@@ -33,6 +34,9 @@ fun HomeScreen() {
             emptyText = "Nothing to show right now. Pull down to retry, or check your connection.",
             contentPadding = PaddingValues(top = headerH + 12.dp, bottom = listBottomPad()),
             refreshIndicatorTop = headerH,
+            // Quick picks: newest unwatched videos of your subscribed channels, shown first on Home
+            header = { item { Column { Spacer(Modifier.height(1.dp)); QuickPicksSection() } } },
+            onRefresh = { QuickPicks.request(force = true) },
             itemCount = paged.items.size,
             indexRow = { i ->
                 paged.items.getOrNull(i)?.let { v ->
