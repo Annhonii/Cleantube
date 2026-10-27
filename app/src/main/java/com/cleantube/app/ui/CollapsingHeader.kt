@@ -235,6 +235,9 @@ private val ShortsIcon: ImageVector by lazy {
     }.getOrElse { Icons.Rounded.LocalFireDepartment }
 }
 
+/** The Shorts logo for other screens (Home's Shorts shelf); tint it, the path itself is black. */
+internal val ShortsLogoVector: ImageVector get() = ShortsIcon
+
 /**
  * The header. [pagerPosition] is the tab pager's position (page + offset): while swiping between Home and another
  * tab the header glides between its expanded and collapsed look in step with the pages.

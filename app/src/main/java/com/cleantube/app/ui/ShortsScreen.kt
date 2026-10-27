@@ -157,7 +157,38 @@ val ShortsPillSpace = 67.dp
 
 object ShortsUi {
     var overlayOpen by mutableStateOf(false)
+
+    /** A Short picked on Home: the Shorts tab scrolls to it once it is on screen, then clears this. */
+    var openId by mutableStateOf<String?>(null)
 }
+
+/**
+ * The Shorts feed of one topic ("" = For you), kept between tab switches. Home's Shorts shelf uses the same feed,
+ * so a Short picked there is already in the list the Shorts tab shows.
+ */
+internal fun shortsFeed(t: String) =
+    TabCache.paged<VideoItem>("shorts:$t:${com.cleantube.app.data.Graph.store.officialReco}") { token ->
+        // Shorts that were already shown once never come back (the Shorts already in this feed stay as they are)
+        // YouTube often sends the same Shorts again (esp. at the start of a feed): keep asking for the
+        // next batch until there is something new, instead of showing a page that is all repeats.
+        var tok = token
+        var result: Page<VideoItem>
+        var tries = 0
+        while (true) {
+            val page = Api.shorts(tok, t)
+            // never again: Shorts already watched here, in this app's history or in the account's history
+            val fresh = page.items.filter {
+                !Graph.store.isShortSeen(it.id) && !Graph.store.isInHistory(it.id) &&
+                    !com.cleantube.app.data.Reco.isWatched(it.id) &&
+                    !com.cleantube.app.data.Graph.store.isHidden(it)
+            }
+            result = Page(fresh, page.next)
+            tries++
+            if (fresh.isNotEmpty() || page.next == null || page.next == tok || tries >= 8) break
+            tok = page.next
+        }
+        result
+    }
 
 private val shortTopics = listOf(
     "For you" to "", "Music" to "music", "Comedy" to "funny", "Gaming" to "gaming",
@@ -253,37 +284,30 @@ fun ShortsScreen() {
 
     // pure black in light and dark mode: it shows through the rounded top corners of the card, next to the black header
     Box(Modifier.fillMaxSize().background(Color.Black)) {
+        // a Short picked on Home lives in the "For you" feed
+        LaunchedEffect(ShortsUi.openId) { if (ShortsUi.openId != null && topic.isNotEmpty()) topic = "" }
         // a new feed whenever the topic changes
         key(topic) {
             val t = topic
             // kept between tab switches: the feed and the Short you were on stay as they were
-            val feed = TabCache.paged<VideoItem>("shorts:$t:${com.cleantube.app.data.Graph.store.officialReco}") { token ->
-                // Shorts that were already shown once never come back (the Shorts already in this feed stay as they are)
-                // YouTube often sends the same Shorts again (esp. at the start of a feed): keep asking for the
-                // next batch until there is something new, instead of showing a page that is all repeats.
-                var tok = token
-                var result: Page<VideoItem>
-                var tries = 0
-                while (true) {
-                    val page = Api.shorts(tok, t)
-                    // never again: Shorts already watched here, in this app's history or in the account's history
-                    val fresh = page.items.filter {
-                        !Graph.store.isShortSeen(it.id) && !Graph.store.isInHistory(it.id) &&
-                            !com.cleantube.app.data.Reco.isWatched(it.id) &&
-                            !com.cleantube.app.data.Graph.store.isHidden(it)
-                    }
-                    result = Page(fresh, page.next)
-                    tries++
-                    if (fresh.isNotEmpty() || page.next == null || page.next == tok || tries >= 8) break
-                    tok = page.next
-                }
-                result
-            }
+            val feed = shortsFeed(t)
             LaunchedEffect(feed) { if (feed.items.isEmpty() && !feed.loading) feed.refresh() }
             val items = remember(feed.items) { feed.items.distinctBy { it.id } }
             val itemsNow = rememberUpdatedState(items)
             val pager = rememberPagerState(initialPage = TabCache.shortsPage[t] ?: 0) { itemsNow.value.size }
             SideEffect { TabCache.shortsPage[t] = pager.currentPage }
+
+            // a Short picked on Home: jump straight to it (the shelf uses this same feed, so it is in the list)
+            LaunchedEffect(ShortsUi.openId, items.size) {
+                val id = ShortsUi.openId ?: return@LaunchedEffect
+                val idx = items.indexOfFirst { it.id == id }
+                if (idx >= 0) {
+                    pager.scrollToPage(idx)
+                    ShortsUi.openId = null
+                } else if (!feed.loading) {
+                    ShortsUi.openId = null
+                }
+            }
 
             // endless feed: ask for more when the end is near (also covers pages that had no real Shorts)
             LaunchedEffect(items.size, pager.currentPage, feed.loading) {
@@ -537,7 +561,7 @@ private fun MenuRow(icon: ImageVector, title: String, subtitle: String, onClick:
 // ------------------------------------------------------------------------------------------------ one Short
 
 /** A usable title, or "" when it is empty or really a link / image address. */
-private fun cleanShortTitle(t: String): String {
+internal fun cleanShortTitle(t: String): String {
     val s = t.trim()
     if (s.isEmpty()) return ""
     val link = s.startsWith("http", ignoreCase = true) || s.startsWith("//") ||
