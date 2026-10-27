@@ -379,20 +379,20 @@ fun VideoScreen(route: Route.Video) {
                             }
                             Spacer(Modifier.width(8.dp))
                             if (subscribed) {
-                                ChannelBellButton(ch, size = 36.dp, iconSize = 18.dp, idleBg = SecondaryContainer)
-                                Spacer(Modifier.width(8.dp))
+                                SubscribedPill(ch, compact = true, bg = SecondaryContainer)
+                            } else {
+                                Text(
+                                    "Subscribe",
+                                    color = subFg,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier
+                                        .bouncyClickable(pressedScale = 0.88f) { toggleSubscription(scope, ch) }
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(subBg)
+                                        .padding(horizontal = 16.dp, vertical = 9.dp)
+                                )
                             }
-                            Text(
-                                if (subscribed) "Subscribed" else "Subscribe",
-                                color = subFg,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier
-                                    .bouncyClickable(pressedScale = 0.88f) { toggleSubscription(scope, ch) }
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(subBg)
-                                    .padding(horizontal = 16.dp, vertical = 9.dp)
-                            )
                         }
                     }
                 }

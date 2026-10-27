@@ -24,6 +24,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.NotificationsOff
+import androidx.compose.material.icons.rounded.PersonRemove
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.NotificationsNone
 import android.widget.Toast
 import androidx.compose.ui.graphics.Brush
@@ -137,47 +141,71 @@ private fun statParts(t: String): Pair<String, String> {
 }
 
 /**
- * The bell next to a Subscribe button, shown for every subscribed channel (signed in or not): tap to get a phone
- * notification for the channel's new videos. [onDark] is for the Shorts overlay (white on dark glass).
+ * YouTube's own "Subscribed" button: one pill with the bell, the word Subscribed and a small arrow. Tapping it opens the
+ * menu: All (notify about every new video), None, Unsubscribe. The bell shows the current state: ringing = All,
+ * outlined = off. [compact] is the smaller one of the video page.
  */
 @Composable
-internal fun ChannelBellButton(
-    ch: ChannelItem,
-    modifier: Modifier = Modifier,
-    size: androidx.compose.ui.unit.Dp = 48.dp,
-    iconSize: androidx.compose.ui.unit.Dp = 24.dp,
-    onDark: Boolean = false,
-    idleBg: Color = Card
-) {
+internal fun SubscribedPill(ch: ChannelItem, compact: Boolean = false, bg: Color = Card, modifier: Modifier = Modifier) {
     val store = Graph.store
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var menu by remember { mutableStateOf(false) }
     val belled = store.isBelled(ch.id)
-    val bg = if (onDark) (if (belled) Color.White else Color(0x4DFFFFFF)) else (if (belled) TextPrimary else idleBg)
-    val fg = if (onDark) (if (belled) Color.Black else Color.White) else (if (belled) Bg else TextPrimary)
-    Box(
-        modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(bg)
-            .bouncyClickable(pressedScale = 0.9f, onClick = {
-                store.toggleBell(ch.id)
-                if (store.isBelled(ch.id) && !store.alertsEnabled) store.alertsEnabled = true
-                com.cleantube.app.data.UploadAlerts.sync(ctx)
-                Toast.makeText(
-                    ctx,
-                    if (store.isBelled(ch.id)) "You'll get notified about new videos from ${ch.title}"
-                    else "Notifications off for ${ch.title}",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            if (belled) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsNone,
-            contentDescription = if (belled) "Turn off notifications" else "Notify me about new videos",
-            tint = fg,
-            modifier = Modifier.size(iconSize)
-        )
+
+    fun setBell(on: Boolean) {
+        if (store.isBelled(ch.id) != on) store.toggleBell(ch.id)
+        if (on && !store.alertsEnabled) store.alertsEnabled = true
+        com.cleantube.app.data.UploadAlerts.sync(ctx)
+        Toast.makeText(
+            ctx,
+            if (on) "You'll get notified about new videos from ${ch.title}" else "Notifications off for ${ch.title}",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    Box(modifier) {
+        Row(
+            Modifier
+                .height(if (compact) 36.dp else 48.dp)
+                .clip(CircleShape)
+                .background(bg)
+                .bouncyClickable(pressedScale = 0.95f, onClick = { menu = true })
+                .padding(start = if (compact) 12.dp else 16.dp, end = if (compact) 8.dp else 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                if (belled) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsNone,
+                contentDescription = null, tint = TextPrimary, modifier = Modifier.size(if (compact) 18.dp else 22.dp)
+            )
+            Text(
+                "Subscribed", color = TextPrimary, fontWeight = FontWeight.Medium,
+                fontSize = if (compact) 14.sp else 16.sp, modifier = Modifier.padding(horizontal = if (compact) 6.dp else 8.dp)
+            )
+            Icon(
+                Icons.Rounded.KeyboardArrowDown, contentDescription = null, tint = TextPrimary,
+                modifier = Modifier.size(if (compact) 18.dp else 22.dp)
+            )
+        }
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenuItem(
+                text = { Text("All") },
+                leadingIcon = { Icon(Icons.Rounded.NotificationsActive, contentDescription = null) },
+                trailingIcon = { if (belled) Icon(Icons.Rounded.Check, contentDescription = null) },
+                onClick = { menu = false; setBell(true) }
+            )
+            DropdownMenuItem(
+                text = { Text("None") },
+                leadingIcon = { Icon(Icons.Rounded.NotificationsOff, contentDescription = null) },
+                trailingIcon = { if (!belled) Icon(Icons.Rounded.Check, contentDescription = null) },
+                onClick = { menu = false; setBell(false) }
+            )
+            DropdownMenuItem(
+                text = { Text("Unsubscribe") },
+                leadingIcon = { Icon(Icons.Rounded.PersonRemove, contentDescription = null) },
+                onClick = { menu = false; toggleSubscription(scope, ch) }
+            )
+        }
     }
 }
 
@@ -255,17 +283,20 @@ private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit, onBac
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (subscribed) ChannelBellButton(ch, Modifier.padding(end = 10.dp))
-            Box(
-                Modifier
-                    .height(48.dp)
-                    .clip(CircleShape)
-                    .background(subBg)
-                    .bouncyClickable(pressedScale = 0.95f, onClick = { toggleSubscription(scope, ch) })
-                    .padding(horizontal = 28.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(if (subscribed) "Subscribed" else "Subscribe", color = subFg, fontWeight = FontWeight.Medium, fontSize = 16.sp)
+            if (subscribed) {
+                SubscribedPill(ch)
+            } else {
+                Box(
+                    Modifier
+                        .height(48.dp)
+                        .clip(CircleShape)
+                        .background(subBg)
+                        .bouncyClickable(pressedScale = 0.95f, onClick = { toggleSubscription(scope, ch) })
+                        .padding(horizontal = 28.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Subscribe", color = subFg, fontWeight = FontWeight.Medium, fontSize = 16.sp)
+                }
             }
         }
 

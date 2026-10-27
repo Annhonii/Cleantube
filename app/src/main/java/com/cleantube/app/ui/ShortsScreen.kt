@@ -821,10 +821,6 @@ private fun ShortPage(
                     val subscribed = Graph.store.isSubscribed(ch.id)
                     Spacer(Modifier.width(10.dp))
                     SubscribePill(subscribed) { toggleSubscription(scope, ch) }
-                    if (subscribed) {
-                        Spacer(Modifier.width(8.dp))
-                        ChannelBellButton(ch, size = 30.dp, iconSize = 16.dp, onDark = true)
-                    }
                 }
             }
 
@@ -974,6 +970,10 @@ private fun SubscribePill(subscribed: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 14.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (subscribed) {
+            Icon(Icons.Rounded.NotificationsNone, contentDescription = null, tint = fg, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+        }
         Text(if (subscribed) "Subscribed" else "Subscribe", color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
