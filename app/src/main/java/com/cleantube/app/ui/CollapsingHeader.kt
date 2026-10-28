@@ -491,8 +491,13 @@ private fun NavRow(
                     Modifier
                         .size(navH)
                         .onGloballyPositioned { c ->
+                            // The indicator sits INSIDE the round button with the same 4dp margin it has inside the pill, so
+                            // it has the same height on every tab. Moving between the button and the pill it only slides and
+                            // stretches; it never grows / shrinks (that jump is what looked cut off and misaligned).
                             val o = c.positionInWindow()
-                            bX[0] = o.x; bTop[0] = o.y; bW[0] = c.size.width.toFloat(); bH[0] = c.size.height.toFloat()
+                            val m = gapPx.toFloat()
+                            bX[0] = o.x + m; bTop[0] = o.y + m
+                            bW[0] = c.size.width - 2f * m; bH[0] = c.size.height - 2f * m
                         }
                         .bouncyClickable(pressedScale = 0.9f, onClick = { if (nav.current != t.route) nav.selectTab(t.route) }),
                     contentAlignment = Alignment.Center
