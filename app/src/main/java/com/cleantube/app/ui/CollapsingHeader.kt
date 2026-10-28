@@ -116,10 +116,8 @@ private val CardSmall = NavTopSmall + NavH + BottomSmall
 // right under the header bar, so a video that scrolls up under the header looks rounded there. It is part of the page
 // (see [feedTopCorners]), so it moves with the page when tabs are switched or swiped.
 val FeedCorner = 24.dp   // radius of the rounded top corners of every tab page (0.dp = straight)
-// The feed tabs (Home / Subscription / Library) have their cards 14dp in from the screen edge, so only a thin slice of a 24dp
-// curve touches them and it looks much shallower than on Shorts (whose video is edge to edge). Their container curve is
-// concentric with the 24dp one instead: 24dp + that 14dp margin, so the curve reaches the cards the same way.
-val FeedCornerFeed = 38.dp
+// The feed tabs (Home / New / Library): the rounded top corners under the header are as round as a YouTube thumbnail (12dp).
+val FeedCornerFeed = 12.dp
 
 private val SearchIconSize = 24.dp
 private val SearchIconLeft = 16.dp    // icon's place inside the wide search bar
