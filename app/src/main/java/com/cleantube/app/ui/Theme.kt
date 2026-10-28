@@ -304,6 +304,14 @@ private fun seedScheme(seed: Color, dark: Boolean): ColorScheme {
     }
     val m = MaterialDynamicColors()
     fun c(d: DynamicColor) = Color(d.getArgb(sch))
+    // The stock Material neutrals are almost grey (chroma ~6), so the video's colour was only visible on buttons and
+    // the progress bar. For colourful thumbnails the backgrounds, cards and nav are rebuilt from the seed's own hue
+    // with a much higher chroma, so the colour is clearly visible over the whole screen.
+    val tint = hct.chroma >= 12.0
+    val tp = if (tint) com.google.android.material.color.utilities.TonalPalette.fromHueAndChroma(
+        hct.hue, (hct.chroma * 0.55).coerceIn(if (dark) 20.0 else 16.0, if (dark) 34.0 else 28.0)
+    ) else null
+    fun t(tone: Int, fallback: DynamicColor): Color = if (tp != null) Color(tp.tone(tone)) else c(fallback)
     return (if (dark) darkColorScheme() else lightColorScheme()).copy(
         primary = c(m.primary()), onPrimary = c(m.onPrimary()),
         primaryContainer = c(m.primaryContainer()), onPrimaryContainer = c(m.onPrimaryContainer()),
@@ -312,16 +320,18 @@ private fun seedScheme(seed: Color, dark: Boolean): ColorScheme {
         secondaryContainer = c(m.secondaryContainer()), onSecondaryContainer = c(m.onSecondaryContainer()),
         tertiary = c(m.tertiary()), onTertiary = c(m.onTertiary()),
         tertiaryContainer = c(m.tertiaryContainer()), onTertiaryContainer = c(m.onTertiaryContainer()),
-        background = c(m.background()), onBackground = c(m.onBackground()),
-        surface = c(m.surface()), onSurface = c(m.onSurface()),
-        surfaceVariant = c(m.surfaceVariant()), onSurfaceVariant = c(m.onSurfaceVariant()),
+        background = t(if (dark) 12 else 94, m.background()), onBackground = c(m.onBackground()),
+        surface = t(if (dark) 12 else 94, m.surface()), onSurface = c(m.onSurface()),
+        surfaceVariant = t(if (dark) 26 else 86, m.surfaceVariant()), onSurfaceVariant = c(m.onSurfaceVariant()),
         surfaceTint = c(m.surfaceTint()),
         inverseSurface = c(m.inverseSurface()), inverseOnSurface = c(m.inverseOnSurface()),
-        outline = c(m.outline()), outlineVariant = c(m.outlineVariant()),
-        surfaceBright = c(m.surfaceBright()), surfaceDim = c(m.surfaceDim()),
-        surfaceContainerLowest = c(m.surfaceContainerLowest()), surfaceContainerLow = c(m.surfaceContainerLow()),
-        surfaceContainer = c(m.surfaceContainer()), surfaceContainerHigh = c(m.surfaceContainerHigh()),
-        surfaceContainerHighest = c(m.surfaceContainerHighest()),
+        outline = c(m.outline()), outlineVariant = t(if (dark) 30 else 80, m.outlineVariant()),
+        surfaceBright = t(if (dark) 30 else 96, m.surfaceBright()), surfaceDim = t(if (dark) 8 else 86, m.surfaceDim()),
+        surfaceContainerLowest = t(if (dark) 6 else 98, m.surfaceContainerLowest()),
+        surfaceContainerLow = t(if (dark) 15 else 92, m.surfaceContainerLow()),
+        surfaceContainer = t(if (dark) 19 else 89, m.surfaceContainer()),
+        surfaceContainerHigh = t(if (dark) 24 else 85, m.surfaceContainerHigh()),
+        surfaceContainerHighest = t(if (dark) 29 else 81, m.surfaceContainerHighest()),
         error = Live
     )
 }
