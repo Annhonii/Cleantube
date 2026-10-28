@@ -3,6 +3,7 @@ package com.cleantube.app.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.snap
@@ -128,7 +129,7 @@ private val BarGap = 8.dp              // standalone circle -> pill container
 private val CircleOuter = TabHeight + BarPadding * 2   // the standalone circle's background = the pill's height
 private val CollapsedTabWidth = IconSize + TabHPadding * 2
 
-private fun <T> tabSpring(): AnimationSpec<T> =
+private fun <T> tabSpring(): FiniteAnimationSpec<T> =
     spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
 
 /**
