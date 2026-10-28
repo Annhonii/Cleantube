@@ -48,11 +48,13 @@ fun VideoMenuButton(v: VideoItem, modifier: Modifier = Modifier, onRemove: (() -
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
     var saveDialog by remember { mutableStateOf(false) }
+    var downloadDialog by remember { mutableStateOf(false) }
     Box(modifier) {
         Box(Modifier.size(34.dp).clip(CircleShape).clickable { menu = true }, contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = TextMuted, modifier = Modifier.size(20.dp))
         }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenuItem(text = { Text("Download") }, onClick = { menu = false; downloadDialog = true })
             DropdownMenuItem(text = { Text("Save to playlist") }, onClick = { menu = false; saveDialog = true })
             DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; shareVideo(ctx, v.id) })
             if (v.channelId.isNotEmpty()) {
@@ -64,6 +66,7 @@ fun VideoMenuButton(v: VideoItem, modifier: Modifier = Modifier, onRemove: (() -
         }
     }
     if (saveDialog) SaveToPlaylistDialog(v) { saveDialog = false }
+    if (downloadDialog) DownloadDialog(v) { downloadDialog = false }
 }
 
 /** Small thumbnail left, text right. Flat: no card behind it. */

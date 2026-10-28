@@ -370,6 +370,7 @@ fun VideoRow(
     var menu by remember { mutableStateOf(false) }
     var notInterestedOpen by remember { mutableStateOf(false) }
     var saveDialog by remember { mutableStateOf(false) }
+    var downloadDialog by remember { mutableStateOf(false) }
     // the channel logo: from the feed when it has it, otherwise looked up once per channel
     val avatar by produceState(ChannelAvatars.known(v.channelId, v.channelThumb), v.channelId, v.channelThumb) {
         if (value.isEmpty() && v.channelId.isNotEmpty()) value = ChannelAvatars.load(v.channelId)
@@ -473,6 +474,10 @@ fun VideoRow(
                         )
                     } else {
                         DropdownMenuItem(
+                            text = { Text("Download") },
+                            onClick = { menu = false; downloadDialog = true }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Save to playlist") },
                             onClick = { menu = false; saveDialog = true }
                         )
@@ -504,6 +509,7 @@ fun VideoRow(
         }
     }
     if (saveDialog) SaveToPlaylistDialog(v) { saveDialog = false }
+    if (downloadDialog) DownloadDialog(v) { downloadDialog = false }
 }
 
 /** Sharp 720p thumbnail when YouTube has one, otherwise the standard medium one. */
