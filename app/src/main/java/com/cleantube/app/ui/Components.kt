@@ -388,14 +388,16 @@ fun VideoRow(
             .fillMaxWidth()
             .prefetchOnPress(v.id)
             .plainClickable { thumbC[0]?.takeIf { it.isAttached }?.let { VideoHost.rememberOrigin(it.boundsInWindow()) }; onClick() }
-            .padding(horizontal = 14.dp, vertical = 9.dp)
+            // 12.dp = the header's navigation row edge (NavPadH), so the thumbnail lines up with the round button on
+            // the left and the pill on the right
+            .padding(horizontal = 12.dp, vertical = 9.dp)
     ) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
                 .onGloballyPositioned { thumbC[0] = it }
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(20.dp))
                 .background(Hairline)
         ) {
             VideoThumb(v.id, Modifier.fillMaxSize())
