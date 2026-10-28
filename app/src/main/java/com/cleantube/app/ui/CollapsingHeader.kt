@@ -92,7 +92,7 @@ private val AvatarSmall = 42.dp
 private val BtnBig = 46.dp          // round search / bell buttons
 private val BtnSmall = 42.dp
 private val GreetGapTop = 14.dp     // photo -> greeting
-private val GreetH = 72.dp          // two lines of the greeting
+private val GreetH = 88.dp          // two lines of the greeting
 private val GreetGapBottom = 18.dp  // greeting -> navigation row
 private val NavH = 50.dp          // height (thickness) of the navigation pill and the round Shorts button
 private val NavPadH = 12.dp         // screen edge -> navigation row (smaller than PadH, so the pill is wider than the rows above)
@@ -289,7 +289,7 @@ fun CollapsingHeader(
     val onSel = lerp(OnAccent, Color.Black, t)
     val barColor = lerp(Bg, Color.Black, t)
     val greetingStyle = androidx.compose.ui.text.TextStyle(
-        fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp
+        fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.8).sp
     )
 
     Layout(
