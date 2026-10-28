@@ -513,8 +513,14 @@ fun SettingsScreen() {
                     SectionTitle("DOWNLOADS")
                     Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Pill("In app", onClick = { store.downloadWhere = "app" }, active = store.downloadWhere == "app")
-                            Pill("Phone storage", onClick = { store.downloadWhere = "phone" }, active = store.downloadWhere == "phone")
+                            // both can be on: the file is kept in the app AND copied to phone storage
+                            val w = store.downloadWhere
+                            Pill("In app", onClick = {
+                                store.downloadWhere = when (w) { "phone" -> "both"; "both" -> "phone"; else -> "app" }
+                            }, active = w == "app" || w == "both")
+                            Pill("Phone storage", onClick = {
+                                store.downloadWhere = when (w) { "app" -> "both"; "both" -> "app"; else -> "phone" }
+                            }, active = w == "phone" || w == "both")
                         }
                         Text(
                             "Default place for new downloads. You can change it each time.",
@@ -526,7 +532,7 @@ fun SettingsScreen() {
                                 Pill("$n", onClick = { store.downloadThreads = n }, active = store.downloadThreads == n)
                             }
                         }
-                        Pill("Open downloads", onClick = { nav.push(Route.Downloads) }, modifier = Modifier.fillMaxWidth())
+                        Pill("Open downloads", onClick = { nav.openDownloads() }, modifier = Modifier.fillMaxWidth())
                     }
                 }
 

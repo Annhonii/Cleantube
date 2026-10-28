@@ -27,7 +27,7 @@ sealed interface Route {
     data class LocalList(val id: String) : Route
 }
 
-val TabRoutes: List<Route> = listOf(Route.Home, Route.Shorts, Route.Feed, Route.Library)
+val TabRoutes: List<Route> = listOf(Route.Home, Route.Shorts, Route.Feed, Route.Library, Route.Downloads)
 
 enum class NavKind { PUSH, POP, TAB }
 
@@ -69,3 +69,10 @@ class Nav(start: Route = Route.Home) {
 }
 
 val LocalNav = compositionLocalOf<Nav> { error("Nav not provided") }
+
+/** Opens Downloads: as its tab when that tab is on, otherwise as a pushed screen (Settings can hide the tab). */
+fun Nav.openDownloads() {
+    if (current == Route.Downloads) return
+    if (visibleTabs(com.cleantube.app.data.Graph.store).any { it.route == Route.Downloads }) selectTab(Route.Downloads)
+    else push(Route.Downloads)
+}

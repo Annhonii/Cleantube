@@ -299,7 +299,7 @@ fun LibraryScreen() {
             Modifier.fillMaxSize(), state = listState,
             contentPadding = PaddingValues(top = headerH + 12.dp, bottom = listBottomPad())
         ) {
-            // plain list: Playlists, Liked videos, History, Downloads
+            // plain list: Playlists, Liked videos, History
             item {
                 Column(Modifier.fillMaxWidth()) {
                     LibListRow(Icons.AutoMirrored.Rounded.PlaylistPlay, "Playlists") { nav.push(Route.Playlists) }
@@ -307,7 +307,6 @@ fun LibraryScreen() {
                         if (Session.loggedIn) nav.push(Route.Playlist("LL", "Liked videos")) else nav.push(Route.Settings)
                     }
                     LibListRow(Icons.Rounded.History, "History") { nav.push(Route.History) }
-                    LibListRow(Icons.Rounded.Download, "Downloads") { nav.push(Route.Downloads) }
                 }
             }
         }

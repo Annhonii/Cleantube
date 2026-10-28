@@ -94,7 +94,12 @@ fun TickSlider(
     resetIndex: Int? = null,
     /** Pixel look: grey ticks, a fat white needle, [bubble] puts the value in a round chip at the left. */
     pixel: Boolean = false,
-    bubble: Boolean = false
+    bubble: Boolean = false,
+    /** Optional colours (e.g. the colours of a video); null = the app's normal ones. */
+    accentColor: Color? = null,
+    trackColor: Color? = null,
+    idleColor: Color? = null,
+    contentColor: Color? = null
 ) {
     if (labels.isEmpty()) return
     val scope = rememberCoroutineScope()
@@ -104,11 +109,11 @@ fun TickSlider(
     val gapPx = with(LocalDensity.current) { gap.toPx() }
     val barH = if (compact) 40.dp else 48.dp
 
-    val bg = if (dark) Color(0x33FFFFFF) else SurfaceHighest
-    val accent = if (dark) Color.White else Accent
-    val idle = if (dark) Color(0x80FFFFFF) else TextMuted
-    val textColor = if (dark) Color.White else Accent
-    val needleColor = TextPrimary
+    val bg = trackColor ?: if (dark) Color(0x33FFFFFF) else SurfaceHighest
+    val accent = accentColor ?: if (dark) Color.White else Accent
+    val idle = idleColor ?: if (dark) Color(0x80FFFFFF) else TextMuted
+    val textColor = accentColor ?: if (dark) Color.White else Accent
+    val needleColor = contentColor ?: TextPrimary
 
     var pos by remember { mutableFloatStateOf(index.coerceIn(0, last).toFloat()) }
     var committed by remember { mutableIntStateOf(index.coerceIn(0, last)) }
@@ -360,7 +365,7 @@ fun TickSlider(
             ) {
                 Icon(
                     Icons.Rounded.RestartAlt, contentDescription = "Reset",
-                    tint = if (dark) Color.White else TextPrimary,
+                    tint = contentColor ?: if (dark) Color.White else TextPrimary,
                     modifier = Modifier
                         .size(if (compact) 16.dp else 20.dp)
                         .graphicsLayer { rotationZ = spin.value }

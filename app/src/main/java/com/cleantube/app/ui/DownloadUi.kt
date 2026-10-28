@@ -1,6 +1,25 @@
 package com.cleantube.app.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Videocam
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.cleantube.app.data.Playback
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,6 +41,7 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SaveAlt
@@ -107,107 +127,363 @@ import com.cleantube.app.data.VideoItem
 
 private fun sizeText(b: Long): String = formatBytes(b)
 
-/** Pick a file and a place (inside the app, or the phone's Movies / Music folder), then download. */
+// ------------------------------------------------------------------ Download option dialog
+//
+// Opens the moment it is asked for: the stream links the player already looked up are reused ([Playback.cached]),
+// otherwise the one-request fast path is used ([Playback.resolve]) and only the quality list shows a skeleton while
+// it waits. The colours come from the video's own thumbnail, the same pipeline the app theme and the video page use.
+
+/** Colours of the dialog: the video's own once its thumbnail is read (or when "colours from the video" is off, the normal ones). */
+private class DlColors(
+    val container: Color, val onSurface: Color, val muted: Color, val row: Color,
+    val selected: Color, val onSelected: Color, val chip: Color, val onChip: Color,
+    val primary: Color, val onPrimary: Color, val outline: Color
+)
+
+@Composable
+private fun dlAnim(c: Color): Color = animateColorAsState(c, tween(500), label = "dlColour").value
+
+@Composable
+private fun rememberDlColors(videoId: String): DlColors {
+    val s = rememberThumbScheme(videoId)
+    return DlColors(
+        container = dlAnim(s?.surfaceContainerHigh ?: Card),
+        onSurface = dlAnim(s?.onSurface ?: TextPrimary),
+        muted = dlAnim(s?.onSurfaceVariant ?: TextMuted),
+        row = dlAnim(s?.surfaceContainerHighest ?: SurfaceHighest),
+        selected = dlAnim(s?.primaryContainer ?: AccentSoft),
+        onSelected = dlAnim(s?.onPrimaryContainer ?: OnAccentSoft),
+        chip = dlAnim(s?.secondaryContainer ?: SecondaryContainer),
+        onChip = dlAnim(s?.onSecondaryContainer ?: OnSecondaryContainer),
+        primary = dlAnim(s?.primary ?: Accent),
+        onPrimary = dlAnim(s?.onPrimary ?: OnAccent),
+        outline = dlAnim(s?.outline ?: Hairline)
+    )
+}
+
+private fun heightBadge(h: Int): String = when {
+    h >= 2160 -> "4K"
+    h >= 1440 -> "2K"
+    h >= 1080 -> "FHD"
+    h >= 720 -> "HD"
+    h > 0 -> "$h"
+    else -> "VID"
+}
+
+private fun heightName(h: Int): String = when {
+    h >= 2160 -> "2160p (4K)"
+    h >= 1440 -> "1440p (2K)"
+    h == 1080 -> "1080p (FHD)"
+    h == 720 -> "720p (HD)"
+    h > 0 -> "${h}p"
+    else -> "Video"
+}
+
+@Composable
+private fun DlSectionTitle(text: String, c: DlColors, modifier: Modifier = Modifier) {
+    Text(text, color = c.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Medium, modifier = modifier)
+}
+
+/** Round option with an optional icon: filled with a tick when on, thin outline when off. */
+@Composable
+private fun DlChip(label: String, icon: ImageVector?, on: Boolean, c: DlColors, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val bg by animateColorAsState(if (on) c.chip else Color.Transparent, tween(220), label = "dlChipBg")
+    val fg by animateColorAsState(if (on) c.onChip else c.muted, tween(220), label = "dlChipFg")
+    val edge by animateColorAsState(if (on) c.chip else c.outline, tween(220), label = "dlChipEdge")
+    Row(
+        modifier
+            .height(56.dp)
+            .clip(CircleShape)
+            .border(1.dp, edge, CircleShape)
+            .background(bg)
+            .bouncyClickable(pressedScale = 0.96f, onClick = onClick)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        if (on) {
+            Icon(Icons.Rounded.Check, contentDescription = null, tint = fg, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.width(10.dp))
+        }
+        if (icon != null) {
+            Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(28.dp))
+            Spacer(Modifier.width(10.dp))
+        }
+        Text(label, color = fg, fontSize = 19.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+    }
+}
+
+/** One quality: radio, a small badge (FHD / HD / 480 ...), "1080p (FHD) • MP4", and the estimated size. */
+@Composable
+private fun DlQualityRow(on: Boolean, badge: String, label: String, size: String, shape: RoundedCornerShape, c: DlColors, onClick: () -> Unit) {
+    val bg by animateColorAsState(if (on) c.selected else c.row, tween(200), label = "dlRowBg")
+    val fg by animateColorAsState(if (on) c.onSelected else c.onSurface, tween(200), label = "dlRowFg")
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(bg)
+            .clickable(onClick = onClick)
+            .padding(start = 8.dp, end = 18.dp)
+            .height(54.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = on, onClick = null,
+            colors = RadioButtonDefaults.colors(selectedColor = fg, unselectedColor = c.muted),
+            modifier = Modifier.padding(horizontal = 10.dp)
+        )
+        Box(
+            Modifier.clip(RoundedCornerShape(6.dp)).background(fg.copy(alpha = 0.22f)).padding(horizontal = 6.dp, vertical = 2.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(badge, color = fg, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(label, color = fg, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(size, color = fg, fontSize = 17.sp, maxLines = 1)
+    }
+}
+
+/** Placeholder rows while the links are being looked up: the dialog is already usable, only this part waits. */
+@Composable
+private fun DlQualitySkeleton(c: DlColors) {
+    val t = rememberInfiniteTransition(label = "dlSkeleton")
+    val a by t.animateFloat(0.35f, 0.9f, infiniteRepeatable(tween(750), RepeatMode.Reverse), label = "dlSkeletonAlpha")
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        repeat(5) { i ->
+            Box(
+                Modifier.fillMaxWidth().height(54.dp)
+                    .clip(groupedCardShape(i, 5, 22.dp))
+                    .background(c.row.copy(alpha = a))
+            )
+        }
+    }
+}
+
+/** Pick a file and a place (inside the app, the phone's folders, or both), then download. */
 @Composable
 fun DownloadDialog(video: VideoItem, onDone: () -> Unit) {
     val ctx = LocalContext.current
     val store = Graph.store
-    var info by remember(video.id) { mutableStateOf<StreamInfo?>(null) }
+    val c = rememberDlColors(video.id)
+
+    // links the player already looked up are used straight away: nothing to wait for
+    var info by remember(video.id) { mutableStateOf(Playback.cached(video.id)) }
     var error by remember(video.id) { mutableStateOf<String?>(null) }
-    var picked by remember(video.id) { mutableStateOf<StreamOption?>(null) }
-    var where by remember { mutableStateOf(store.downloadWhere) }
+    var attempt by remember(video.id) { mutableStateOf(0) }
+    var audio by remember(video.id) { mutableStateOf(false) }
+    var pickedVideo by remember(video.id) { mutableStateOf<StreamOption?>(null) }
+    var pickedAudio by remember(video.id) { mutableStateOf<StreamOption?>(null) }
+    // "In-app" and "Phone storage" can both be on: the file stays in the app and a copy goes to the phone
+    var toApp by remember { mutableStateOf(store.downloadWhere != "phone") }
+    var toPhone by remember { mutableStateOf(store.downloadWhere != "app") }
     var threads by remember { mutableStateOf(store.downloadThreads) }
 
-    LaunchedEffect(video.id) {
+    LaunchedEffect(video.id, attempt) {
+        if (info != null && attempt == 0) return@LaunchedEffect
+        error = null
         try {
-            val i = Streams.fetch(video.id)
-            info = i
-            picked = i.options.firstOrNull()
-        } catch (e: ApiException) {
-            error = e.message
+            info = Playback.resolve(video.id, force = attempt > 0)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             error = e.message ?: "Couldn't get the download links."
         }
     }
 
-    AlertDialog(
-        onDismissRequest = onDone,
-        containerColor = Card,
-        title = { Text("Download") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                val i = info
+    val videoOpts = remember(info) { info?.let { Playback.ladder(it) }.orEmpty() }
+    val audioOpts = remember(info) { info?.options?.filter { it.audioOnly }.orEmpty() }
+    // a video that has no picture file (music, for example) opens on "Audio"
+    LaunchedEffect(info) { if (info != null && videoOpts.isEmpty() && audioOpts.isNotEmpty()) audio = true }
+    val list = if (audio) audioOpts else videoOpts
+    val selected = (if (audio) pickedAudio else pickedVideo)?.takeIf { it in list } ?: list.firstOrNull()
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            runCatching {
+                ctx.contentResolver.takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            }
+            store.downloadTree = uri.toString()
+        }
+    }
+
+    fun start(o: StreamOption) {
+        store.downloadWhere = when {
+            toApp && toPhone -> "both"
+            toPhone -> "phone"
+            else -> "app"
+        }
+        store.downloadThreads = threads
+        Downloads.enqueue(
+            ctx, video.id, info?.title?.ifEmpty { video.title } ?: video.title, o,
+            where = if (toPhone && !toApp) "phone" else "app", threads = threads,
+            alsoPhone = toApp && toPhone
+        )
+        android.widget.Toast.makeText(ctx, "Download started", android.widget.Toast.LENGTH_SHORT).show()
+        onDone()
+    }
+
+    val maxH = (LocalConfiguration.current.screenHeightDp * 0.92f).dp
+    val threadLabels = remember { (1..32).map { "$it" } }
+
+    Dialog(onDismissRequest = onDone, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            Modifier
+                .padding(horizontal = 14.dp)
+                .widthIn(max = 460.dp)
+                .fillMaxWidth()
+                .heightIn(max = maxH)
+                .clip(RoundedCornerShape(36.dp))
+                .background(c.container)
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(start = 28.dp, end = 16.dp, top = 24.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Download Option", color = c.onSurface, fontSize = 28.sp, fontWeight = FontWeight.Medium,
+                    maxLines = 1, modifier = Modifier.weight(1f)
+                )
+                DlIconButton(Icons.Rounded.Close, "Close", size = 44.dp, iconSize = 26.dp, tint = c.onSurface) { onDone() }
+            }
+
+            Column(
+                Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                DlSectionTitle("Media Type Selector", c, Modifier.padding(top = 8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    DlChip("Video", Icons.Rounded.Videocam, on = !audio, c = c, modifier = Modifier.weight(1f)) { audio = false }
+                    DlChip("Audio", Icons.Rounded.MusicNote, on = audio, c = c, modifier = Modifier.weight(1f)) { audio = true }
+                }
+
+                DlSectionTitle("Quality", c, Modifier.padding(top = 10.dp))
+                Row(Modifier.fillMaxWidth().padding(start = 64.dp, end = 18.dp)) {
+                    Text("Quality", color = c.muted, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Text("Est. Size", color = c.muted, fontSize = 15.sp)
+                }
                 val err = error
                 when {
-                    err != null -> Text(err, color = Danger, fontSize = 13.sp)
-                    i == null -> Text("Getting download links…", color = TextMuted, fontSize = 13.sp)
-                    else -> {
-                        i.options.forEach { o ->
-                            val sel = picked == o
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (sel) Hairline else Color.Transparent)
-                                    .clickable { picked = o }
-                                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    (if (sel) "● " else "○ ") + o.label,
-                                    color = TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f)
-                                )
-                                val sz = sizeText(o.size)
-                                if (sz.isNotEmpty()) Text(sz, color = TextMuted, fontSize = 12.sp)
-                            }
+                    err != null -> {
+                        Text(err, color = Danger, fontSize = 13.sp)
+                        Row { Pill("Retry", onClick = { attempt++ }, active = true) }
+                    }
+                    info == null -> DlQualitySkeleton(c)
+                    list.isEmpty() -> Text(
+                        if (audio) "YouTube offers no audio file for this video." else "YouTube offers no video file for this video.",
+                        color = c.muted, fontSize = 14.sp
+                    )
+                    else -> Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        list.forEachIndexed { i, o ->
+                            val on = o == selected
+                            val h = Playback.heightOf(o)
+                            val kbps = Regex("(\\d+) kbps").find(o.label)?.groupValues?.get(1)
+                            DlQualityRow(
+                                on = on,
+                                badge = if (audio) o.ext.uppercase() else heightBadge(h),
+                                label = if (audio) (kbps?.let { "$it kbps" } ?: "Audio") + " • " + o.ext.uppercase()
+                                else heightName(h) + " • " + o.ext.uppercase(),
+                                size = sizeText(o.size),
+                                shape = if (on) RoundedCornerShape(27.dp) else groupedCardShape(i, list.size, 22.dp),
+                                c = c
+                            ) { if (audio) pickedAudio = o else pickedVideo = o }
                         }
-                        Text("Save to", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Pill("In app", onClick = { where = "app" }, active = where == "app")
-                            Pill("Phone storage", onClick = { where = "phone" }, active = where == "phone")
-                        }
-                        Row(
-                            Modifier.fillMaxWidth().padding(top = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Connections (threads)", color = TextMuted, fontSize = 12.sp)
-                            Text("$threads", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                        Slider(
-                            value = threads.toFloat(),
-                            onValueChange = { threads = it.roundToInt().coerceIn(1, 50) },
-                            valueRange = 1f..50f,
-                            steps = 48
-                        )
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("1", color = TextMuted, fontSize = 11.sp)
-                            Text("25", color = TextMuted, fontSize = 11.sp)
-                            Text("50", color = TextMuted, fontSize = 11.sp)
-                        }
-                        Text(
-                            if (where == "app") "Private to Voidstream, shown in its Downloads list. Removed if you uninstall the app."
-                            else "Saved in Movies/Voidstream (or Music/Voidstream for audio), visible to your gallery and file manager.",
-                            color = TextMuted, fontSize = 12.sp
-                        )
                     }
                 }
+
+                DlSectionTitle("Save Location", c, Modifier.padding(top = 14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    DlChip("In-app", null, on = toApp, c = c, modifier = Modifier.weight(1f)) {
+                        if (!toApp) toApp = true else if (toPhone) toApp = false
+                    }
+                    DlChip("Phone storage", null, on = toPhone, c = c, modifier = Modifier.weight(1.25f)) {
+                        if (!toPhone) toPhone = true else if (toApp) toPhone = false
+                    }
+                }
+                if (toPhone) {
+                    val tree = store.downloadTree
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(c.row).padding(18.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.FolderOpen, contentDescription = null, tint = c.primary, modifier = Modifier.size(32.dp))
+                        Spacer(Modifier.width(16.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Download Path:", color = c.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                            Text(
+                                if (tree.isNotEmpty()) Downloads.treeLabel(tree) else Downloads.defaultFolderLabel(audio),
+                                color = c.muted, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis
+                            )
+                            if (tree.isNotEmpty()) {
+                                Text(
+                                    "Use default folder", color = c.primary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.padding(top = 4.dp).clickable { store.downloadTree = "" }
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(
+                            Modifier
+                                .clip(RoundedCornerShape(22.dp))
+                                .background(c.chip)
+                                .bouncyClickable(pressedScale = 0.94f, onClick = { picker.launch(null) })
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(Icons.Rounded.Edit, contentDescription = null, tint = c.onChip, modifier = Modifier.size(26.dp))
+                            Text("Change", color = c.onChip, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                }
+                Text(
+                    when {
+                        toApp && toPhone -> "Kept in Voidstream's Downloads list, and a copy is saved to your phone."
+                        toApp -> "Private to Voidstream, shown in its Downloads list. Removed if you uninstall the app."
+                        else -> "Saved to your phone, visible to your gallery and file manager."
+                    },
+                    color = c.muted, fontSize = 13.sp
+                )
+
+                Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Bolt, contentDescription = null, tint = c.primary, modifier = Modifier.size(30.dp))
+                    Spacer(Modifier.width(14.dp))
+                    Text("Connections (threads)", color = c.onSurface, fontSize = 19.sp)
+                }
+                TickSlider(
+                    labels = threadLabels,
+                    index = (threads - 1).coerceIn(0, threadLabels.lastIndex),
+                    onPick = { threads = it + 1 },
+                    resetIndex = 7,
+                    accentColor = c.primary, trackColor = c.row, idleColor = c.muted, contentColor = c.onSurface
+                )
+                Spacer(Modifier.height(4.dp))
             }
-        },
-        confirmButton = {
-            val o = picked
-            if (o != null) {
-                TextButton(onClick = {
-                    store.downloadWhere = where
-                    store.downloadThreads = threads
-                    Downloads.enqueue(ctx, video.id, info?.title?.ifEmpty { video.title } ?: video.title, o, where, threads)
-                    android.widget.Toast.makeText(ctx, "Download started", android.widget.Toast.LENGTH_SHORT).show()
-                    onDone()
-                }) { Text("Download", color = Accent) }
+
+            Row(
+                Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 22.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onDone) { Text("Cancel", color = c.onSurface, fontSize = 18.sp) }
+                Spacer(Modifier.width(14.dp))
+                val go = selected
+                Box(
+                    Modifier
+                        .height(56.dp)
+                        .then(if (go != null) Modifier.bouncyClickable(pressedScale = 0.95f, onClick = { start(go) }) else Modifier)
+                        .clip(CircleShape)
+                        .background(c.primary.copy(alpha = if (go != null) 1f else 0.35f))
+                        .padding(horizontal = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Download", color = c.onPrimary, fontSize = 19.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                }
             }
-        },
-        dismissButton = { TextButton(onClick = onDone) { Text("Cancel", color = TextPrimary) } }
-    )
+        }
+    }
 }
 
 /**
@@ -345,6 +621,10 @@ fun DownloadsScreen() {
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var confirmDeleteSelected by remember { mutableStateOf(false) }
     val searchFocus = remember { FocusRequester() }
+    // Downloads is a tab: the shared header card sits on top, so the page starts under it. If the tab was turned off
+    // in Settings the page is pushed instead: it then has its own status bar padding and a back button.
+    val isTab = visibleTabs(com.cleantube.app.data.Graph.store).any { it.route == Route.Downloads }
+    val headerH = collapsingHeaderHeight(Route.Downloads)
 
     LaunchedEffect(searching) {
         if (searching) runCatching { searchFocus.requestFocus() }
@@ -396,8 +676,8 @@ fun DownloadsScreen() {
         Row(
             Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
-                .height(64.dp)
+                .then(if (isTab) Modifier.padding(top = headerH) else Modifier.statusBarsPadding())
+                .height(if (isTab) 56.dp else 64.dp)
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -406,7 +686,7 @@ fun DownloadsScreen() {
                 Text("${selectedIds.size} selected", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
             } else {
-                DlIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back", size = 44.dp, iconSize = 22.dp, bg = Card) { nav.back() }
+                if (!isTab) DlIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back", size = 44.dp, iconSize = 22.dp, bg = Card) { nav.back() }
                 Spacer(Modifier.weight(1f))
             }
             DlIconButton(Icons.Rounded.Search, "Search downloads", size = 44.dp, iconSize = 24.dp) {
@@ -751,7 +1031,8 @@ private fun DownloadRow(
                 if (running && d.phase.isEmpty()) {
                     val speed = formatSpeed(d.speed)
                     Text(
-                        listOf(speed, if (d.etaSec >= 0) "${formatEta(d.etaSec)} left" else "calculating time left…")
+                        if (d.paused) "Paused"
+                        else listOf(speed, if (d.etaSec >= 0) "${formatEta(d.etaSec)} left" else "calculating time left…")
                             .filter { it.isNotEmpty() }.joinToString("  •  "),
                         color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
@@ -759,10 +1040,14 @@ private fun DownloadRow(
                 if (failed) {
                     Text("Failed: ${d.error}", color = Danger, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
+                // finished, but the extra copy to phone storage didn't work
+                if (done && d.error.isNotEmpty()) {
+                    Text(d.error, color = Danger, fontSize = 11.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                }
                 if (live) {
                     // the bar glides to each new value instead of jumping
                     val shownProgress by animateFloatAsState(d.progress, tween(500, easing = LinearOutSlowInEasing), label = "dlProgress")
-                    if (running && d.phase.isEmpty() && d.progress > 0f) {
+                    if (running && d.phase.isEmpty() && (d.progress > 0f || d.paused)) {
                         LinearProgressIndicator(progress = { shownProgress }, modifier = Modifier.fillMaxWidth(), color = c.primary, trackColor = c.track)
                     } else {
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = c.primary, trackColor = c.track)
@@ -777,7 +1062,7 @@ private fun DownloadRow(
                     running -> {
                         val pct = (d.progress * 100).toInt()
                         val sizes = if (d.total > 0) "${sizeText(d.bytes)} of ${sizeText(d.total)}" else sizeText(d.bytes)
-                        "$pct% • $sizes"
+                        (if (d.paused) "Paused • " else "") + "$pct% • $sizes"
                     }
                     failed -> "Failed"
                     cancelled -> "Cancelled"
@@ -788,7 +1073,16 @@ private fun DownloadRow(
                     modifier = Modifier.weight(1f)
                 )
                 when {
-                    running -> DlIconButton(Icons.Rounded.Close, "Cancel", size = 32.dp, tint = c.muted) { Downloads.cancel(d) }
+                    running -> {
+                        // no pause while the file is being joined / saved: that part is quick and can't be stopped halfway
+                        if (d.phase.isEmpty()) {
+                            DlIconButton(
+                                if (d.paused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
+                                if (d.paused) "Resume" else "Pause", size = 32.dp, tint = c.primary
+                            ) { if (d.paused) Downloads.resume(d) else Downloads.pause(d) }
+                        }
+                        DlIconButton(Icons.Rounded.Close, "Cancel", size = 32.dp, tint = c.muted) { Downloads.cancel(d) }
+                    }
                     queued -> DlIconButton(Icons.Rounded.Close, "Remove", size = 32.dp, tint = c.muted) {
                         Downloads.remove(ctx, d, deleteFile = false)
                     }

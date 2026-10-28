@@ -51,12 +51,21 @@ class Store(context: Context) {
         }
 
     private val dlWhereState = mutableStateOf(sp.getString("dl_where", "app").orEmpty())
-    /** Default place for downloads: "app" (private to this app) or "phone" (Movies / Music folder). */
+    /** Default place for downloads: "app" (private to this app), "phone" (Movies / Music folder) or "both". */
     var downloadWhere: String
         get() = dlWhereState.value
         set(value) {
             dlWhereState.value = value
             sp.edit().putString("dl_where", value).apply()
+        }
+
+    private val dlTreeState = mutableStateOf(sp.getString("dl_tree", "").orEmpty())
+    /** Folder the user picked for phone-storage downloads (a content:// tree address); empty = Movies / Music / Voidstream. */
+    var downloadTree: String
+        get() = dlTreeState.value
+        set(value) {
+            dlTreeState.value = value
+            sp.edit().putString("dl_tree", value).apply()
         }
 
     private val dlThreadsState = mutableStateOf(sp.getInt("dl_threads", 8))

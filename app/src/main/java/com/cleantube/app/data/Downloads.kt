@@ -57,7 +57,9 @@ class DownloadItem(
     /** Playlist items are queued without links: this is the tallest picture wanted (0 = best) when they are looked up. */
     val maxHeight: Int = 0,
     /** Queue order: the lowest waiting number goes first. */
-    val seq: Long = Downloads.nextSeq()
+    val seq: Long = Downloads.nextSeq(),
+    /** Saved in the app (where = "app") and, once finished, copied to phone storage as well. */
+    val alsoPhone: Boolean = false
 ) {
     var status by mutableStateOf(status)
     var progress by mutableFloatStateOf(0f)
@@ -70,6 +72,8 @@ class DownloadItem(
     /** "Merging…" / "Saving…" while the transfer itself is finished. */
     var phase by mutableStateOf("")
     @Volatile var cancelled = false
+    /** True while the user has paused the transfer; the connections wait and carry on from the same byte. */
+    var paused by mutableStateOf(false)
 }
 
 object Downloads {
@@ -152,11 +156,14 @@ object Downloads {
         save()
     }
 
-    fun enqueue(context: Context, videoId: String, title: String, o: StreamOption, where: String, threads: Int) {
+    fun enqueue(
+        context: Context, videoId: String, title: String, o: StreamOption, where: String, threads: Int,
+        alsoPhone: Boolean = false
+    ) {
         val item = DownloadItem(
             UUID.randomUUID().toString(), videoId, title, o.label, o.ext, o.mime, o.audioOnly, where,
             o.url, o.userAgent, o.size, o.audioUrl, o.audioSize, o.merge, threads.coerceIn(1, 32),
-            audioUserAgent = o.audioUserAgent
+            audioUserAgent = o.audioUserAgent, alsoPhone = alsoPhone && where == "app"
         )
         items.add(0, item)
         startService(context)
@@ -170,6 +177,7 @@ object Downloads {
     fun retry(context: Context, item: DownloadItem) {
         if (item.status == DlStatus.RUNNING || item.status == DlStatus.QUEUED) return
         item.cancelled = false
+        item.paused = false
         item.error = ""
         item.progress = 0f
         item.bytes = 0
@@ -182,18 +190,59 @@ object Downloads {
     /** Stops a running download but keeps it in the list (so it can be retried). */
     fun cancel(item: DownloadItem) {
         item.cancelled = true
+        item.paused = false
+    }
+
+    /** Pauses a running transfer: the connections stop and wait; Resume carries on from the same byte. */
+    fun pause(item: DownloadItem) {
+        if (item.status != DlStatus.RUNNING || item.phase.isNotEmpty()) return
+        item.paused = true
+        item.speed = 0
+        item.etaSec = -1
+    }
+
+    fun resume(item: DownloadItem) {
+        item.paused = false
     }
 
     fun remove(context: Context, item: DownloadItem, deleteFile: Boolean) {
         item.cancelled = true
+        item.paused = false
         if (deleteFile && item.location.isNotEmpty()) {
             runCatching {
-                if (item.location.startsWith("content://")) context.contentResolver.delete(Uri.parse(item.location), null, null)
-                else File(item.location).delete()
+                if (item.location.startsWith("content://")) {
+                    val u = Uri.parse(item.location)
+                    // a file inside a folder the user picked is a document; photos / videos of the phone are media entries
+                    val gone = runCatching {
+                        android.provider.DocumentsContract.isDocumentUri(context, u) &&
+                            android.provider.DocumentsContract.deleteDocument(context.contentResolver, u)
+                    }.getOrDefault(false)
+                    if (!gone) context.contentResolver.delete(u, null, null)
+                } else File(item.location).delete()
             }
         }
         items.remove(item)
         save()
+    }
+
+    /** "/Internal/Download/Voidstream" out of a picked folder address (primary volume = Internal). */
+    fun treeLabel(tree: String): String = runCatching {
+        val id = android.provider.DocumentsContract.getTreeDocumentId(Uri.parse(tree))
+        val vol = id.substringBefore(':')
+        val path = id.substringAfter(':', "")
+        "/" + (if (vol == "primary") "Internal" else vol) + (if (path.isNotEmpty()) "/$path" else "")
+    }.getOrDefault(tree)
+
+    /** Where phone-storage downloads go when no folder was picked. */
+    fun defaultFolderLabel(audio: Boolean): String = "/Internal/" + (if (audio) "Music" else "Movies") + "/Voidstream"
+
+    /** A new file inside the folder the user picked. Audio uses a neutral type so the provider keeps the name as it is. */
+    private fun createInTree(ctx: Context, tree: String, name: String, item: DownloadItem): Uri {
+        val t = Uri.parse(tree)
+        val parent = android.provider.DocumentsContract.buildDocumentUriUsingTree(t, android.provider.DocumentsContract.getTreeDocumentId(t))
+        val mime = if (item.audioOnly) "application/octet-stream" else item.mime
+        return android.provider.DocumentsContract.createDocument(ctx.contentResolver, parent, mime, name)
+            ?: throw java.io.IOException("Couldn't create the file in the chosen folder. Pick the folder again.")
     }
 
     /**
@@ -207,6 +256,18 @@ object Downloads {
         val src = File(item.location)
         if (item.location.isEmpty() || !src.exists()) throw java.io.IOException("The file is gone (deleted or moved).")
         val name = "${safeName(item.title)} [${item.videoId}].${item.ext}"
+        val tree = Graph.store.downloadTree
+        if (tree.isNotEmpty() && item.folder.isEmpty()) {
+            val uri = createInTree(ctx, tree, name, item)
+            try {
+                val out = ctx.contentResolver.openOutputStream(uri) ?: throw java.io.IOException("Couldn't open the file.")
+                out.use { o -> src.inputStream().use { it.copyTo(o, 256 * 1024) } }
+            } catch (e: Exception) {
+                runCatching { android.provider.DocumentsContract.deleteDocument(ctx.contentResolver, uri) }
+                throw if (e is java.io.IOException) e else java.io.IOException(e.message ?: "Couldn't save the file.")
+            }
+            return@withContext treeLabel(tree)
+        }
         val base = if (item.audioOnly) Environment.DIRECTORY_MUSIC else Environment.DIRECTORY_MOVIES
         val sub = "Voidstream" + (if (item.folder.isNotEmpty()) "/${item.folder}" else "")
         if (Build.VERSION.SDK_INT >= 29) {
@@ -260,6 +321,15 @@ object Downloads {
     private fun openTarget(ctx: Context, item: DownloadItem): Target {
         val name = "${safeName(item.title)} [${item.videoId}].${item.ext}"
         val usePhone = item.where == "phone"
+        val tree = Graph.store.downloadTree
+        if (usePhone && tree.isNotEmpty() && item.folder.isEmpty()) {
+            val uri = createInTree(ctx, tree, name, item)
+            val out = ctx.contentResolver.openOutputStream(uri) ?: throw java.io.IOException("Couldn't open the file.")
+            return Target(
+                out, uri.toString(), finish = {},
+                abort = { runCatching { android.provider.DocumentsContract.deleteDocument(ctx.contentResolver, uri) } }
+            )
+        }
         if (usePhone && Build.VERSION.SDK_INT >= 29) {
             val collection = if (item.audioOnly) MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
             // a playlist gets its own sub-folder (Movies/Voidstream/<playlist>); a single video stays directly in Voidstream
@@ -345,50 +415,64 @@ object Downloads {
         return -1
     }
 
+    /** Blocks while the download is paused; throws [DlCancelled] when it is cancelled meanwhile. */
+    private fun waitWhilePaused(item: DownloadItem) {
+        while (item.paused && !item.cancelled) Thread.sleep(150)
+        if (item.cancelled) throw DlCancelled()
+    }
+
     /**
      * One 2 MB range request, written at its own offset. Tried up to 3 times, switching between the URL-parameter
      * and the header way of asking for a range, because which one YouTube accepts depends on the link.
+     * Pausing closes the connection and waits; resuming asks for the rest of the chunk (from the byte it stopped at).
      */
     private fun fetchChunk(
         url: String, ua: String, start: Long, end: Long, ch: java.nio.channels.FileChannel,
-        stop: () -> Boolean, done: AtomicLong, buf: ByteArray, tick: () -> Unit
+        stop: () -> Boolean, item: DownloadItem, done: AtomicLong, buf: ByteArray, tick: () -> Unit
     ) {
         var lastError: Exception? = null
         var refused = 0
         for (attempt in 0 until 3) {
             var got = 0L
+            var pos = start
             val paramFirst = isGoogleVideo(url)
             val paramStyle = if (paramFirst) attempt % 2 == 0 else false
             try {
-                val conn = URL(if (paramStyle) withRangeParam(url, start, end) else url).openConnection() as HttpURLConnection
-                try {
-                    setHeaders(conn, url, ua)
-                    if (!paramStyle) conn.setRequestProperty("Range", "bytes=$start-$end")
-                    val code = conn.responseCode
-                    if (code == 403 || code == 410 || code == 404) throw Refused("YouTube refused the download (HTTP $code).")
-                    if (code != 206 && code != 200) throw java.io.IOException("YouTube answered HTTP $code.")
-                    if (!paramStyle && code == 200 && start > 0) throw java.io.IOException("The server ignored the byte range.")
-                    val len = conn.contentLengthLong
-                    if (len > 0 && len != end - start + 1) throw java.io.IOException("The server sent the wrong part of the file.")
-                    var pos = start
-                    conn.inputStream.use { input ->
-                        while (pos <= end) {
-                            if (stop()) throw DlCancelled()
-                            val want = minOf(buf.size.toLong(), end + 1 - pos).toInt()
-                            val n = input.read(buf, 0, want)
-                            if (n < 0) break
-                            ch.write(java.nio.ByteBuffer.wrap(buf, 0, n), pos)
-                            pos += n
-                            got += n
-                            done.addAndGet(n.toLong())
-                            tick()
+                while (pos <= end) {
+                    // a pause is waited out BEFORE a connection is opened, so no connection sits idle and times out
+                    if (item.paused) waitWhilePaused(item)
+                    var pausedHere = false
+                    val conn = URL(if (paramStyle) withRangeParam(url, pos, end) else url).openConnection() as HttpURLConnection
+                    try {
+                        setHeaders(conn, url, ua)
+                        if (!paramStyle) conn.setRequestProperty("Range", "bytes=$pos-$end")
+                        val code = conn.responseCode
+                        if (code == 403 || code == 410 || code == 404) throw Refused("YouTube refused the download (HTTP $code).")
+                        if (code != 206 && code != 200) throw java.io.IOException("YouTube answered HTTP $code.")
+                        if (!paramStyle && code == 200 && pos > 0) throw java.io.IOException("The server ignored the byte range.")
+                        val len = conn.contentLengthLong
+                        if (len > 0 && len != end - pos + 1) throw java.io.IOException("The server sent the wrong part of the file.")
+                        conn.inputStream.use { input ->
+                            while (pos <= end) {
+                                if (stop()) throw DlCancelled()
+                                if (item.paused) { pausedHere = true; break }
+                                val want = minOf(buf.size.toLong(), end + 1 - pos).toInt()
+                                val n = input.read(buf, 0, want)
+                                if (n < 0) break
+                                ch.write(java.nio.ByteBuffer.wrap(buf, 0, n), pos)
+                                pos += n
+                                got += n
+                                done.addAndGet(n.toLong())
+                                tick()
+                            }
                         }
+                        if (!pausedHere && pos != end + 1) throw java.io.IOException("Connection ended early.")
+                    } finally {
+                        conn.disconnect()
                     }
-                    if (pos != end + 1) throw java.io.IOException("Connection ended early.")
-                    return
-                } finally {
-                    conn.disconnect()
+                    // paused mid-chunk: the loop comes round, waits at the top, then asks for the rest from [pos]
                 }
+                return
             } catch (e: DlCancelled) {
                 throw e
             } catch (e: Exception) {
@@ -426,7 +510,7 @@ object Downloads {
                                 if (i >= chunks) break
                                 val start = i * CHUNK
                                 val end = minOf(start + CHUNK, size) - 1
-                                fetchChunk(url, ua, start, end, ch, stop, done, buf, tick)
+                                fetchChunk(url, ua, start, end, ch, stop, item, done, buf, tick)
                             }
                         } catch (e: Throwable) {
                             if (e !is DlCancelled) failed.set(true)
@@ -453,6 +537,7 @@ object Downloads {
             if (lastT == 0L) { lastT = now; lastB = bytes; return 0 }
             val dt = now - lastT
             if (dt < 500) return ema.toLong()
+            if (dt > 5_000) { lastT = now; lastB = bytes; return ema.toLong() } // after a pause: start measuring again
             val inst = ((bytes - lastB).coerceAtLeast(0)) * 1000.0 / dt
             ema = if (ema == 0.0) inst else ema * 0.7 + inst * 0.3
             lastT = now
@@ -659,6 +744,18 @@ object Downloads {
             item.location = t.location
             item.bytes = source.length()
             item.progress = 1f
+            if (item.alsoPhone && item.where == "app") {
+                // "In-app" and "Phone storage" were both ticked: the app copy stays, a second copy goes to the phone
+                item.phase = "Saving to phone storage…"
+                onProgress()
+                try {
+                    saveToStorage(ctx, item)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    item.error = "Saved in the app, but not copied to phone storage: ${e.message ?: "unknown problem"}"
+                }
+            }
             item.status = DlStatus.DONE
         } catch (e: DlCancelled) {
             runCatching { target?.out?.close() }

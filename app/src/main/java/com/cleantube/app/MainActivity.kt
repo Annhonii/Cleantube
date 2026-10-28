@@ -27,6 +27,7 @@ import com.cleantube.app.ui.FullscreenHost
 import com.cleantube.app.ui.Nav
 import com.cleantube.app.ui.PipHost
 import com.cleantube.app.ui.Route
+import com.cleantube.app.ui.openDownloads
 import com.cleantube.app.ui.SystemBarsUi
 import com.cleantube.app.ui.routeFromUri
 
@@ -94,7 +95,7 @@ class MainActivity : ComponentActivity() {
         // Tapped a download notification: show the Downloads tab.
         if (i.getStringExtra(EXTRA_OPEN) == OPEN_DOWNLOADS) {
             i.removeExtra(EXTRA_OPEN)
-            if (nav.current != Route.Downloads) nav.push(Route.Downloads)
+            nav.openDownloads()
             return
         }
         val uri: Uri? = when (i.action) {
