@@ -656,13 +656,14 @@ fun CommentsPanel(
     videoId: String,
     comments: Paged<Comment>,
     count: String,
-    onClose: () -> Unit,
     /** One page of the replies under a comment: (page token or null for the first page, the comment's replies token). */
     loadReplies: suspend (String?, String) -> com.cleantube.app.data.Page<Comment> = { t, tok -> Api.comments(videoId, t ?: tok) },
     /** Sends a new top-level comment (videos by default; community posts pass their own). */
     addComment: suspend (String) -> Unit = { Api.postComment(videoId, it) },
     /** Optional content above the first comment (a post shows what it is about). */
-    header: (@Composable () -> Unit)? = null
+    header: (@Composable () -> Unit)? = null,
+    // last, so a trailing lambda is the close action (the Shorts screen calls it that way)
+    onClose: () -> Unit
 ) {
     val state = rememberLazyListState()
     val scope = rememberCoroutineScope()
