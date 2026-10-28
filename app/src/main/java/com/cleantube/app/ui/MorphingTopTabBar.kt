@@ -96,7 +96,7 @@ fun MorphingTopTabBar(
         fun tabWidth(index: Int): Dp {
             if (index == 0) return circleWidth
             val available = (slotWidth - 4.dp).coerceAtLeast(0.dp)
-            val desired = 56.dp + tabs[index].label.length * 7.2.dp
+            val desired = 56.dp + 7.2.dp * tabs[index].label.length
             return minOf(desired, available)
         }
 
