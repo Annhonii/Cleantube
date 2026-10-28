@@ -804,7 +804,7 @@ fun CtOverlay(
                         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                             if (title.isNotBlank()) {
                                 Text(
-                                    title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                                    title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis
                                 )
                             }

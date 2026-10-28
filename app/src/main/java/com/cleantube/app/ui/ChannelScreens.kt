@@ -305,7 +305,7 @@ private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit, onBac
 
         // ---- name and handle
         Text(
-            ch.title, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 34.sp,
+            ch.title, color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 24.sp, lineHeight = 30.sp,
             maxLines = 2, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)
         )
@@ -329,7 +329,7 @@ private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit, onBac
                         stats.forEachIndexed { i, t ->
                             val (n, l) = statParts(t)
                             if (i > 0) Text("  \u00B7  ", color = TextMuted, fontSize = 15.sp)
-                            Text(n, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(n, color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 15.sp)
                             if (l.isNotEmpty()) Text(" ${l.replaceFirstChar { it.uppercase() }}", color = TextMuted, fontSize = 16.sp)
                         }
                     }
@@ -391,7 +391,7 @@ fun ChannelAboutScreen(ch: ChannelItem) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AppImage(ch.thumb, Modifier.size(72.dp), CircleShape)
                 Column(Modifier.padding(start = 16.dp)) {
-                    Text(ch.title, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                    Text(ch.title, color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 20.sp)
                     if (ch.handle.isNotEmpty()) Text(ch.handle, color = TextMuted, fontSize = 15.sp)
                 }
             }
@@ -405,7 +405,7 @@ fun ChannelAboutScreen(ch: ChannelItem) {
                     stats.forEach { t ->
                         val (n, l) = statParts(t)
                         Row {
-                            Text(n, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(n, color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 15.sp)
                             if (l.isNotEmpty()) Text(" ${l.replaceFirstChar { it.uppercase() }}", color = TextMuted, fontSize = 16.sp)
                         }
                     }

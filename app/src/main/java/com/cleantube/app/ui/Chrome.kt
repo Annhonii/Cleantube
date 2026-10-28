@@ -139,9 +139,9 @@ fun ScreenTitle(
         Text(
             title,
             color = TextPrimary,
-            fontWeight = FontWeight.Bold,
-            fontSize = 26.sp,
-            letterSpacing = (-0.6).sp,
+            fontWeight = FontWeight.Medium,
+            fontSize = 24.sp,
+            letterSpacing = (-0.4).sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
@@ -216,8 +216,8 @@ fun TabTopBar(
     ) {
         Text(
             if (brand) "voidstream" else title,
-            color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.8).sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Medium,
+            letterSpacing = (-0.4).sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
         actions?.invoke(this)

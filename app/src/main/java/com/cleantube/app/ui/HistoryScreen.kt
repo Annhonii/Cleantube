@@ -283,8 +283,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.historyRows(
             is HistRow.Day -> Text(
                 row.label,
                 color = TextPrimary,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Medium,
                 modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 14.dp, top = 16.dp, bottom = 4.dp)
             )
             is HistRow.Shelf -> HistoryShortsShelf(row.shorts, onRemove)
@@ -312,8 +312,8 @@ private fun HistoryShortsShelf(shorts: List<VideoItem>, onRemove: (VideoItem) ->
             Text(
                 "Shorts",
                 color = TextPrimary,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f).padding(start = 12.dp)
             )
             Box {

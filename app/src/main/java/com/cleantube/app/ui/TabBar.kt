@@ -124,7 +124,7 @@ private fun TabBarItem(t: TabSpec, selected: Boolean, modifier: Modifier, onClic
             modifier = Modifier.padding(top = 4.dp),
             fontSize = 12.sp,
             maxLines = 1,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             color = if (selected) TextPrimary else TextMuted
         )
     }

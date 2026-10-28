@@ -448,8 +448,8 @@ fun VideoRow(
                 Text(
                     v.title,
                     color = TextPrimary,
-                    fontSize = 17.sp,
-                    lineHeight = 23.sp,
+                    fontSize = 15.sp,
+                    lineHeight = 21.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -457,7 +457,7 @@ fun VideoRow(
                 val meta = videoMeta(v)
                 if (meta.isNotEmpty()) {
                     Spacer(Modifier.size(5.dp))
-                    Text(meta, color = TextMuted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(meta, color = TextMuted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             Box {

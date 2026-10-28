@@ -95,7 +95,7 @@ private fun TopTabItem(
         Icon(icon, contentDescription = label, tint = if (selected) selColor else idleColor, modifier = Modifier.size(24.dp))
         if (selected) {
             Spacer(Modifier.width(8.dp))
-            Text(label, color = selColor, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            Text(label, color = selColor, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
         }
     }
 }

@@ -214,9 +214,9 @@ private fun PlaylistHeader(
             Text(
                 title,
                 color = OnHeader,
-                fontSize = 28.sp,
-                lineHeight = 33.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 24.sp,
+                lineHeight = 30.sp,
+                fontWeight = FontWeight.Medium,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis
             )

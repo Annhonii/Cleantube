@@ -147,7 +147,7 @@ private fun AllSubscriptionsSheet(channels: List<ChannelItem>, onDismiss: () -> 
         Text(
             "Subscriptions",
             color = TextPrimary,
-            fontSize = 20.sp,
+            fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
         )

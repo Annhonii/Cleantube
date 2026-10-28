@@ -112,7 +112,7 @@ fun CompactRankRow(all: List<VideoItem>, index: Int, onOpen: (VideoItem) -> Unit
     val v = all.getOrNull(index) ?: return
     Row(Modifier.fillMaxWidth().padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
-            "${index + 1}", color = Tertiary, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+            "${index + 1}", color = Tertiary, fontSize = 18.sp, fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center, modifier = Modifier.width(30.dp)
         )
         CompactRow(v, onClick = { onOpen(v) }, modifier = Modifier.weight(1f))

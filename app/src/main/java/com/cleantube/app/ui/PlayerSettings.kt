@@ -132,7 +132,7 @@ fun PlayerSettingsSheet(p: CtPlayer, onClose: () -> Unit, modifier: Modifier = M
                 Modifier.fillMaxWidth().padding(start = 18.dp, end = 4.dp, top = 0.dp, bottom = 0.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Playback", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text("Playback", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 Icon(Icons.Outlined.Info, contentDescription = null, tint = TextMuted, modifier = Modifier.padding(start = 8.dp).size(18.dp))
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {

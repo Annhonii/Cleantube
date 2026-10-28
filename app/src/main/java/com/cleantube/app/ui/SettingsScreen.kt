@@ -148,8 +148,8 @@ fun AccountCard(modifier: Modifier = Modifier) {
                     Text(
                         Session.name.ifEmpty { "Signed in" },
                         color = TextPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 17.sp
                     )
                     if (Session.handle.isNotEmpty()) Text(Session.handle, color = TextMuted, fontSize = 13.sp)
                 }
@@ -186,8 +186,8 @@ fun AccountCard(modifier: Modifier = Modifier) {
             Text(
                 "Sign in with your Google account",
                 color = TextPrimary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
+                fontWeight = FontWeight.Medium,
+                fontSize = 17.sp
             )
             Text(
                 "Voidstream talks to YouTube the way the website does, so there is no API key. " +
@@ -408,7 +408,7 @@ fun SettingsScreen() {
             Text(
                 "Settings",
                 color = TextPrimary,
-                fontSize = 44.sp,
+                fontSize = 32.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 20.dp)
             )

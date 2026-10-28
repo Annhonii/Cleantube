@@ -98,7 +98,7 @@ fun AnalysingOverlay() {
                     }
                 }
                 Spacer(Modifier.height(24.dp))
-                Text("Getting to know you", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                Text("Getting to know you", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(10.dp))
                 AnimatedContent(
                     targetState = Reco.seedStage,

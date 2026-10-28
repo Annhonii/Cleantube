@@ -444,8 +444,8 @@ fun DownloadsScreen() {
             item {
                 Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "Downloads", color = TextPrimary, fontSize = 32.sp, fontWeight = FontWeight.Bold,
-                        letterSpacing = (-0.8).sp, maxLines = 1
+                        "Downloads", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Medium,
+                        letterSpacing = (-0.4).sp, maxLines = 1
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(

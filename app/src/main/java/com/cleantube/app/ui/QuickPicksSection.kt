@@ -67,8 +67,8 @@ fun QuickPicksSection() {
         Text(
             "Quick picks",
             color = TextPrimary,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
         )
         val status = when {
