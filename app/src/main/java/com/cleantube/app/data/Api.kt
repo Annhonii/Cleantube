@@ -425,24 +425,26 @@ object Api {
         if (j.optBoolean("disabled")) throw ApiException(ApiException.Kind.COMMENTS_OFF, "Comments are turned off for this video.")
         j.optString("debug").takeIf { it.isNotEmpty() }?.let { replyDebug = it }
         if (page == null) j.optString("create").takeIf { it.isNotEmpty() }?.let { createParams[videoId] = it }
-        val list = (j.optJSONArray("items") ?: JSONArray()).mapObjects {
-            Comment(
-                author = it.optString("author"),
-                avatar = it.optString("avatar"),
-                text = it.optString("text"),
-                likes = 0,
-                publishedAt = it.optString("age"),
-                replies = it.optString("replies").toIntOrNull() ?: 0,
-                likesText = it.optString("likes"),
-                repliesToken = it.optString("replyToken"),
-                replyParams = it.optString("replyParams"),
-                likeAction = it.optJSONObject("acts")?.optString("like").orEmpty(),
-                dislikeAction = it.optJSONObject("acts")?.optString("dislike").orEmpty(),
-                unlikeAction = it.optJSONObject("acts")?.optString("unlike").orEmpty(),
-                undislikeAction = it.optJSONObject("acts")?.optString("undislike").orEmpty()
-            )
-        }
-        return Page(list, j.nextToken())
+        return Page(commentList(j), j.nextToken())
+    }
+
+    /** The comments of one YouTube response (videos and community posts share the format), with reply / like tokens. */
+    private fun commentList(j: JSONObject): List<Comment> = (j.optJSONArray("items") ?: JSONArray()).mapObjects {
+        Comment(
+            author = it.optString("author"),
+            avatar = it.optString("avatar"),
+            text = it.optString("text"),
+            likes = 0,
+            publishedAt = it.optString("age"),
+            replies = it.optString("replies").toIntOrNull() ?: 0,
+            likesText = it.optString("likes"),
+            repliesToken = it.optString("replyToken"),
+            replyParams = it.optString("replyParams"),
+            likeAction = it.optJSONObject("acts")?.optString("like").orEmpty(),
+            dislikeAction = it.optJSONObject("acts")?.optString("dislike").orEmpty(),
+            unlikeAction = it.optJSONObject("acts")?.optString("unlike").orEmpty(),
+            undislikeAction = it.optJSONObject("acts")?.optString("undislike").orEmpty()
+        )
     }
 
     /** Posts a new top-level comment on the signed-in account. */
@@ -557,22 +559,35 @@ object Api {
         return Page(list, j.nextToken())
     }
 
-    /** The comments of a community post (read only), page by page. */
+    /** The comments of a community post, page by page (with reply tokens, so replies and likes work like on a video). */
     suspend fun postComments(post: Post, page: String?): Page<Comment> {
         if (page == null && post.commentsParams.isEmpty()) return Page(emptyList(), null)
         val j = Yt.run("postComments", args("token" to page, "cb" to post.commentsBrowseId, "cp" to post.commentsParams))
-        val list = (j.optJSONArray("items") ?: JSONArray()).mapObjects {
-            Comment(
-                author = it.optString("author"),
-                avatar = it.optString("avatar"),
-                text = it.optString("text"),
-                likes = 0,
-                publishedAt = it.optString("age"),
-                replies = 0,
-                likesText = it.optString("likes")
-            )
+        j.optString("debug").takeIf { it.isNotEmpty() }?.let { replyDebug = it }
+        if (page == null) j.optString("create").takeIf { it.isNotEmpty() }?.let { createParams["post:${post.id}"] = it }
+        return Page(commentList(j), j.nextToken())
+    }
+
+    /** The replies under one comment of a community post (the same continuation format as the comments themselves). */
+    suspend fun postReplies(token: String, page: String?): Page<Comment> {
+        val j = Yt.run("postComments", args("token" to (page ?: token)))
+        return Page(commentList(j), j.nextToken())
+    }
+
+    /** Posts a new top-level comment under a community post (signed-in account). */
+    suspend fun postPostComment(post: Post, text: String) {
+        val key = "post:${post.id}"
+        val params = createParams[key]
+            ?: postComments(post, null).let { createParams[key] }
+            ?: throw ApiException(ApiException.Kind.OTHER, "The comment box isn't available for this post. Make sure you are signed in and comments are on.")
+        try {
+            Yt.run("postComment", args("params" to params, "text" to text))
+        } catch (e: ApiException) {
+            // the token may have gone stale: read a fresh one and try once more
+            createParams.remove(key)
+            val again = postComments(post, null).let { createParams[key] } ?: throw e
+            Yt.run("postComment", args("params" to again, "text" to text))
         }
-        return Page(list, j.nextToken())
     }
 
     /** A channel's Shorts or Live tab. */

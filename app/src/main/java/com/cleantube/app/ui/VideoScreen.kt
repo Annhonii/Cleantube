@@ -652,7 +652,18 @@ fun DescriptionPanel(title: String, meta: String, description: String, onClose: 
  * "Add a comment" pill sits at the bottom.
  */
 @Composable
-fun CommentsPanel(videoId: String, comments: Paged<Comment>, count: String, onClose: () -> Unit) {
+fun CommentsPanel(
+    videoId: String,
+    comments: Paged<Comment>,
+    count: String,
+    onClose: () -> Unit,
+    /** One page of the replies under a comment: (page token or null for the first page, the comment's replies token). */
+    loadReplies: suspend (String?, String) -> com.cleantube.app.data.Page<Comment> = { t, tok -> Api.comments(videoId, t ?: tok) },
+    /** Sends a new top-level comment (videos by default; community posts pass their own). */
+    addComment: suspend (String) -> Unit = { Api.postComment(videoId, it) },
+    /** Optional content above the first comment (a post shows what it is about). */
+    header: (@Composable () -> Unit)? = null
+) {
     val state = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
@@ -780,6 +791,7 @@ fun CommentsPanel(videoId: String, comments: Paged<Comment>, count: String, onCl
                 // room at the bottom so the floating pill never hides the last comment
                 contentPadding = PaddingValues(top = 6.dp, bottom = 110.dp)
             ) {
+                if (header != null) item { header() }
                 val list = comments.items
                 list.forEach { c ->
                     val token = c.repliesToken
@@ -802,7 +814,7 @@ fun CommentsPanel(videoId: String, comments: Paged<Comment>, count: String, onCl
                                         }
                                     } else {
                                         // first page uses the thread's token, later pages the one the previous page returned
-                                        val p = Paged<Comment>(scope) { t -> Api.comments(videoId, t ?: token) }
+                                        val p = Paged<Comment>(scope) { t -> loadReplies(t, token) }
                                         expanded[token] = p
                                         p.loadMore()
                                     }
@@ -918,7 +930,7 @@ fun CommentsPanel(videoId: String, comments: Paged<Comment>, count: String, onCl
                         val sentText = draft.trim()
                         scope.launch {
                             try {
-                                Api.postComment(videoId, sentText)
+                                addComment(sentText)
                                 Toast.makeText(ctx, "Comment posted.", Toast.LENGTH_SHORT).show()
                                 comments.prepend(
                                     Comment(

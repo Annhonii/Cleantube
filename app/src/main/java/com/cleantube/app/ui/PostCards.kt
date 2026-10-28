@@ -22,6 +22,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -177,7 +180,6 @@ fun HomePostCard(post: Post, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     var expanded by remember(post.id) { mutableStateOf(false) }
     var menu by remember(post.id) { mutableStateOf(false) }
-    var comments by remember(post.id) { mutableStateOf(false) }
     val reaction = PostReactions.state[post.id] ?: 0
 
     M3Card(
@@ -306,7 +308,7 @@ fun HomePostCard(post: Post, modifier: Modifier = Modifier) {
                     label = "Comments",
                     count = post.comments,
                     active = false,
-                    onClick = { comments = true }
+                    onClick = { PostCommentsHost.open(post) }
                 )
                 Spacer(Modifier.weight(1f))
                 PostAction(
@@ -316,85 +318,73 @@ fun HomePostCard(post: Post, modifier: Modifier = Modifier) {
             }
         }
     }
-
-    if (comments) {
-        ModalBottomSheet(
-            onDismissRequest = { comments = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = Bg,
-            contentColor = TextPrimary
-        ) {
-            Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 20.dp)) {
-                Text(
-                    if (post.comments.isNotEmpty()) "Comments • ${post.comments}" else "Comments",
-                    color = TextPrimary, style = MaterialTheme.typography.titleLarge
-                )
-                Text(
-                    "${post.author}${if (post.age.isNotEmpty()) " • ${post.age}" else ""}",
-                    color = TextMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp)
-                )
-                if (post.text.isNotBlank()) {
-                    Text(
-                        post.text, color = TextPrimary, style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 6, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 12.dp).clip(RoundedCornerShape(16.dp)).background(Card).padding(14.dp).fillMaxWidth()
-                    )
-                }
-                val scope = rememberCoroutineScope()
-                val thread = remember(post.id) { Paged<Comment>(scope) { t -> Api.postComments(post, t) } }
-                val listState = rememberLazyListState()
-                LaunchedEffect(thread) { if (thread.items.isEmpty() && !thread.loading) thread.loadMore() }
-                LoadMoreEffect(listState, thread)
-                when {
-                    thread.items.isNotEmpty() -> LazyColumn(
-                        state = listState,
-                        modifier = Modifier.padding(top = 12.dp).fillMaxWidth().heightIn(max = 380.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        items(thread.items.size) { i -> PostCommentRow(thread.items[i]) }
-                        if (thread.loading) item { Loading() }
-                    }
-                    thread.loading || (!thread.finished && thread.error == null) -> Loading()
-                    else -> Text(
-                        "No comments to show here. You can read and write them on YouTube.",
-                        color = TextMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 12.dp)
-                    )
-                }
-                Row(
-                    Modifier
-                        .padding(top = 16.dp)
-                        .fillMaxWidth()
-                        .clip(CircleShape)
-                        .background(Accent)
-                        .clickable { comments = false; openPostLink(ctx, postUrl(post.id)) }
-                        .padding(vertical = 14.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Rounded.OpenInNew, contentDescription = null, tint = OnAccent, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("View comments on YouTube", color = OnAccent, style = MaterialTheme.typography.labelLarge)
-                }
-            }
-        }
-    }
 }
 
-/** One comment under a post: photo, name • time, text, likes. */
+// ---------------------------------------------------------------- comments of a post (slides up like a video's comments)
+
+/** The post whose comments are open (null = closed). The panel itself is drawn once for the whole app, see [PostCommentsOverlay]. */
+object PostCommentsHost {
+    var post by mutableStateOf<Post?>(null)
+    fun open(p: Post) { post = p }
+    fun close() { post = null }
+}
+
+/**
+ * The comments of a community post, in the same panel as a video's comments: it slides up over the screen, replies open
+ * under each comment, you can reply, like, and add a comment (signed in). Drag the header down or tap outside to close.
+ */
 @Composable
-private fun PostCommentRow(c: Comment) {
-    Row(Modifier.fillMaxWidth()) {
-        if (c.avatar.isNotEmpty()) AppImage(c.avatar, Modifier.size(32.dp), CircleShape)
-        else Box(Modifier.size(32.dp).clip(CircleShape).background(TertiaryContainer))
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                listOf(c.author, c.publishedAt).filter { it.isNotEmpty() }.joinToString(" • "),
-                color = TextMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-            Text(c.text, color = TextPrimary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
-            if (c.likesText.isNotEmpty()) {
-                Text("${c.likesText} likes", color = TextMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 2.dp))
+fun PostCommentsOverlay() {
+    val open = PostCommentsHost.post
+    // kept while the panel slides away, so it doesn't go blank on the way out
+    val last = remember { arrayOfNulls<Post>(1) }
+    if (open != null) last[0] = open
+    val shown = open ?: last[0]
+    val nav = LocalNav.current
+    LaunchedEffect(nav.stack.size) { PostCommentsHost.close() }
+
+    val scrim by animateFloatAsState(if (open != null) 0.45f else 0f, tween(260), label = "postCommentsScrim")
+    if (scrim > 0.001f) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = scrim))
+                .pointerInput(Unit) { detectTapGestures { PostCommentsHost.close() } }
+        )
+    }
+    androidx.compose.animation.AnimatedVisibility(
+        visible = open != null,
+        enter = slideInVertically(spring(dampingRatio = 0.86f, stiffness = 320f)) { it } + fadeIn(tween(220)),
+        exit = slideOutVertically(tween(300, easing = Motion.EmphasizedAccelerate)) { it } + fadeOut(tween(220))
+    ) {
+        if (shown != null) {
+            val scope = rememberCoroutineScope()
+            val thread = remember(shown.id) { Paged<Comment>(scope) { t -> Api.postComments(shown, t) } }
+            LaunchedEffect(thread) { if (thread.items.isEmpty() && !thread.loading) thread.loadMore() }
+            Box(Modifier.fillMaxSize().statusBarsPadding().padding(top = 56.dp)) {
+                CommentsPanel(
+                    videoId = shown.id,
+                    comments = thread,
+                    count = shown.comments,
+                    onClose = { PostCommentsHost.close() },
+                    loadReplies = { t, tok -> Api.postReplies(tok, t) },
+                    addComment = { Api.postPostComment(shown, it) },
+                    header = {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
+                            Text(
+                                "${shown.author}${if (shown.age.isNotEmpty()) " • ${shown.age}" else ""}",
+                                color = TextMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (shown.text.isNotBlank()) {
+                                Text(
+                                    shown.text, color = TextPrimary, style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                )
             }
         }
     }
