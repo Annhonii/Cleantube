@@ -561,8 +561,8 @@ object Api {
 
     /** The comments of a community post, page by page (with reply tokens, so replies and likes work like on a video). */
     suspend fun postComments(post: Post, page: String?): Page<Comment> {
-        if (page == null && post.commentsParams.isEmpty()) return Page(emptyList(), null)
-        val j = Yt.run("postComments", args("token" to page, "cb" to post.commentsBrowseId, "cp" to post.commentsParams))
+        // the post id lets yt.js fall back to the post's own page when the Posts tab gave no (or a stale) comments link
+        val j = Yt.run("postComments", args("token" to page, "id" to post.id, "cb" to post.commentsBrowseId, "cp" to post.commentsParams))
         j.optString("debug").takeIf { it.isNotEmpty() }?.let { replyDebug = it }
         if (page == null) j.optString("create").takeIf { it.isNotEmpty() }?.let { createParams["post:${post.id}"] = it }
         return Page(commentList(j), j.nextToken())

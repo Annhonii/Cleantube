@@ -1083,23 +1083,77 @@
       return { items: r.items.filter(function (i) { return i.t === 'v'; }), next: r.next };
     },
     comments: async function (a) { return parseComments(await call('next', { continuation: a.token })); },
-    /** Comments of a community post: first call opens the post page (a.cb / a.cp from the Posts tab), the next ones use a.token. */
+    /**
+     * Comments of a community post. The first call finds the comments token of the post: from the post page that the
+     * Posts tab pointed at (a.cb / a.cp) and, when that gives nothing, from the post's own web page (a.id). Later calls
+     * (a.token) read the next page / the replies. Never answers "empty" just because the token could not be found:
+     * that is an error the panel shows with a Retry button.
+     */
     postComments: async function (a) {
+      function usable(r) { return r && (r.items.length || r.next || r.disabled); }
       async function thread(tok) {
-        try { return parseComments(await call('next', { continuation: tok })); }
-        catch (e) { return parseComments(await call('browse', { continuation: tok })); }
+        var first = null, err = null;
+        try { first = parseComments(await call('next', { continuation: tok })); } catch (e) { err = e; }
+        if (usable(first)) return first;
+        // some continuations are only served by browse
+        try {
+          var second = parseComments(await call('browse', { continuation: tok }));
+          if (usable(second)) return second;
+          if (!first) first = second;
+        } catch (e2) { if (!first && !err) err = e2; }
+        if (!first && err) throw err;
+        return first || { items: [], next: null };
       }
+      /** The token that loads the comments: the continuation inside the comment section of a post page. */
+      function commentToken(j) {
+        var tok = null;
+        walk(j, function (x) {
+          if (tok) return true;
+          var s = x.itemSectionRenderer;
+          if (s && s.sectionIdentifier === 'comment-item-section') { tok = lastToken(s); return true; }
+          return false;
+        });
+        return tok;
+      }
+      /** The JSON object that starts at s[start] (a "{"), cut out with its braces balanced. */
+      function jsonAt(s, start) {
+        var depth = 0, inStr = false, esc = false;
+        for (var i = start; i < s.length; i++) {
+          var c = s.charCodeAt(i);
+          if (inStr) { if (esc) esc = false; else if (c === 92) esc = true; else if (c === 34) inStr = false; }
+          else if (c === 34) inStr = true;
+          else if (c === 123) depth++;
+          else if (c === 125) { depth--; if (depth === 0) return s.slice(start, i + 1); }
+        }
+        return null;
+      }
+      /** The web page of a post (/post/<id>) carries the same data as the browse call, inside ytInitialData. */
+      async function postPageData(id) {
+        var r = await fetch('/post/' + encodeURIComponent(id) + '?hl=' + LOCALE.hl + '&gl=' + LOCALE.gl, { credentials: 'include' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        var html = await r.text();
+        var m = /ytInitialData["'\]]*\s*=\s*\{/.exec(html);
+        if (!m) return null;
+        var txt = jsonAt(html, m.index + m[0].length - 1);
+        return txt ? JSON.parse(txt) : null;
+      }
+
       if (a.token) return thread(a.token);
-      if (!a.cp) return { items: [], next: null };
-      var j = await call('browse', { browseId: a.cb || 'FEpost_detail', params: a.cp });
-      var tok = null;
-      walk(j, function (x) {
-        if (tok) return true;
-        var s = x.itemSectionRenderer;
-        if (s && s.sectionIdentifier === 'comment-item-section') { tok = lastToken(s); return true; }
-        return false;
-      });
-      if (!tok) return { items: [], next: null };
+
+      var tok = null, lastErr = null, seen = null;
+      if (a.cp) {
+        try { seen = await call('browse', { browseId: a.cb || 'FEpost_detail', params: a.cp }); tok = commentToken(seen); }
+        catch (e) { lastErr = e; }
+      }
+      if (!tok && a.id) {
+        try { seen = await postPageData(a.id); if (seen) tok = commentToken(seen); }
+        catch (e) { lastErr = e; }
+      }
+      if (!tok) {
+        if (seen && JSON.stringify(seen).indexOf('Comments are turned off') >= 0) return { items: [], next: null, disabled: true };
+        if (lastErr) throw lastErr;
+        throw new Error('The comments of this post could not be opened. Pull down and try again.');
+      }
       return thread(tok);
     },
     account: async function () { return parseAccount(await call('account/account_menu', {})); },
