@@ -60,12 +60,13 @@ import com.cleantube.app.data.VideoItem
 import com.cleantube.app.data.formatDuration
 import kotlinx.coroutines.launch
 
-private val HeaderBase = Color(0xFF30343C)
-private val OnHeader = Color.White
-private val OnHeaderMuted = Color(0xCCFFFFFF)
+// follow the app theme (light or dark), like every other screen
+private val HeaderBase: Color get() = Card
+private val OnHeader: Color get() = TextPrimary
+private val OnHeaderMuted: Color get() = TextMuted
 
 /**
- * A playlist: a big cover with the title, owner and facts on a plain grey-to-black gradient (no blur), a Play all
+ * A playlist: a big cover with the title, owner and facts on a plain card-to-background gradient (no blur), a Play all
  * button with Save, Share and a three-dot menu (Download playlist, Open in YouTube), and the videos as compact rows below.
  */
 @Composable
@@ -101,8 +102,8 @@ fun PlaylistScreen(route: Route.Playlist) {
     // the account's own lists (liked videos, watch later) have no public page to share
     val shareable = route.id != "LL" && route.id != "WL"
 
-    // always dark, like the header, so the rows under the gradient fade into black in light mode too
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    // the page follows the theme: the header gradient fades into the normal background, light or dark
+    Box(Modifier.fillMaxSize().background(Bg)) {
         PagedColumn(
             paged,
             emptyText = "This playlist is empty or private.",
@@ -164,11 +165,11 @@ fun PlaylistScreen(route: Route.Playlist) {
                 .padding(start = 14.dp, top = 12.dp)
                 .size(44.dp)
                 .clip(CircleShape)
-                .background(Color(0x80000000))
+                .background(SecondaryContainer)
                 .bouncyClickable(pressedScale = 0.88f, onClick = { nav.back() }),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(22.dp))
+            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = OnSecondaryContainer, modifier = Modifier.size(22.dp))
         }
     }
 
@@ -193,7 +194,7 @@ private fun PlaylistHeader(
 ) {
     var menu by remember { mutableStateOf(false) }
     // Keep the playlist header crisp; do not blur artwork behind the title. A plain grey -> black gradient only.
-    Box(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(HeaderBase, Color.Black)))) {
+    Box(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(HeaderBase, Bg)))) {
 
         Column(
             Modifier
@@ -241,14 +242,14 @@ private fun PlaylistHeader(
                         .weight(1f)
                         .height(52.dp)
                         .clip(CircleShape)
-                        .background(Color.White)
+                        .background(TextPrimary)
                         .bouncyClickable(pressedScale = 0.96f, onClick = onPlayAll),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.Black, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Bg, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Play all", color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Play all", color = Bg, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 }
                 HeaderButton(Icons.Rounded.BookmarkBorder, "Save playlist", onSavePlaylist)
                 if (shareable) HeaderButton(Icons.Rounded.Share, "Share", onShare)
@@ -282,11 +283,11 @@ private fun HeaderButton(icon: androidx.compose.ui.graphics.vector.ImageVector, 
         Modifier
             .size(52.dp)
             .clip(CircleShape)
-            .background(Color(0x33FFFFFF))
+            .background(SecondaryContainer)
             .bouncyClickable(pressedScale = 0.9f, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = description, tint = OnHeader, modifier = Modifier.size(24.dp))
+        Icon(icon, contentDescription = description, tint = OnSecondaryContainer, modifier = Modifier.size(24.dp))
     }
 }
 
@@ -341,7 +342,7 @@ private fun PlaylistVideoRow(v: VideoItem, onClick: () -> Unit, onRemoveLike: ((
         Column(Modifier.weight(1f)) {
             Text(
                 v.title,
-                color = Color.White,
+                color = TextPrimary,
                 fontSize = 15.sp,
                 lineHeight = 20.sp,
                 fontWeight = FontWeight.Medium,
@@ -351,7 +352,7 @@ private fun PlaylistVideoRow(v: VideoItem, onClick: () -> Unit, onRemoveLike: ((
             if (v.channelTitle.isNotEmpty()) {
                 Text(
                     v.channelTitle,
-                    color = Color(0xFFBDBDBD),
+                    color = TextMuted,
                     fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -360,12 +361,12 @@ private fun PlaylistVideoRow(v: VideoItem, onClick: () -> Unit, onRemoveLike: ((
             }
             val meta = videoMeta(v)
             if (meta.isNotEmpty()) {
-                Text(meta, color = Color(0xFFAAAAAA), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(meta, color = TextMuted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         Box {
             IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = Color.White)
+                Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = TextPrimary)
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Download") }, onClick = { menu = false; download = true })
@@ -421,13 +422,13 @@ private fun SavePlaylistDialog(playlistId: String, title: String, onDismiss: () 
 
     AlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
-        containerColor = Color.Black,
-        title = { Text("Save playlist", color = Color.White) },
+        containerColor = Card,
+        title = { Text("Save playlist", color = TextPrimary) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     if (saving) "Loading and saving videos… $progress loaded" else "Choose an existing playlist or create a new one.",
-                    color = Color(0xFFBDBDBD),
+                    color = TextMuted,
                     fontSize = 13.sp
                 )
                 store.playlists.forEachIndexed { index, playlist ->
@@ -439,13 +440,13 @@ private fun SavePlaylistDialog(playlistId: String, title: String, onDismiss: () 
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(playlist.name, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${playlist.videos.size} videos", color = Color(0xFFBDBDBD), fontSize = 12.sp)
+                            Text(playlist.name, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("${playlist.videos.size} videos", color = TextMuted, fontSize = 12.sp)
                         }
                         Text("Save", color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     }
                     if (index < store.playlists.lastIndex) {
-                        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF303030)))
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(Hairline))
                     }
                 }
                 Spacer(Modifier.size(4.dp))
@@ -460,7 +461,7 @@ private fun SavePlaylistDialog(playlistId: String, title: String, onDismiss: () 
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss, enabled = !saving) { Text("Done", color = Color.White) }
+            TextButton(onClick = onDismiss, enabled = !saving) { Text("Done", color = TextPrimary) }
         }
     )
 }
