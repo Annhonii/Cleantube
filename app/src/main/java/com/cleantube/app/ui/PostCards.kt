@@ -121,15 +121,23 @@ fun mixHome(videos: List<VideoItem>, posts: List<Post>): List<HomeEntry> {
  */
 fun mixFeedByTime(videos: List<VideoItem>, posts: List<Post>, finished: Boolean): List<HomeEntry> {
     if (posts.isEmpty()) return videos.map { HomeEntry.Video(it) }
-    val limit = if (finished || videos.isEmpty()) Long.MAX_VALUE
-    else videos.last().let { com.cleantube.app.data.Api.ageMinutes(it.ageText) }
+    // The feed is already newest first, so a video whose age text can't be read (live, "Scheduled for...", "Just now")
+    // takes the age of the video before it, and ages never go backwards. Without this such a video counted as
+    // "infinitely old" and every post was put in front of it, so the New tab opened with posts only.
+    var run = 0L
+    val ages = LongArray(videos.size) { i ->
+        val a = com.cleantube.app.data.Api.ageMinutes(videos[i].ageText)
+        if (a != Long.MAX_VALUE && a > run) run = a
+        run
+    }
+    val limit = if (finished || videos.isEmpty()) Long.MAX_VALUE else ages.last()
     val pending = posts.map { it to com.cleantube.app.data.Api.ageMinutes(it.age) }
         .filter { it.second <= limit }.sortedBy { it.second }
     val out = ArrayList<HomeEntry>(videos.size + pending.size)
     var next = 0
-    for (v in videos) {
-        val age = com.cleantube.app.data.Api.ageMinutes(v.ageText)
-        while (next < pending.size && pending[next].second <= age) out += HomeEntry.PostEntry(pending[next++].first)
+    videos.forEachIndexed { i, v ->
+        // a post goes in front of a video only when it is newer; on the same age text the video stays first
+        while (next < pending.size && pending[next].second < ages[i]) out += HomeEntry.PostEntry(pending[next++].first)
         out += HomeEntry.Video(v)
     }
     while (next < pending.size) out += HomeEntry.PostEntry(pending[next++].first)

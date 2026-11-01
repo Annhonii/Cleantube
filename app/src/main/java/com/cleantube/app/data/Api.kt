@@ -664,7 +664,8 @@ object Api {
 
     /** "3 hours ago" -> 180. Unknown text sorts last. */
     fun ageMinutes(t: String): Long {
-        val m = Regex("(\\d+)\\s*(second|minute|hour|day|week|month|year)", RegexOption.IGNORE_CASE).find(t) ?: return Long.MAX_VALUE
+        val m = Regex("(\\d+)\\s*(second|minute|hour|day|week|month|year)", RegexOption.IGNORE_CASE).find(t)
+            ?: return if (Regex("just now|moments? ago", RegexOption.IGNORE_CASE).containsMatchIn(t)) 0L else Long.MAX_VALUE
         val n = m.groupValues[1].toLong()
         return n * when (m.groupValues[2].lowercase()) {
             "second" -> 0L
