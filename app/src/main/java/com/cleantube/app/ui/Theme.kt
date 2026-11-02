@@ -306,10 +306,10 @@ private fun seedScheme(seed: Color, dark: Boolean): ColorScheme {
     fun c(d: DynamicColor) = Color(d.getArgb(sch))
     // The stock Material neutrals are almost grey (chroma ~6), so the video's colour was only visible on buttons and
     // the progress bar. For colourful thumbnails the backgrounds, cards and nav are rebuilt from the seed's own hue
-    // with a much higher chroma, so the colour is clearly visible over the whole screen.
+    // with a higher chroma, so the colour shows over the whole screen, but softly (a strong shade was too much).
     val tint = hct.chroma >= 12.0
     val tp = if (tint) com.google.android.material.color.utilities.TonalPalette.fromHueAndChroma(
-        hct.hue, (hct.chroma * 0.55).coerceIn(if (dark) 20.0 else 16.0, if (dark) 34.0 else 28.0)
+        hct.hue, (hct.chroma * 0.28).coerceIn(if (dark) 9.0 else 8.0, if (dark) 16.0 else 14.0)
     ) else null
     fun t(tone: Int, fallback: DynamicColor): Color = if (tp != null) Color(tp.tone(tone)) else c(fallback)
     return (if (dark) darkColorScheme() else lightColorScheme()).copy(
