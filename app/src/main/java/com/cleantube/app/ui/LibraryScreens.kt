@@ -136,6 +136,8 @@ private fun AccountFeedScreen() {
             itemCount = entries.size,
             indexRow = { i -> FeedEntryRow(entries.getOrNull(i)) { v -> nav.push(Route.Video(v.id, v)) } }
         )
+        // the header card is drawn once for the whole app (App.kt); this only tells it how far the feed is scrolled
+        TrackHeaderScroll(paged.listState, Route.Feed)
         PrefetchTop(paged.items)
     }
 }
@@ -178,6 +180,7 @@ private fun LocalFeedScreen() {
     val headerH = collapsingHeaderHeight(Route.Feed)
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     Box(Modifier.fillMaxSize()) {
+        TrackHeaderScroll(listState, Route.Feed)
         val list = items
         val err = error
         when {

@@ -154,7 +154,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                 enter = slideInHorizontally(tween(420, easing = Motion.Emphasized)) { -(it * 0.28f).toInt() } + fadeIn(tween(320)),
                 exit = slideOutHorizontally(tween(440, easing = Motion.Emphasized)) { -(it * 0.28f).toInt() } + fadeOut(tween(320))
             ) {
-                CollapsingHeader(headerPos, shortsIdx, visible)
+                CollapsingHeader(headerPos, shortsIdx, visibleRoutes, visible)
             }
 
             // the video page / mini player: above the screens
