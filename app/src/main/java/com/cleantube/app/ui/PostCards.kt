@@ -98,29 +98,31 @@ sealed interface HomeEntry {
 }
 
 /**
- * The New tab: the subscription videos (newest first) with the channels' posts slotted in by age. A post goes in front of
- * the first video that is at least as old. While more videos can still load, posts older than the last loaded video wait,
- * so rows already on screen never move when the next page arrives.
+ * The New tab: the subscription videos sorted by upload time (newest first), with the channels' posts slotted in by age.
+ * YouTube's own subscriptions feed is NOT in upload order (a 21 h old video can come before a 14 h old one), so the order
+ * is worked out here from the "x hours ago" texts. A video whose age can't be read (live, "Scheduled for...", "Just now")
+ * keeps the age of the video before it. The sort is stable: videos with the same age text keep YouTube's order.
+ * A post goes in front of the first video that is older. While more videos can still load, posts older than the last
+ * loaded video wait, so rows already on screen only move when a newer video turns up in the next page.
  */
 fun mixFeedByTime(videos: List<VideoItem>, posts: List<Post>, finished: Boolean): List<HomeEntry> {
-    if (posts.isEmpty()) return videos.map { HomeEntry.Video(it) }
-    // The feed is already newest first, so a video whose age text can't be read (live, "Scheduled for...", "Just now")
-    // takes the age of the video before it, and ages never go backwards. Without this such a video counted as
-    // "infinitely old" and every post was put in front of it, so the New tab opened with posts only.
-    var run = 0L
-    val ages = LongArray(videos.size) { i ->
-        val a = com.cleantube.app.data.Api.ageMinutes(videos[i].ageText)
-        if (a != Long.MAX_VALUE && a > run) run = a
-        run
-    }
-    val limit = if (finished || videos.isEmpty()) Long.MAX_VALUE else ages.last()
-    val pending = posts.map { it to com.cleantube.app.data.Api.ageMinutes(it.age) }
+    val api = com.cleantube.app.data.Api
+    var prev = 0L
+    val keyed = videos.map { v ->
+        val a = api.ageMinutes(v.ageText)
+        val k = if (a == Long.MAX_VALUE) prev else a
+        prev = k
+        v to k
+    }.sortedBy { it.second }
+    if (posts.isEmpty()) return keyed.map { HomeEntry.Video(it.first) }
+    val limit = if (finished || keyed.isEmpty()) Long.MAX_VALUE else keyed.last().second
+    val pending = posts.map { it to api.ageMinutes(it.age) }
         .filter { it.second <= limit }.sortedBy { it.second }
-    val out = ArrayList<HomeEntry>(videos.size + pending.size)
+    val out = ArrayList<HomeEntry>(keyed.size + pending.size)
     var next = 0
-    videos.forEachIndexed { i, v ->
+    for ((v, age) in keyed) {
         // a post goes in front of a video only when it is newer; on the same age text the video stays first
-        while (next < pending.size && pending[next].second < ages[i]) out += HomeEntry.PostEntry(pending[next++].first)
+        while (next < pending.size && pending[next].second < age) out += HomeEntry.PostEntry(pending[next++].first)
         out += HomeEntry.Video(v)
     }
     while (next < pending.size) out += HomeEntry.PostEntry(pending[next++].first)
