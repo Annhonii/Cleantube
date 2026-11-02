@@ -407,6 +407,13 @@ class Store(context: Context) {
         }
     }
 
+    // ------------------------------------------------------------ quick picks cache
+
+    /** Last Quick picks pool, kept so the New tab shows it instantly on the next app start. */
+    fun loadQuickPicks(): List<VideoItem> = readArray("quick_picks").mapObjects { it.toVideo() }.filter { it.id.isNotEmpty() }
+
+    fun saveQuickPicks(list: List<VideoItem>) = save("quick_picks", list) { it.toJson() }
+
     // ------------------------------------------------------------- searches
 
     fun addSearch(q: String) {

@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.cleantube.app.data.Api
 import com.cleantube.app.data.FeedPosts
+import com.cleantube.app.data.QuickPicks
 import com.cleantube.app.data.ApiException
 import com.cleantube.app.data.PlaylistItem
 import com.cleantube.app.data.Session
@@ -131,8 +132,9 @@ private fun AccountFeedScreen() {
             emptyText = "Subscribe to channels and their newest videos show up here.",
             contentPadding = PaddingValues(top = headerH + 12.dp, bottom = listBottomPad()),
             refreshIndicatorTop = headerH,
-            header = { item { SubscriptionStrip(stripChannels, paged.items) } },
-            onRefresh = { FeedPosts.invalidate(); postsTick++ },
+            // the channel strip, then Quick picks: the newest videos of your subscriptions that you have not watched yet
+            header = { item { Column { SubscriptionStrip(stripChannels, paged.items); QuickPicksSection() } } },
+            onRefresh = { FeedPosts.invalidate(); postsTick++; QuickPicks.request(force = true) },
             itemCount = entries.size,
             indexRow = { i -> FeedEntryRow(entries.getOrNull(i)) { v -> nav.push(Route.Video(v.id, v)) } }
         )
@@ -190,14 +192,14 @@ private fun LocalFeedScreen() {
             err != null -> Box(Modifier.fillMaxSize().padding(top = headerH)) { ErrorBox(err, onRetry = { load() }) }
             list == null || (loading && list.isEmpty()) -> Box(Modifier.fillMaxSize().padding(top = headerH)) { Loading() }
             list.isEmpty() -> Box(Modifier.fillMaxSize().padding(top = headerH)) { EmptyState("No recent videos.") }
-            else -> PullRefresh(refreshing = loading, onRefresh = { FeedPosts.invalidate(); postsTick++; load() }, modifier = Modifier.fillMaxSize(), indicatorTop = headerH) {
+            else -> PullRefresh(refreshing = loading, onRefresh = { FeedPosts.invalidate(); postsTick++; QuickPicks.request(force = true); load() }, modifier = Modifier.fillMaxSize(), indicatorTop = headerH) {
                 val feedPosts = rememberFeedPosts(subs, list.map { it.channelId }, postsTick)
                 val entries = remember(list, feedPosts) { mixFeedByTime(list, feedPosts, true) }
                 LazyColumn(
                     Modifier.fillMaxSize(), state = listState,
                     contentPadding = PaddingValues(top = headerH + 12.dp, bottom = listBottomPad())
                 ) {
-                    item { SubscriptionStrip(subs, list) }
+                    item { Column { SubscriptionStrip(subs, list); QuickPicksSection() } }
                     items(entries.size) { i -> FeedEntryRow(entries[i]) { v -> nav.push(Route.Video(v.id, v)) } }
                 }
             }
