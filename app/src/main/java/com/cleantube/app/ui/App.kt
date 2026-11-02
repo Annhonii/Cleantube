@@ -59,15 +59,14 @@ object SystemBarsUi {
 fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
     LaunchedEffect(Unit) { Session.refresh() }
 
-    // The app starts on Home; if the user turned Home off in Settings, start on the first visible tab instead.
+    // The app starts on the first visible tab (Shorts, unless the user turned it off in Settings).
     val visible = visibleTabs(Graph.store)
-    val firstRoute = visible.firstOrNull { it.route == Route.Home }?.route ?: visible.first().route
+    val firstRoute = visible.first().route
     val visibleRoutes = visible.map { it.route }
     val navState = rememberUpdatedState(nav)
     // right after signing in: read the history and learn the interests (once; the overlay shows the progress)
     LaunchedEffect(Session.loggedIn) {
         if (Session.loggedIn) {
-            com.cleantube.app.data.Reco.requestSeed()
             // the channels the account is already subscribed to show as "Subscribed" here too
             com.cleantube.app.data.Api.syncSubscriptionsFromAccount()
         }
@@ -104,9 +103,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
         if (navState.value.current in visibleRoutes) pagerState.currentPage + pagerState.currentPageOffsetFraction else -1f
     }
     LaunchedEffect(Unit) {
-        if (nav.isTabRoot && nav.current == Route.Home && visible.none { it.route == Route.Home }) {
-            nav.selectTab(firstRoute)
-        }
+        if (nav.isTabRoot && visible.none { it.route == nav.current }) nav.selectTab(firstRoute)
     }
     // LocalContentColor: any Text without its own colour follows the theme (light or dark).
     CompositionLocalProvider(
@@ -134,7 +131,6 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
             // the header card: one card for Home and Shorts. It collapses with the Home feed's scroll, floats over the
             // Shorts video already collapsed, shrinks / grows while the pages slide between the two, and leaves upwards
             // when a screen is pushed.
-            val homeIdx = visibleRoutes.indexOf(Route.Home)
             val shortsIdx = visibleRoutes.indexOf(Route.Shorts)
             // Shorts has a black video behind the status bar: white icons only while that page is the one on screen.
             // MainActivity applies it together with the system light / dark setting (one place, so it can't get stuck).
@@ -150,9 +146,6 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
             SideEffect { SystemBarsUi.whiteIcons = shortsBar }
             DisposableEffect(Unit) { onDispose { SystemBarsUi.whiteIcons = false } }
             val headerPos: () -> Float = { pagerState.currentPage + pagerState.currentPageOffsetFraction }
-            val headerOn by remember(homeIdx, shortsIdx) {
-                derivedStateOf { headerVisibility(headerPos(), homeIdx, shortsIdx) > 0.01f }
-            }
             AnimatedVisibility(
                 // hides under a Shorts sheet / menu
                 visible = nav.isTabRoot && !(nav.current == Route.Shorts && ShortsUi.overlayOpen),
@@ -161,7 +154,7 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
                 enter = slideInHorizontally(tween(420, easing = Motion.Emphasized)) { -(it * 0.28f).toInt() } + fadeIn(tween(320)),
                 exit = slideOutHorizontally(tween(440, easing = Motion.Emphasized)) { -(it * 0.28f).toInt() } + fadeOut(tween(320))
             ) {
-                CollapsingHeader(headerPos, homeIdx, shortsIdx, visibleRoutes, visible)
+                CollapsingHeader(headerPos, shortsIdx, visible)
             }
 
             // the video page / mini player: above the screens
@@ -169,9 +162,6 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
 
             // comments of a community post (New tab): slides up over everything except a fullscreen video
             PostCommentsOverlay()
-
-            // first sign-in: the app reads the whole history and works out what you like
-            AnalysingOverlay()
 
             // Fullscreen video from the YouTube player, drawn above everything.
             val fsView = fullscreen.view
@@ -224,7 +214,7 @@ private fun TabsPager(state: PagerState, tabs: List<TabSpec>, live: MutableState
         )
     ) { page ->
         val route = tabs.getOrNull(page)?.route
-        val barBottom = rememberHeaderBarBottom(route ?: Route.Home)
+        val barBottom = rememberHeaderBarBottom(route ?: Route.Shorts)
         val cornerPx = with(androidx.compose.ui.platform.LocalDensity.current) { (if (route == Route.Shorts) FeedCorner else FeedCornerFeed).toPx() }
         Box(
             Modifier
@@ -251,10 +241,8 @@ private fun TabsPager(state: PagerState, tabs: List<TabSpec>, live: MutableState
 @Composable
 private fun OtherScreen(route: Route) {
     when (route) {
-        Route.Home -> HomeScreen()
         Route.Shorts -> ShortsScreen()
         Route.Feed -> FeedScreen()
-        Route.Trending -> TrendingScreen()
         Route.Library -> LibraryScreen()
         Route.Notifications -> NotificationsScreen()
         Route.Settings -> SettingsScreen()

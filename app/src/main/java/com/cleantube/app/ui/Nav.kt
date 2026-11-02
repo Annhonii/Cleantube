@@ -7,10 +7,8 @@ import com.cleantube.app.data.VideoItem
 
 sealed interface Route {
     // The tabs of the floating nav
-    data object Home : Route
     data object Shorts : Route
     data object Feed : Route
-    data object Trending : Route
     data object Library : Route
     data object Downloads : Route
     data object Notifications : Route
@@ -27,12 +25,12 @@ sealed interface Route {
     data class LocalList(val id: String) : Route
 }
 
-val TabRoutes: List<Route> = listOf(Route.Home, Route.Shorts, Route.Feed, Route.Library, Route.Downloads)
+val TabRoutes: List<Route> = listOf(Route.Shorts, Route.Feed, Route.Library, Route.Downloads)
 
 enum class NavKind { PUSH, POP, TAB }
 
 /** A tiny back stack. Tabs replace the whole stack, everything else is pushed on top. */
-class Nav(start: Route = Route.Home) {
+class Nav(start: Route = Route.Shorts) {
     val stack = mutableStateListOf(start)
 
     /** What the last navigation was; the screen transition reads it to pick its animation. */

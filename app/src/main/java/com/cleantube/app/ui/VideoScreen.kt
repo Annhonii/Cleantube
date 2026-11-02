@@ -184,12 +184,10 @@ fun VideoScreen(route: Route.Video) {
 
     // Opening a video counts as watching it (the player itself works without any API call).
     LaunchedEffect(route.id) { route.seed?.let { store.addHistory(it) } }
-    // the recommendations learn from it: opened = a little, still watching after 30 s = a lot
+    // YouTube is told about it too (its watch history), after a few seconds
     LaunchedEffect(route.id) {
-        route.seed?.let { com.cleantube.app.data.Reco.onOpen(it) }
-        launch { kotlinx.coroutines.delay(4000); Api.markWatched(route.id) }   // YouTube learns from it too
-        kotlinx.coroutines.delay(30_000)
-        com.cleantube.app.data.Reco.onEngaged(route.id)
+        kotlinx.coroutines.delay(4000)
+        Api.markWatched(route.id)
     }
 
     LaunchedEffect(route.id, reload) {

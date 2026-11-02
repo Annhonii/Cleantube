@@ -139,6 +139,7 @@ import androidx.compose.material.icons.rounded.Download
 import com.cleantube.app.data.Playback
 import com.cleantube.app.data.ShortMeta
 import com.cleantube.app.data.Session
+import com.cleantube.app.data.SubscribedShorts
 import com.cleantube.app.data.VideoDetails
 import com.cleantube.app.data.VideoItem
 import kotlinx.coroutines.CancellationException
@@ -158,12 +159,12 @@ val ShortsPillSpace = 67.dp
 object ShortsUi {
     var overlayOpen by mutableStateOf(false)
 
-    /** A Short picked on Home: the Shorts tab scrolls to it once it is on screen, then clears this. */
+    /** A Short picked somewhere else: the Shorts tab scrolls to it once it is on screen, then clears this. */
     var openId by mutableStateOf<String?>(null)
 
     /**
-     * Shorts picked somewhere else (a channel's Shorts tab, the history, search): they are put in front of the "For you"
-     * feed, so the Shorts player plays them and the swipe goes on with the ones that followed in that list.
+     * Shorts picked somewhere else (a channel's Shorts tab, the history, search): they are put in front of the
+     * subscriptions feed, so the Shorts player plays them and the swipe goes on with the ones that followed in that list.
      */
     var pinned by mutableStateOf<List<VideoItem>>(emptyList())
 }
@@ -177,37 +178,13 @@ fun openInShorts(nav: Nav, start: VideoItem, queue: List<VideoItem> = emptyList(
 }
 
 /**
- * The Shorts feed of one topic ("" = For you), kept between tab switches. Home's Shorts shelf uses the same feed,
- * so a Short picked there is already in the list the Shorts tab shows.
+ * The Shorts feed: only unwatched Shorts of the channels you are subscribed to (see [SubscribedShorts]), kept between tab
+ * switches. One load gives the whole list; an empty list is shown as "No new videos". Pull down to load again.
  */
-internal fun shortsFeed(t: String) =
-    TabCache.paged<VideoItem>("shorts:$t:${com.cleantube.app.data.Graph.store.officialReco}") { token ->
-        // Shorts that were already shown once never come back (the Shorts already in this feed stay as they are)
-        // YouTube often sends the same Shorts again (esp. at the start of a feed): keep asking for the
-        // next batch until there is something new, instead of showing a page that is all repeats.
-        var tok = token
-        var result: Page<VideoItem>
-        var tries = 0
-        while (true) {
-            val page = Api.shorts(tok, t)
-            // never again: Shorts already watched here, in this app's history or in the account's history
-            val fresh = page.items.filter {
-                !Graph.store.isShortSeen(it.id) && !Graph.store.isInHistory(it.id) &&
-                    !com.cleantube.app.data.Reco.isWatched(it.id) &&
-                    !com.cleantube.app.data.Graph.store.isHidden(it)
-            }
-            result = Page(fresh, page.next)
-            tries++
-            if (fresh.isNotEmpty() || page.next == null || page.next == tok || tries >= 8) break
-            tok = page.next
-        }
-        result
+internal fun shortsFeed() =
+    TabCache.paged<VideoItem>("shorts:subs:${Session.handle}") { token ->
+        if (token != null) Page(emptyList(), null) else Page(SubscribedShorts.load(), null)
     }
-
-private val shortTopics = listOf(
-    "For you" to "", "Music" to "music", "Comedy" to "funny", "Gaming" to "gaming",
-    "Sports" to "sports", "Food" to "food", "Tech" to "tech", "News" to "news"
-)
 
 private val HashtagBlue = Color(0xFF4DA6FF)
 private val HeartRed = Color(0xFFFF3B5C)
@@ -242,7 +219,6 @@ fun ShortsScreen() {
     val ctx = LocalContext.current
     val nav = LocalNav.current
     val scope = rememberCoroutineScope()
-    var topic by remember { mutableStateOf("") }
     var resumed by remember { mutableStateOf(true) }
     var downloadFor by remember { mutableStateOf<VideoItem?>(null) }
     var saveFor by remember { mutableStateOf<VideoItem?>(null) }
@@ -298,21 +274,17 @@ fun ShortsScreen() {
 
     // pure black in light and dark mode: it shows through the rounded top corners of the card, next to the black header
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        // a Short picked on Home lives in the "For you" feed
-        LaunchedEffect(ShortsUi.openId) { if (ShortsUi.openId != null && topic.isNotEmpty()) topic = "" }
-        // a new feed whenever the topic changes
-        key(topic) {
-            val t = topic
+        key(Session.handle) {
             // kept between tab switches: the feed and the Short you were on stay as they were
-            val feed = shortsFeed(t)
+            val feed = shortsFeed()
             LaunchedEffect(feed) { if (feed.items.isEmpty() && !feed.loading) feed.refresh() }
             val pinned = ShortsUi.pinned
-            val items = remember(feed.items, pinned, t) { (if (t.isEmpty()) pinned + feed.items else feed.items).distinctBy { it.id } }
+            val items = remember(feed.items, pinned) { (pinned + feed.items).distinctBy { it.id } }
             val itemsNow = rememberUpdatedState(items)
-            val pager = rememberPagerState(initialPage = TabCache.shortsPage[t] ?: 0) { itemsNow.value.size }
-            SideEffect { TabCache.shortsPage[t] = pager.currentPage }
+            val pager = rememberPagerState(initialPage = TabCache.shortsPage["subs"] ?: 0) { itemsNow.value.size }
+            SideEffect { TabCache.shortsPage["subs"] = pager.currentPage }
 
-            // a Short picked on Home: jump straight to it (the shelf uses this same feed, so it is in the list)
+            // a Short picked somewhere else (channel page, history, search): jump straight to it
             LaunchedEffect(ShortsUi.openId, items.size) {
                 val id = ShortsUi.openId ?: return@LaunchedEffect
                 val idx = items.indexOfFirst { it.id == id }
@@ -342,6 +314,15 @@ fun ShortsScreen() {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(err.message ?: "Couldn't load Shorts.", color = Color(0xFFDDDDDD), fontSize = 13.sp)
                             Box(Modifier.padding(top = 12.dp)) { Pill("Retry", onClick = { feed.refresh() }) }
+                        }
+                    } else if (feed.finished && !feed.loading && !feed.refreshing) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("No new videos", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                            Text(
+                                "No unwatched Shorts from your subscriptions.", color = Color(0xFFBBBBBB), fontSize = 13.sp,
+                                modifier = Modifier.padding(top = 6.dp)
+                            )
+                            Box(Modifier.padding(top = 14.dp)) { Pill("Refresh", onClick = { feed.refresh() }) }
                         }
                     } else {
                         CtSpinner()
@@ -425,8 +406,6 @@ fun ShortsScreen() {
         ) {
             ShortMenu(
                 active = active,
-                topic = topic,
-                onTopic = { topic = it; menuOpen = false },
                 onSave = { active?.let { saveFor = it.video } },
                 onDownload = { active?.let { downloadFor = it.video } },
                 onReport = { active?.let { openInYouTube(ctx, it.video.id) } },
@@ -474,8 +453,6 @@ fun ShortsScreen() {
 @Composable
 private fun ShortMenu(
     active: ActiveShort?,
-    topic: String,
-    onTopic: (String) -> Unit,
     onSave: () -> Unit,
     onDownload: () -> Unit,
     onReport: () -> Unit,
@@ -523,11 +500,6 @@ private fun ShortMenu(
                     onPick = { p.changeQuality(qOpts[it]) }
                 )
             }
-            MenuLabel("Feed")
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                shortTopics.forEach { (label, value) -> CtChip(label, topic == value) { onTopic(value) } }
-            }
-
             Spacer(Modifier.size(2.dp))
             MenuRow(Icons.Rounded.PlaylistAdd, "Save to playlist", "") { onSave(); onClose() }
             MenuRow(Icons.Rounded.Download, "Download", "Video or audio only") { onDownload(); onClose() }
@@ -718,17 +690,6 @@ private fun ShortPage(
     val avatar by androidx.compose.runtime.produceState("", ch?.thumb, v.channelId) {
         value = ch?.thumb?.takeIf { it.isNotEmpty() } ?: ChannelAvatars.known(v.channelId, v.channelThumb)
         if (value.isEmpty() && v.channelId.isNotEmpty()) value = ChannelAvatars.load(v.channelId)
-    }
-    // how long this Short stayed on screen = the recommendation signal (swiped away fast = no, stayed / looped = yes)
-    val shownSince = remember { longArrayOf(0L) }
-    androidx.compose.runtime.DisposableEffect(current) {
-        if (current) shownSince[0] = System.currentTimeMillis()
-        onDispose {
-            if (current && shownSince[0] > 0L) {
-                com.cleantube.app.data.Reco.onShortLeft(v, System.currentTimeMillis() - shownSince[0], p.duration)
-                shownSince[0] = 0L
-            }
-        }
     }
     // remember the Short in the app's watch history (also gets its title / channel once those are known)
     LaunchedEffect(current, title, ch?.title) {

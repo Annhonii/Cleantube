@@ -99,26 +99,6 @@ fun CompactRow(v: VideoItem, onClick: () -> Unit, modifier: Modifier = Modifier,
     }
 }
 
-/** Feed item: one clean row per video (the same layout everywhere). */
-@Composable
-fun BentoFeedItem(all: List<VideoItem>, index: Int, onOpen: (VideoItem) -> Unit) {
-    val v = all.getOrNull(index) ?: return
-    VideoRow(v, onClick = { onOpen(v) })
-}
-
-/** Trending: rank number next to a compact row. */
-@Composable
-fun CompactRankRow(all: List<VideoItem>, index: Int, onOpen: (VideoItem) -> Unit) {
-    val v = all.getOrNull(index) ?: return
-    Row(Modifier.fillMaxWidth().padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            "${index + 1}", color = Tertiary, fontSize = 18.sp, fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.Center, modifier = Modifier.width(30.dp)
-        )
-        CompactRow(v, onClick = { onOpen(v) }, modifier = Modifier.weight(1f))
-    }
-}
-
 /** Round icon-only button of the video page. */
 @Composable
 fun ActionTile(

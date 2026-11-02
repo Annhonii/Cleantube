@@ -72,17 +72,12 @@ import androidx.compose.ui.unit.sp
 import com.cleantube.app.data.Session
 import kotlin.math.roundToInt
 
-// Collapsing top header, one for the whole app (drawn above the tab pager, see App.kt).
+// Collapsing top header, one for the whole app (drawn above the tab pager, see App.kt):
 //
-//  expanded (Home, feed at the top):        collapsed (Home scrolled, and every other tab):
-//    ( photo, big )      (search) (bell)       ( photo, small ) ( search bar, wide ) (bell)
-//    Welcome back,                             ( shorts ) ( Home | Subscription | Library )
-//    <First name>!
-//    ( shorts ) ( Home | Subscription | Library )
+//    ( photo, small ) ( search bar, wide ) (bell)
+//    ( shorts ) ( New | Library | Downloads )
 //
-// Everything is driven by ONE number (0 = expanded, 1 = collapsed) that follows the feed's scroll through a spring.
-// The header never rests half way: the feed's scroll only decides between the two states (see TrackHeaderScroll),
-// and the size / position of every part is worked out from that number in the layout phase (no recomposition per frame).
+// Every tab shows this one collapsed state. The navigation row's indicator is driven straight by the pager position.
 
 private val PadH = 20.dp            // screen edge -> content
 private val Gap = 10.dp
@@ -127,31 +122,24 @@ private val SearchTextLeft = SearchIconLeft + SearchIconSize + 10.dp
 private val HeaderSpring = spring<Float>(dampingRatio = 0.9f, stiffness = 380f)
 
 /**
- * Current height of the header for the feed of [route]: use it as the top padding of that feed. On Home it follows
- * the header (big -> small with the same spring), so the feed moves up together with the header and no empty gap is
- * left under the collapsed bar. Every other tab always sits under the collapsed header.
+ * Current height of the header: use it as the top padding of a tab's feed. Every tab sits under the same collapsed header,
+ * so this does not depend on [route] (kept so the screens can still say which feed they are).
  */
 @Composable
-fun collapsingHeaderHeight(route: Route = Route.Home): Dp {
+@Suppress("UNUSED_PARAMETER")
+fun collapsingHeaderHeight(route: Route = Route.Feed): Dp {
     val sb = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val target = if (route == Route.Home) HeaderScroll.get(Route.Home) else 1f
-    val p by animateFloatAsState(target, HeaderSpring, label = "headerHeight")
-    return sb + androidx.compose.ui.unit.lerp(cardBig(hasGreeting()), CardSmall, p)
+    return sb + CardSmall
 }
 
-/**
- * Bottom edge of the header bar (px from the top of the screen) for the page of [route], read when drawing: it follows
- * the header's own spring, so the page's rounded corners stay glued to the bar while it collapses.
- */
+/** Bottom edge of the header bar (px from the top of the screen): the page's rounded corners stay glued to it. */
 @Composable
+@Suppress("UNUSED_PARAMETER")
 fun rememberHeaderBarBottom(route: Route): () -> Float {
     val density = LocalDensity.current
     val sbPx = WindowInsets.statusBars.getTop(density)
-    val bigPx = with(density) { cardBig(hasGreeting()).toPx() }
     val smallPx = with(density) { CardSmall.toPx() }
-    val target = if (route == Route.Home) HeaderScroll.get(Route.Home) else 1f
-    val p = animateFloatAsState(target, HeaderSpring, label = "headerBarBottom")
-    return { sbPx + bigPx + (smallPx - bigPx) * p.value }
+    return { sbPx + smallPx }
 }
 
 /** Cuts the content with rounded top corners at [top] (px); everything above [top] is left to the header bar. */
@@ -174,48 +162,6 @@ fun Modifier.feedTopCorners(top: () -> Float, radius: Float): Modifier = drawWit
 private fun li(a: Int, b: Int, t: Float) = (a + (b - a) * t).roundToInt()
 private fun lf(a: Float, b: Float, t: Float) = a + (b - a) * t
 
-/** Scroll state of the Home feed as 0 (header expanded) or 1 (collapsed); written by [TrackHeaderScroll]. */
-object HeaderScroll {
-    private val home = androidx.compose.runtime.mutableFloatStateOf(0f)
-
-    /** Collapse value (0 / 1) of the feed that belongs to [route]; tabs without a scroll-following feed are always 1 (collapsed). */
-    fun get(route: Route): Float = when (route) {
-        Route.Home -> home.floatValue
-        else -> 1f
-    }
-
-    fun set(route: Route, v: Float) {
-        when (route) {
-            Route.Home -> home.floatValue = v
-            else -> Unit
-        }
-    }
-}
-
-/** Reports a list's scroll to the header. Call it from the screen whose feed the header should follow. */
-@Composable
-fun TrackHeaderScroll(listState: LazyListState, route: Route = Route.Home) {
-    val density = LocalDensity.current
-    // Only two states, never in between: as soon as the feed is scrolled a little the header glides to the collapsed
-    // state, and it only grows back when the feed is (almost) back at the top. The gap between the two numbers stops flicker.
-    val collapseAtPx = with(density) { 16.dp.toPx() }
-    val expandAtPx = with(density) { 4.dp.toPx() }
-    androidx.compose.runtime.LaunchedEffect(listState, collapseAtPx, expandAtPx, route) {
-        var collapsed = HeaderScroll.get(route) >= 0.5f
-        androidx.compose.runtime.snapshotFlow {
-            if (listState.firstVisibleItemIndex > 0) Float.MAX_VALUE
-            else listState.firstVisibleItemScrollOffset.toFloat()
-        }.collect { offset ->
-            if (!collapsed && offset > collapseAtPx) collapsed = true
-            else if (collapsed && offset < expandAtPx) collapsed = false
-            HeaderScroll.set(route, if (collapsed) 1f else 0f)
-        }
-    }
-}
-
-/** How visible the header is for a pager position: it is on every tab page, so always 1 (kept so callers can still fade it). */
-fun headerVisibility(pos: Float, homeIndex: Int, shortsIndex: Int): Float = 1f
-
 // The YouTube Shorts logo; if the path can't be parsed for any reason the tab's own icon is used instead.
 private val ShortsIcon: ImageVector by lazy {
     runCatching {
@@ -233,19 +179,16 @@ private val ShortsIcon: ImageVector by lazy {
     }.getOrElse { Icons.Rounded.LocalFireDepartment }
 }
 
-/** The Shorts logo for other screens (Home's Shorts shelf); tint it, the path itself is black. */
+/** The Shorts logo for other screens (history); tint it, the path itself is black. */
 internal val ShortsLogoVector: ImageVector get() = ShortsIcon
 
 /**
- * The header. [pagerPosition] is the tab pager's position (page + offset): while swiping between Home and another
- * tab the header glides between its expanded and collapsed look in step with the pages.
+ * The header. [pagerPosition] is the tab pager's position (page + offset); the navigation row's indicator follows it.
  */
 @Composable
 fun CollapsingHeader(
     pagerPosition: () -> Float,
-    homeIndex: Int,
     shortsIndex: Int,
-    routes: List<Route>,
     tabs: List<TabSpec>,
     modifier: Modifier = Modifier
 ) {
@@ -253,21 +196,8 @@ fun CollapsingHeader(
     val density = LocalDensity.current
     val sbPx = WindowInsets.statusBars.getTop(density)
 
-    // spring smoothing: the header glides to the state the feed's scroll wants instead of snapping
-    val homeF = animateFloatAsState(HeaderScroll.get(Route.Home), HeaderSpring, label = "headerHome")
-    // 0 = expanded .. 1 = collapsed. Home follows its feed's scroll; every other page always shows the collapsed header.
-    // While swiping between two pages the value glides between theirs.
-    val pageValue: (Int) -> Float = { i ->
-        when (routes.getOrNull(i)) {
-            Route.Home -> homeF.value
-            else -> 1f
-        }
-    }
-    val fOf: () -> Float = {
-        val pos = pagerPosition().coerceAtLeast(0f)
-        val lo = kotlin.math.floor(pos).toInt()
-        lf(pageValue(lo), pageValue(lo + 1), pos - lo).coerceIn(0f, 1f)
-    }
+    // 0 = expanded .. 1 = collapsed: every tab shows the collapsed header
+    val fOf: () -> Float = { 1f }
 
     // The account's first name comes from the saved copy of the Google account (see Session), so it is there at once
     val firstName = if (hasGreeting()) Session.name.trim().substringBefore(' ') else ""
@@ -349,7 +279,7 @@ fun CollapsingHeader(
             ) {
                 Icon(Icons.Rounded.NotificationsNone, contentDescription = "Notifications", tint = fg, modifier = Modifier.size(24.dp))
             }
-            // 6: navigation row: Shorts button + Home | Subscription | Library, with ONE indicator that follows the pager
+            // 6: navigation row: Shorts button + New | Library | Downloads, with ONE indicator that follows the pager
             NavRow(tabs, nav, pagerPosition, surface, selBg, onSel, muted)
         },
         modifier = modifier
@@ -422,7 +352,7 @@ fun CollapsingHeader(
 }
 
 /**
- * The navigation row: a round Shorts button and, next to it, the pill with Home | Subscription | Library.
+ * The navigation row: a round Shorts button and, next to it, the pill with New | Library | Downloads.
  * ONE filled indicator sits behind the open tab and is driven straight by the pager position: while you swipe it is
  * between the two tabs by exactly as much as the pages are, so it sticks to the finger (and when a tab is tapped it
  * follows the pager's own glide). From Home to Shorts it slides out of the pill into the round Shorts button, changing

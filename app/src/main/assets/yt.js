@@ -970,7 +970,6 @@
     },
     reset: async function () { ENV = null; try { localStorage.removeItem('ct_env'); } catch (e) { /* ignore */ } return {}; },
     locale: async function (a) { LOCALE = { hl: a.hl || 'en', gl: a.gl || 'IN' }; ENV = null; return {}; },
-    home: async function (a) { return parseItems(await browse('FEwhat_to_watch', a.token)); },
     feed: async function (a) { return parseItems(await browse('FEsubscriptions', a.token)); },
     /** Watch history. Every entry carries the day heading YouTube put above it ("Today", "Yesterday", "Sunday", "Oct 20"). */
     history: async function (a) {
@@ -1060,21 +1059,6 @@
       var j = await browse('VL' + a.id, a.token);
       var r = parsePlaylist(j);
       return a.token ? { items: r.items, next: r.next } : r;
-    },
-    /** YouTube's own personalised Shorts feed for the logged-in account. a.token: "c:<continuation>" or "s:<sequenceParams>". */
-    shorts: async function (a) {
-      var tries = [];
-      if (a.token && a.token.indexOf('c:') === 0) tries.push({ continuation: a.token.slice(2) });
-      else if (a.token && a.token.indexOf('s:') === 0) tries.push({ sequenceParams: a.token.slice(2) });
-      else { tries.push({ sequenceParams: 'CA8=' }); tries.push({ sequenceParams: 'CA8%3D' }); }
-      var lastErr = null;
-      for (var i = 0; i < tries.length; i++) {
-        try {
-          var r = parseReelSequence(await call('reel/reel_watch_sequence', tries[i]));
-          if (r.items.length) return r;
-        } catch (e) { lastErr = e; }
-      }
-      throw lastErr || new Error('empty shorts feed');
     },
     watch: async function (a) { return parseWatch(await call('next', { videoId: a.id, contentCheckOk: true, racyCheckOk: true })); },
     related: async function (a) {

@@ -105,15 +105,6 @@ class Store(context: Context) {
             sp.edit().putFloat("default_speed", value).apply()
         }
 
-    private val officialRecoState = mutableStateOf(sp.getBoolean("official_reco", true))
-    /** Home and Shorts show YouTube's own recommendations (default); off = the app's own engine (Reco) re-ranks them. */
-    var officialReco: Boolean
-        get() = officialRecoState.value
-        set(value) {
-            officialRecoState.value = value
-            sp.edit().putBoolean("official_reco", value).apply()
-        }
-
     private val fastStartState = mutableStateOf(sp.getBoolean("fast_start", false))
     /** Look up stream links ahead of time (videos on screen, the one under your finger, the next Shorts) so playback starts fast. */
     var fastStart: Boolean
@@ -415,13 +406,6 @@ class Store(context: Context) {
             sp.edit().putString("seen_shorts", seenShorts.joinToString(",")).apply()
         }
     }
-
-    // ------------------------------------------------------------ quick picks cache
-
-    /** Last Quick picks pool, kept so Home shows it instantly on the next app start. */
-    fun loadQuickPicks(): List<VideoItem> = readArray("quick_picks").mapObjects { it.toVideo() }.filter { it.id.isNotEmpty() }
-
-    fun saveQuickPicks(list: List<VideoItem>) = save("quick_picks", list) { it.toJson() }
 
     // ------------------------------------------------------------- searches
 

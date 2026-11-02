@@ -89,29 +89,12 @@ import com.cleantube.app.data.Paged
 import com.cleantube.app.data.Post
 import com.cleantube.app.data.VideoItem
 
-// ---------------------------------------------------------------- Home feed entries
+// ---------------------------------------------------------------- New tab entries
 
-/** One row of the Home feed: a video, or a community post slipped in between the videos. */
+/** One row of the New tab: a video, or a community post slotted in between the videos. */
 sealed interface HomeEntry {
     data class Video(val v: VideoItem) : HomeEntry
     data class PostEntry(val post: Post) : HomeEntry
-}
-
-/** A post is slipped in after every [POST_EVERY] videos. */
-private const val POST_EVERY = 4
-
-/**
- * The videos with the posts of [posts] in between: after the 4th video, then after the 8th... A post's place only depends
- * on how many posts come before it, so loading more videos never moves the rows already on screen.
- */
-fun mixHome(videos: List<VideoItem>, posts: List<Post>): List<HomeEntry> {
-    val out = ArrayList<HomeEntry>(videos.size + videos.size / POST_EVERY + 1)
-    var next = 0
-    videos.forEachIndexed { i, v ->
-        out += HomeEntry.Video(v)
-        if ((i + 1) % POST_EVERY == 0 && next < posts.size) out += HomeEntry.PostEntry(posts[next++])
-    }
-    return out
 }
 
 /**

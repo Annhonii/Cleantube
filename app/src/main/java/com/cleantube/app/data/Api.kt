@@ -143,53 +143,6 @@ object Api {
 
     // ---------------------------------------------------------------- account feeds
 
-    /** YouTube's own Home recommendations (long videos only), personalised when signed in. Used as a candidate source by Reco. */
-    suspend fun youtubeHome(token: String?): Page<VideoItem> =
-        videosPage(Yt.run("home", args("token" to token)), dropShorts = true)
-
-    /** YouTube's own Shorts recommendations (one page); [token] is the raw continuation of the previous page. */
-    suspend fun youtubeShorts(token: String?): Page<VideoItem> =
-        videosPage(Yt.run("shorts", args("token" to token)))
-
-    suspend fun home(token: String?): Page<VideoItem> {
-        // Default: YouTube's own Home feed. With "official recommendations" off, the app's own engine (Reco) ranks on the phone.
-        // With no subscriptions at all there is nothing to learn from yet, so YouTube's own feed is shown instead.
-        if (!Graph.store.officialReco) if (token == null || token.startsWith("L:")) {
-            Reco.homePage(token)?.let { return Page(it.items.filter { v -> !Graph.store.isHidden(v) }, it.next) }
-            if (token != null) return Page(emptyList(), null)
-        }
-        val p = videosPage(Yt.run("home", args("token" to token)), dropShorts = true)
-        val clean = p.items.filter { !Graph.store.isHidden(it) }
-        return if (Graph.store.officialReco) Page(spreadChannels(clean, first = token == null), p.next) else Page(clean, p.next)
-    }
-
-    private val recentHomeChannelIds = ArrayDeque<String>()
-
-    /**
-     * YouTube's feed sometimes puts several videos of one channel together. Keep the order, but show a channel only once
-     * per page and not again within the last 12 channels shown. (If that would leave a tiny page, the dropped ones refill it.)
-     */
-    private fun spreadChannels(list: List<VideoItem>, first: Boolean): List<VideoItem> = synchronized(recentHomeChannelIds) {
-        if (first) recentHomeChannelIds.clear()
-        val used = HashSet<String>()
-        val kept = ArrayList<VideoItem>()
-        val dropped = ArrayList<VideoItem>()
-        for (v in list) {
-            val ch = v.channelId.ifEmpty { v.channelTitle }
-            if (ch.isNotEmpty() && (ch in used || ch in recentHomeChannelIds)) dropped += v else { kept += v; if (ch.isNotEmpty()) used += ch }
-        }
-        if (kept.size < 5) dropped.take(5 - kept.size).forEach { kept += it }
-        kept.forEach { v -> v.channelId.ifEmpty { v.channelTitle }.takeIf { it.isNotEmpty() }?.let { recentHomeChannelIds.addLast(it) } }
-        while (recentHomeChannelIds.size > 12) recentHomeChannelIds.removeFirst()
-        kept
-    }
-
-    /** Trending tab: YouTube has no trending feed any more, so this is a search for what is popular today (no Shorts). */
-    suspend fun trending(token: String?): Page<VideoItem> {
-        val p = searchVideos("trending videos today", token)
-        return Page(p.items.filter { !it.short }, p.next)
-    }
-
     suspend fun accountFeed(token: String?): Page<VideoItem> =
         videosPage(Yt.run("feed", args("token" to token)), dropShorts = true)
 
@@ -302,58 +255,12 @@ object Api {
             val p = rateParams[videoId]?.optString(status)?.takeIf { it.isNotEmpty() } ?: throw e
             Yt.run("rate", args("id" to videoId, "status" to status, "params" to p))
         }
-        Reco.onRate(videoId, status)   // the recommendations learn from it too
     }
 
     // ---------------------------------------------------------------- search
 
     suspend fun searchVideos(q: String, page: String?): Page<VideoItem> =
         videosPage(Yt.run("search", args("q" to q, "filter" to "video", "token" to page)), dropShorts = false)
-
-    /**
-     * Shorts feed. With no topic it is YouTube's own personalised Shorts feed (reel_watch_sequence), the same one the
-     * official app shows for the signed-in account. Tokens of that feed start with "R:". If it can't be loaded, or a
-     * topic chip is selected, it falls back to searching "#shorts" (plus topic) and keeping only real Shorts.
-     */
-    suspend fun shorts(token: String?, topic: String = ""): Page<VideoItem> {
-        // The app's own Shorts engine (Reco) first: subscribed channels' Shorts, reacting to what is watched / swiped.
-        if ((!Graph.store.officialReco || token?.startsWith("L:") == true) && topic.isEmpty() && (token == null || token.startsWith("L:"))) {
-            Reco.shortsPage(token)?.let { return it }
-            if (token != null) return Page(emptyList(), null)
-        }
-        if (topic.isEmpty() && (token == null || token.startsWith("R:"))) {
-            // Only YouTube's own Shorts recommendations: never swapped for a "#shorts" search.
-            var failure: Exception? = null
-            val official = try {
-                val j = Yt.run("shorts", args("token" to token?.removePrefix("R:")))
-                videosPage(j).let { p -> Page(p.items, p.next?.let { "R:$it" }) }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                failure = e
-                null
-            }
-            if (official != null && official.items.isNotEmpty()) return official
-            // a continuation that expired: start a fresh official sequence instead of ending the feed
-            if (token != null) {
-                try {
-                    val j = Yt.run("shorts")
-                    videosPage(j).let { p -> Page(p.items, p.next?.let { "R:$it" }) }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    null
-                }?.let { if (it.items.isNotEmpty()) return it }
-                return Page(emptyList(), null)
-            }
-            // YouTube's feed failed on the first page: the app's own engine still has something to show
-            if (token == null) Reco.shortsPage(null)?.let { return it }
-            throw failure ?: ApiException(ApiException.Kind.OTHER, "YouTube sent no Shorts recommendations right now. Try again in a moment.")
-        }
-        val q = if (topic.isEmpty()) "#shorts" else "#shorts $topic"
-        val p = searchVideos(q, token?.takeUnless { it.startsWith("R:") })
-        return Page(p.items.filter { it.short || it.durationSec in 1..62 }, p.next)
-    }
 
     suspend fun searchChannels(q: String, page: String?): Page<ChannelItem> {
         val j = Yt.run("search", args("q" to q, "filter" to "channel", "token" to page))
@@ -390,8 +297,6 @@ object Api {
         watches[id] = Watch(j.optString("commentsToken").takeIf { it.isNotEmpty() && it != "null" })
         j.optJSONObject("rateParams")?.let { rateParams[id] = it }
         val related = (j.optJSONArray("related") ?: JSONArray()).mapObjects { it.video() }
-        Reco.remember(vid.copy(title = title))
-        Reco.addRelated(related)   // up next videos = adjacent-topic candidates for Home
         return VideoDetails(
             video = vid,
             description = j.optString("description"),
@@ -405,12 +310,6 @@ object Api {
             relatedNext = j.optString("relatedNext").takeIf { it.isNotEmpty() && it != "null" },
             likeStatus = j.optString("likeStatus")
         )
-    }
-
-    /** YouTube's own "related to this video" list (the up-next column), long videos only. */
-    suspend fun relatedOf(id: String): List<VideoItem> {
-        val j = Yt.run("watch", args("id" to id))
-        return (j.optJSONArray("related") ?: JSONArray()).mapObjects { it.video() }.filter { !it.short }
     }
 
     suspend fun related(token: String?): Page<VideoItem> {
