@@ -18,7 +18,6 @@ import java.util.concurrent.atomic.AtomicInteger
  * We convert those ages to minutes and globally sort ascending, so the newest upload is shown first regardless of channel.
  */
 object SubscribedShorts {
-    private const val MAX_CHANNELS = 60
     private const val PER_CHANNEL = 6
     private const val HISTORY_PAGES = 3
     private const val HISTORY_TTL_MS = 10 * 60_000L
@@ -77,7 +76,7 @@ object SubscribedShorts {
         val answered = AtomicInteger(0)
         val gate = Semaphore(4)
         val perChannel = coroutineScope {
-            subs.take(MAX_CHANNELS).map { c ->
+            subs.map { c ->
                 async(Dispatchers.Default) {
                     gate.withPermit {
                         val items = attempt { withTimeout(10_000) { Api.channelVideosTab(c.id, "shorts", null).items } }
