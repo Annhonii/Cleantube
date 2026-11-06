@@ -66,7 +66,6 @@ import com.cleantube.app.data.ChannelItem
 import com.cleantube.app.data.Graph
 import com.cleantube.app.data.Paged
 import com.cleantube.app.data.PlaylistItem
-import com.cleantube.app.data.Post
 import com.cleantube.app.data.VideoItem
 import com.cleantube.app.data.Api
 import com.cleantube.app.data.formatCount
@@ -104,7 +103,6 @@ fun ChannelScreen(route: Route.Channel) {
             val paged = remember(ch.id) {
                 Paged<VideoItem>(scope) { token -> Api.channelVideos(ch.id, token) }
             }
-            val posts = remember(ch.id) { Paged<Post>(scope) { token -> Api.channelPosts(ch.id, token) } }
             val live = remember(ch.id) { Paged<VideoItem>(scope) { token -> Api.channelVideosTab(ch.id, "live", token) } }
             val shorts = remember(ch.id) { Paged<VideoItem>(scope) { token -> Api.channelVideosTab(ch.id, "shorts", token) } }
             val lists = remember(ch.id) { Paged<PlaylistItem>(scope) { token -> Api.channelPlaylists(ch.id, token) } }
@@ -121,8 +119,7 @@ fun ChannelScreen(route: Route.Channel) {
                 1 -> PagedColumn(live, emptyText = "No live streams.", header = head) { v ->
                     VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) })
                 }
-                2 -> PagedColumn(posts, emptyText = "No posts on this channel.", header = head) { post -> HomePostCard(post.copy(channelId = ch.id)) }
-                3 -> PagedColumn(lists, emptyText = "No playlists.", header = head) { pl ->
+                2 -> PagedColumn(lists, emptyText = "No playlists.", header = head) { pl ->
                     PlaylistRow(pl, onClick = { nav.push(Route.Playlist(pl.id, pl.title)) })
                 }
                 else -> PagedColumn(shorts, emptyText = "No Shorts.", header = head) { v ->
@@ -351,7 +348,7 @@ private fun ChannelHeader(ch: ChannelItem, tab: Int, onTab: (Int) -> Unit, onBac
             Modifier.horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            listOf("Videos", "Live", "Posts", "Playlists", "Shorts").forEachIndexed { i, label ->
+            listOf("Videos", "Live", "Playlists", "Shorts").forEachIndexed { i, label ->
                 val sel = tab == i
                 val bg by animateColorAsState(if (sel) Accent else Color.Transparent, tween(300, easing = M3Standard), label = "chipBg")
                 val fg by animateColorAsState(if (sel) OnAccent else TextPrimary, tween(300, easing = M3Standard), label = "chipFg")

@@ -160,9 +160,6 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
             // the video page / mini player: above the screens
             VideoSheet(tabRoot = nav.isTabRoot, hidden = nav.current == Route.Shorts)
 
-            // comments of a community post (New tab): slides up over everything except a fullscreen video
-            PostCommentsOverlay()
-
             // Fullscreen video from the YouTube player, drawn above everything.
             val fsView = fullscreen.view
             if (fsView != null) {
@@ -188,8 +185,6 @@ fun CleanTubeRoot(nav: Nav, fullscreen: FullscreenHost) {
         LaunchedEffect(nav.stack.size) {
             if (VideoHost.expanded) VideoHost.requestCollapse()
         }
-        // Back closes the comments of a post first
-        BackHandler(enabled = PostCommentsHost.post != null && fullscreen.view == null) { PostCommentsHost.close() }
         // Registered last so it wins while a video is fullscreen.
         BackHandler(enabled = fullscreen.view != null) {
             fullscreen.requestExit()

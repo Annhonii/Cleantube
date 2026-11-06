@@ -656,59 +656,6 @@
   }
 
 
-  /** Channel "Posts" (community) tab: text, pictures, a shared video, like / comment counts. */
-  function parsePosts(j) {
-    var items = [], token = null, seen = {};
-    walk(j, function (x) {
-      var post = x.backstagePostRenderer || x.postRenderer;
-      if (post) {
-        var id = post.postId || '';
-        if (!id || seen[id]) return true;
-        seen[id] = 1;
-        var att = post.backstageAttachment || post.attachment || null;
-        var image = '', vid = '', vtitle = '', poll = '';
-        if (att) {
-          var img = findFirst(att, 'backstageImageRenderer');
-          if (img) image = lastThumb(img.image);
-          if (!image) {
-            var th = findFirst(att, 'thumbnail');
-            if (th && th.thumbnails) image = lastThumb(th);
-          }
-          var vr = att.videoRenderer || findFirst(att, 'videoRenderer');
-          if (vr && vr.videoId) { vid = vr.videoId; vtitle = txt(vr.title); if (!image) image = lastThumb(vr.thumbnail); }
-          var pr = att.pollRenderer || findFirst(att, 'pollRenderer');
-          if (pr) {
-            var ch = (pr.choices || []).map(function (c) { return txt(c.text); }).filter(function (t) { return t; });
-            poll = ch.join(' | ');
-          }
-        }
-        var rb = findFirst(post, 'replyButton');
-        var comments = rb ? txt(findFirst(rb, 'text') || rb) : '';
-        var be = rb ? findFirst(rb, 'browseEndpoint') : null;
-        items.push({
-          t: 'p', id: id,
-          author: txt(post.authorText),
-          avatar: lastThumb(post.authorThumbnail),
-          text: txt(post.contentText),
-          age: txt(post.publishedTimeText),
-          likes: txt(post.voteCount) || (post.voteStatus ? '' : ''),
-          comments: comments,
-          image: image, video: vid, videoTitle: vtitle, poll: poll,
-          cb: (be && be.browseId) || '', cp: (be && be.params) || ''
-        });
-        return true;
-      }
-      if (x.continuationItemRenderer) {
-        var c = x.continuationItemRenderer;
-        var t = c.continuationEndpoint && c.continuationEndpoint.continuationCommand && c.continuationEndpoint.continuationCommand.token;
-        if (t) token = t;
-        return true;
-      }
-      return false;
-    });
-    return { items: items, next: token };
-  }
-
   /**
    * Owner, video count, views, last update and cover of a playlist page. YouTube serves two header layouts
    * (the older playlistHeaderRenderer + sidebar, the newer pageHeaderViewModel) so every field is optional;
@@ -1026,17 +973,6 @@
       var r = parseChannel(j);
       return a.token ? { items: r.items, next: r.next } : r;
     },
-    /** Channel posts. a.id = channel, a.token = continuation of the next page. */
-    posts: async function (a) {
-      if (a.token) return parsePosts(await browse(null, a.token));
-      var params = 'EgVwb3N0c_IBBAoCSgA=';
-      try {
-        var main = parseChannel(await call('browse', { browseId: a.id }));
-        var tab = (main.tabs || []).filter(function (t) { return /^(posts|community)$/i.test(t.title) && t.params; })[0];
-        if (tab) params = tab.params;
-      } catch (e) { /* use the default */ }
-      return parsePosts(await call('browse', { browseId: a.id, params: params }));
-    },
     /** A channel's Shorts / Live / Playlists tab. a.tab = shorts | live | playlists, a.token = next page. */
     channelTab: async function (a) {
       if (a.token) { var r0 = parseItems(await browse(null, a.token)); return { items: r0.items, next: r0.next }; }
@@ -1067,79 +1003,6 @@
       return { items: r.items.filter(function (i) { return i.t === 'v'; }), next: r.next };
     },
     comments: async function (a) { return parseComments(await call('next', { continuation: a.token })); },
-    /**
-     * Comments of a community post. The first call finds the comments token of the post: from the post page that the
-     * Posts tab pointed at (a.cb / a.cp) and, when that gives nothing, from the post's own web page (a.id). Later calls
-     * (a.token) read the next page / the replies. Never answers "empty" just because the token could not be found:
-     * that is an error the panel shows with a Retry button.
-     */
-    postComments: async function (a) {
-      function usable(r) { return r && (r.items.length || r.next || r.disabled); }
-      async function thread(tok) {
-        var first = null, err = null;
-        try { first = parseComments(await call('next', { continuation: tok })); } catch (e) { err = e; }
-        if (usable(first)) return first;
-        // some continuations are only served by browse
-        try {
-          var second = parseComments(await call('browse', { continuation: tok }));
-          if (usable(second)) return second;
-          if (!first) first = second;
-        } catch (e2) { if (!first && !err) err = e2; }
-        if (!first && err) throw err;
-        return first || { items: [], next: null };
-      }
-      /** The token that loads the comments: the continuation inside the comment section of a post page. */
-      function commentToken(j) {
-        var tok = null;
-        walk(j, function (x) {
-          if (tok) return true;
-          var s = x.itemSectionRenderer;
-          if (s && s.sectionIdentifier === 'comment-item-section') { tok = lastToken(s); return true; }
-          return false;
-        });
-        return tok;
-      }
-      /** The JSON object that starts at s[start] (a "{"), cut out with its braces balanced. */
-      function jsonAt(s, start) {
-        var depth = 0, inStr = false, esc = false;
-        for (var i = start; i < s.length; i++) {
-          var c = s.charCodeAt(i);
-          if (inStr) { if (esc) esc = false; else if (c === 92) esc = true; else if (c === 34) inStr = false; }
-          else if (c === 34) inStr = true;
-          else if (c === 123) depth++;
-          else if (c === 125) { depth--; if (depth === 0) return s.slice(start, i + 1); }
-        }
-        return null;
-      }
-      /** The web page of a post (/post/<id>) carries the same data as the browse call, inside ytInitialData. */
-      async function postPageData(id) {
-        var r = await fetch('/post/' + encodeURIComponent(id) + '?hl=' + LOCALE.hl + '&gl=' + LOCALE.gl, { credentials: 'include' });
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        var html = await r.text();
-        var m = /ytInitialData["'\]]*\s*=\s*\{/.exec(html);
-        if (!m) return null;
-        var txt = jsonAt(html, m.index + m[0].length - 1);
-        return txt ? JSON.parse(txt) : null;
-      }
-
-      if (a.token) return thread(a.token);
-
-      var tok = null, lastErr = null, seen = null;
-      if (a.cp) {
-        try { seen = await call('browse', { browseId: a.cb || 'FEpost_detail', params: a.cp }); tok = commentToken(seen); }
-        catch (e) { lastErr = e; }
-      }
-      if (!tok && a.id) {
-        try { seen = await postPageData(a.id); if (seen) tok = commentToken(seen); }
-        catch (e) { lastErr = e; }
-      }
-      if (!tok) {
-        if (seen && JSON.stringify(seen).indexOf('Comments are turned off') >= 0) return { items: [], next: null, disabled: true };
-        if (lastErr) throw lastErr;
-        throw new Error('The comments of this post could not be opened. Pull down and try again.');
-      }
-      return thread(tok);
-    },
     account: async function () { return parseAccount(await call('account/account_menu', {})); },
     /** Sends a feedback token ("Not interested" / "Don't recommend channel") to YouTube. */
     feedback: async function (a) {

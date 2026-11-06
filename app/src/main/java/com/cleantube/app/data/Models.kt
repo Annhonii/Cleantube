@@ -165,23 +165,3 @@ fun JSONObject.toLocalPlaylist(): LocalPlaylist {
 /** Maps every JSON object in the array; entries for which [f] returns null are skipped. */
 fun <T : Any> JSONArray.mapObjects(f: (JSONObject) -> T?): List<T> =
     (0 until length()).mapNotNull { i -> optJSONObject(i)?.let { f(it) } }
-
-/** A post on a channel's Posts tab. */
-data class Post(
-    val id: String,
-    val author: String,
-    val avatar: String,
-    val text: String,
-    val age: String,
-    val likes: String,
-    val comments: String,
-    val image: String,
-    val video: String,
-    val videoTitle: String,
-    val poll: String,
-    /** The channel the post belongs to (set when it comes from a channel's Posts tab). */
-    val channelId: String = "",
-    /** Where the post's comments are opened (from the post's reply button); empty when YouTube gave nothing. */
-    val commentsBrowseId: String = "",
-    val commentsParams: String = ""
-)

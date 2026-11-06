@@ -434,61 +434,6 @@ object Api {
         return Page(vids, j.nextToken())
     }
 
-    /** A channel's Posts tab (empty list when the channel has none). */
-    suspend fun channelPosts(id: String, token: String?): Page<Post> {
-        val j = Yt.run("posts", args("id" to id, "token" to (token ?: "")))
-        val list = (j.optJSONArray("items") ?: JSONArray()).mapObjects {
-            Post(
-                id = it.optString("id"),
-                author = it.optString("author"),
-                avatar = it.optString("avatar"),
-                text = it.optString("text"),
-                age = it.optString("age"),
-                likes = it.optString("likes"),
-                comments = it.optString("comments"),
-                image = it.optString("image"),
-                video = it.optString("video"),
-                videoTitle = it.optString("videoTitle"),
-                poll = it.optString("poll"),
-                channelId = id,
-                commentsBrowseId = it.optString("cb"),
-                commentsParams = it.optString("cp")
-            )
-        }
-        return Page(list, j.nextToken())
-    }
-
-    /** The comments of a community post, page by page (with reply tokens, so replies and likes work like on a video). */
-    suspend fun postComments(post: Post, page: String?): Page<Comment> {
-        // the post id lets yt.js fall back to the post's own page when the Posts tab gave no (or a stale) comments link
-        val j = Yt.run("postComments", args("token" to page, "id" to post.id, "cb" to post.commentsBrowseId, "cp" to post.commentsParams))
-        j.optString("debug").takeIf { it.isNotEmpty() }?.let { replyDebug = it }
-        if (page == null) j.optString("create").takeIf { it.isNotEmpty() }?.let { createParams["post:${post.id}"] = it }
-        return Page(commentList(j), j.nextToken())
-    }
-
-    /** The replies under one comment of a community post (the same continuation format as the comments themselves). */
-    suspend fun postReplies(token: String, page: String?): Page<Comment> {
-        val j = Yt.run("postComments", args("token" to (page ?: token)))
-        return Page(commentList(j), j.nextToken())
-    }
-
-    /** Posts a new top-level comment under a community post (signed-in account). */
-    suspend fun postPostComment(post: Post, text: String) {
-        val key = "post:${post.id}"
-        val params = createParams[key]
-            ?: postComments(post, null).let { createParams[key] }
-            ?: throw ApiException(ApiException.Kind.OTHER, "The comment box isn't available for this post. Make sure you are signed in and comments are on.")
-        try {
-            Yt.run("postComment", args("params" to params, "text" to text))
-        } catch (e: ApiException) {
-            // the token may have gone stale: read a fresh one and try once more
-            createParams.remove(key)
-            val again = postComments(post, null).let { createParams[key] } ?: throw e
-            Yt.run("postComment", args("params" to again, "text" to text))
-        }
-    }
-
     /** A channel's Shorts or Live tab. */
     suspend fun channelVideosTab(id: String, tab: String, token: String?): Page<VideoItem> {
         val j = Yt.run("channelTab", args("id" to id, "tab" to tab, "token" to token))

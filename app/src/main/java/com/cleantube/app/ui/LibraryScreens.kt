@@ -21,7 +21,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.cleantube.app.data.Api
-import com.cleantube.app.data.FeedPosts
 import com.cleantube.app.data.QuickPicks
 import com.cleantube.app.data.ApiException
 import com.cleantube.app.data.PlaylistItem
@@ -119,10 +118,7 @@ private fun AccountFeedScreen() {
         }
     }
     val stripChannels = accountChannels.ifEmpty { Graph.store.subscriptions }
-    // the subscribed channels' posts, slotted in between the videos by time
-    var postsTick by remember { mutableIntStateOf(0) }
-    val feedPosts = rememberFeedPosts(stripChannels, paged.items.map { it.channelId }, postsTick)
-    val entries = remember(paged.items, feedPosts, paged.finished) { mixFeedByTime(paged.items, feedPosts, paged.finished) }
+    val sorted = remember(paged.items) { sortByUploadTime(paged.items) }
 
     // The header floats over the list (see CollapsingHeader): the feed starts below it and collapses it while scrolling.
     val headerH = collapsingHeaderHeight(Route.Feed)
@@ -134,9 +130,9 @@ private fun AccountFeedScreen() {
             refreshIndicatorTop = headerH,
             // the channel strip, then Quick picks: the newest videos of your subscriptions that you have not watched yet
             header = { item { Column { SubscriptionStrip(stripChannels, paged.items); QuickPicksSection() } } },
-            onRefresh = { FeedPosts.invalidate(); postsTick++; QuickPicks.request(force = true) },
-            itemCount = entries.size,
-            indexRow = { i -> FeedEntryRow(entries.getOrNull(i)) { v -> nav.push(Route.Video(v.id, v)) } }
+            onRefresh = { QuickPicks.request(force = true) },
+            itemCount = sorted.size,
+            indexRow = { i -> sorted.getOrNull(i)?.let { v -> VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) }) } }
         )
         // the header card is drawn once for the whole app (App.kt); this only tells it how far the feed is scrolled
         TrackHeaderScroll(paged.listState, Route.Feed)
@@ -150,7 +146,6 @@ private fun LocalFeedScreen() {
     val store = Graph.store
     val scope = rememberCoroutineScope()
     val subs = store.subscriptions
-    var postsTick by remember { mutableIntStateOf(0) }
 
     var items by remember { mutableStateOf<List<VideoItem>?>(if (FeedCache.valid(subs)) FeedCache.items else null) }
     var loading by remember { mutableStateOf(false) }
@@ -192,48 +187,34 @@ private fun LocalFeedScreen() {
             err != null -> Box(Modifier.fillMaxSize().padding(top = headerH)) { ErrorBox(err, onRetry = { load() }) }
             list == null || (loading && list.isEmpty()) -> Box(Modifier.fillMaxSize().padding(top = headerH)) { Loading() }
             list.isEmpty() -> Box(Modifier.fillMaxSize().padding(top = headerH)) { EmptyState("No recent videos.") }
-            else -> PullRefresh(refreshing = loading, onRefresh = { FeedPosts.invalidate(); postsTick++; QuickPicks.request(force = true); load() }, modifier = Modifier.fillMaxSize(), indicatorTop = headerH) {
-                val feedPosts = rememberFeedPosts(subs, list.map { it.channelId }, postsTick)
-                val entries = remember(list, feedPosts) { mixFeedByTime(list, feedPosts, true) }
+            else -> PullRefresh(refreshing = loading, onRefresh = { QuickPicks.request(force = true); load() }, modifier = Modifier.fillMaxSize(), indicatorTop = headerH) {
+                val sorted = remember(list) { sortByUploadTime(list) }
                 LazyColumn(
                     Modifier.fillMaxSize(), state = listState,
                     contentPadding = PaddingValues(top = headerH + 12.dp, bottom = listBottomPad())
                 ) {
                     item { Column { SubscriptionStrip(subs, list); QuickPicksSection() } }
-                    items(entries.size) { i -> FeedEntryRow(entries[i]) { v -> nav.push(Route.Video(v.id, v)) } }
+                    items(sorted.size) { i -> val v = sorted[i]; VideoRow(v, onClick = { nav.push(Route.Video(v.id, v)) }) }
                 }
             }
         }
     }
 }
 
-/** The posts of the subscribed channels for the New tab (loaded in the background, cached for a few minutes). */
-@Composable
-private fun rememberFeedPosts(channels: List<ChannelItem>, active: List<String>, tick: Int): List<com.cleantube.app.data.Post> {
-    val key = channels.joinToString(",") { it.id }
-    var posts by remember(key) { mutableStateOf(FeedPosts.cached(key)) }
-    LaunchedEffect(key, tick) {
-        if (channels.isNotEmpty()) {
-            try {
-                posts = FeedPosts.load(key, channels, active)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                // posts are a bonus: the New tab stays videos only
-            }
-        }
-    }
-    return posts
-}
-
-/** One row of the New tab: a video, or a channel's post. */
-@Composable
-private fun FeedEntryRow(entry: HomeEntry?, onOpen: (VideoItem) -> Unit) {
-    when (entry) {
-        is HomeEntry.Video -> VideoRow(entry.v, onClick = { onOpen(entry.v) })
-        is HomeEntry.PostEntry -> HomePostCard(entry.post)
-        null -> {}
-    }
+/**
+ * The New tab's videos sorted by upload time (newest first). YouTube's own subscriptions feed is NOT in upload order (a
+ * 21 h old video can come before a 14 h old one), so the order is worked out from the "x hours ago" texts. A video whose
+ * age can't be read (live, "Scheduled for...", "Just now") keeps the age of the video before it. The sort is stable:
+ * videos with the same age text keep YouTube's order.
+ */
+private fun sortByUploadTime(videos: List<VideoItem>): List<VideoItem> {
+    var prev = 0L
+    return videos.map { v ->
+        val a = Api.ageMinutes(v.ageText)
+        val k = if (a == Long.MAX_VALUE) prev else a
+        prev = k
+        v to k
+    }.sortedBy { it.second }.map { it.first }
 }
 
 // ----------------------------------------------------------------- Library
