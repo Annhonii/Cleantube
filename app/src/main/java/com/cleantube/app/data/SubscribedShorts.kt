@@ -11,12 +11,11 @@ import kotlinx.coroutines.withTimeout
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * The Shorts tab: only Shorts of the channels you are subscribed to (the account's subscriptions when signed in, plus the
- * ones saved on this phone), and only the ones you have not watched yet. Nothing from outside the subscriptions is mixed
- * in. An empty list means "No new videos".
+ * The Shorts tab: only Shorts of subscribed channels (account subscriptions when signed in, plus local subscriptions),
+ * newest upload first across ALL channels. Watched / seen Shorts are excluded before sorting.
  *
- * A channel's Shorts tab has no upload time per Short, so the order is: every channel's newest unwatched Short first, then
- * every channel's second newest, and so on (a channel's own Shorts keep YouTube's newest-first order).
+ * YouTube's channel Shorts pages provide relative upload ages (for example "5 minutes ago"), not exact timestamps.
+ * We convert those ages to minutes and globally sort ascending, so the newest upload is shown first regardless of channel.
  */
 object SubscribedShorts {
     private const val MAX_CHANNELS = 60
@@ -99,24 +98,16 @@ object SubscribedShorts {
         if (answered.get() == 0) {
             throw ApiException(ApiException.Kind.NETWORK, "Couldn't load Shorts from your subscriptions. Check your connection and try again.")
         }
-        val queues = perChannel.map { list ->
-            list.filter {
-                !store.isShortSeen(it.id) && !store.isInHistory(it.id) && it.id !in watchedElsewhere && !store.isHidden(it)
-            }.take(PER_CHANNEL)
-        }
-        val out = ArrayList<VideoItem>()
-        val added = HashSet<String>()
-        var round = 0
-        while (true) {
-            var any = false
-            for (queue in queues) {
-                val v = queue.getOrNull(round) ?: continue
-                any = true
-                if (added.add(v.id)) out += v
+        // Merge every channel's newest page, remove duplicates and anything already watched, then sort globally.
+        // sortedBy is stable, so uploads with the same displayed age keep their original channel/API order.
+        return perChannel.asSequence()
+            .flatten()
+            .distinctBy { it.id }
+            .filter {
+                !store.isShortSeen(it.id) && !store.isInHistory(it.id) &&
+                    it.id !in watchedElsewhere && !store.isHidden(it)
             }
-            if (!any) break
-            round++
-        }
-        return out
+            .sortedBy { Api.ageMinutes(it.ageText) }
+            .toList()
     }
 }
