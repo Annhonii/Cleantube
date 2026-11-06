@@ -441,7 +441,7 @@ object Api {
         val vids = j.pick("v") { it.video() }.map {
             it.copy(
                 channelId = id, channelTitle = it.channelTitle.ifEmpty { ch?.title.orEmpty() },
-                short = it.short || tab == "shorts"
+                short = it.short
             )
         }
         return Page(vids, j.nextToken())
