@@ -52,6 +52,7 @@ import com.cleantube.app.data.Api
 import com.cleantube.app.data.NotificationItem
 import com.cleantube.app.data.Session
 import com.cleantube.app.data.TabCache
+import com.cleantube.app.data.VideoItem
 
 private enum class NotifFilter(val label: String) { All("All"), Videos("Videos"), Mentions("Mentions") }
 
@@ -93,6 +94,16 @@ fun NotificationsScreen() {
             var filter by rememberSaveable { mutableStateOf(NotifFilter.All) }
             val open: (NotificationItem) -> Unit = { n ->
                 when {
+                    // a comment / reply / mention opens its video with the comments panel showing
+                    n.videoId.isNotEmpty() && n.isMention() -> {
+                        VideoHost.openCommentsFor = n.videoId
+                        nav.push(Route.Video(n.videoId))
+                    }
+                    // Shorts play in the Shorts player, long videos in the normal player
+                    n.videoId.isNotEmpty() && n.short -> openInShorts(
+                        nav,
+                        VideoItem(id = n.videoId, title = n.message, channelId = n.channelId, short = true)
+                    )
                     n.videoId.isNotEmpty() -> nav.push(Route.Video(n.videoId))
                     n.channelId.isNotEmpty() -> nav.push(Route.Channel(n.channelId))
                     n.handle.isNotEmpty() -> nav.push(Route.Channel(id = "", handle = n.handle))
@@ -147,7 +158,7 @@ fun NotificationsScreen() {
                         val other = shown.filter { !it.isVideo() && !it.isMention() }
                         if (videos.isNotEmpty()) {
                             item(key = "h-videos") { SectionTitle("Video uploads") }
-                            itemsIndexed(videos) { i, n -> NotificationCard(n, groupedCardShape(i, videos.size, 28.dp), onClick = { open(n) }) }
+                            videoGrid(videos, open)
                         }
                         if (mentions.isNotEmpty()) {
                             item(key = "h-mentions") { SectionTitle("Mentions & comments") }
@@ -158,7 +169,8 @@ fun NotificationsScreen() {
                             itemsIndexed(other) { i, n -> NotificationCard(n, groupedCardShape(i, other.size, 28.dp), onClick = { open(n) }) }
                         }
                     } else {
-                        itemsIndexed(shown) { i, n -> NotificationCard(n, groupedCardShape(i, shown.size, 28.dp), onClick = { open(n) }) }
+                        if (filter == NotifFilter.Videos) videoGrid(shown, open)
+                        else itemsIndexed(shown) { i, n -> NotificationCard(n, groupedCardShape(i, shown.size, 28.dp), onClick = { open(n) }) }
                     }
                     item(key = "footer") {
                         val err = paged.error
@@ -253,6 +265,55 @@ private fun NotificationCard(n: NotificationItem, shape: RoundedCornerShape, onC
             } else if (!n.read) {
                 Spacer(Modifier.width(8.dp))
                 Box(Modifier.size(8.dp).clip(CircleShape).background(Accent))
+            }
+        }
+    }
+}
+
+/** Video notifications as a two-column grid: big thumbnail, channel picture, title and time under it. */
+private fun androidx.compose.foundation.lazy.LazyListScope.videoGrid(list: List<NotificationItem>, open: (NotificationItem) -> Unit) {
+    val rows = list.chunked(2)
+    itemsIndexed(rows) { _, row ->
+        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arr.spacedBy(10.dp)) {
+            row.forEach { n -> NotificationGridCard(n, Modifier.weight(1f), onClick = { open(n) }) }
+            if (row.size == 1) Spacer(Modifier.weight(1f))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NotificationGridCard(n: NotificationItem, modifier: Modifier, onClick: () -> Unit) {
+    M3Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = if (n.read) Card else SurfaceHighest),
+        modifier = modifier
+    ) {
+        Column(Modifier.padding(8.dp)) {
+            Box {
+                AppImage(n.thumb, Modifier.fillMaxWidth().aspectRatio(16f / 9f), RoundedCornerShape(14.dp))
+                if (n.short) {
+                    Text(
+                        "Short", color = Color.White, fontSize = 11.sp,
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp)
+                            .clip(RoundedCornerShape(6.dp)).background(Color(0xB3000000)).padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+                if (!n.read) {
+                    Box(Modifier.align(Alignment.TopEnd).padding(6.dp).size(9.dp).clip(CircleShape).background(Accent))
+                }
+            }
+            Row(Modifier.padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 2.dp), verticalAlignment = Alignment.Top) {
+                if (n.avatar.isNotEmpty()) {
+                    AppImage(n.avatar, Modifier.size(28.dp), CircleShape)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(n.message, color = TextPrimary, fontSize = 14.sp, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    val meta = listOf(kindLabel(n.kind), n.time).filter { it.isNotEmpty() }.joinToString(" • ")
+                    if (meta.isNotEmpty()) Text(meta, color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                }
             }
         }
     }

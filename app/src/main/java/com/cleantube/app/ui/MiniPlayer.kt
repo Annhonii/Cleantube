@@ -121,6 +121,9 @@ object VideoHost {
     /** Set by the page while its comments panel is open (Back closes that first). */
     var commentsOpen by mutableStateOf(false)
 
+    /** A comment notification was tapped: that video opens with its comments panel already showing. */
+    var openCommentsFor: String? = null
+
     /** The video that was open before this one, and the first "Up next" video: used by the player's previous / next buttons. */
     var prevItem by mutableStateOf<VideoItem?>(null)
     var nextItem by mutableStateOf<VideoItem?>(null)

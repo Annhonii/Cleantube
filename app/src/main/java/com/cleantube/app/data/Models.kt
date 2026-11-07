@@ -103,7 +103,11 @@ data class NotificationItem(
     val kind: String,
     val videoId: String = "",
     val channelId: String = "",
-    val handle: String = ""
+    val handle: String = "",
+    /** The video is a Short (play it in the Shorts player). */
+    val short: Boolean = false,
+    /** Id of the comment this notification is about (comment / reply / mention). */
+    val commentId: String = ""
 )
 
 data class LocalPlaylist(

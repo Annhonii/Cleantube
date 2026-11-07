@@ -181,7 +181,9 @@ object Api {
         kind = optString("kind").ifEmpty { "other" },
         videoId = optString("vid"),
         channelId = optString("chId"),
-        handle = optString("handle")
+        handle = optString("handle"),
+        short = optBoolean("short"),
+        commentId = optString("lc")
     )
 
     /** YouTube's notification bell of the signed-in account: new uploads, live, comments, replies, mentions... */

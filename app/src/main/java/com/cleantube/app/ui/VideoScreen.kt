@@ -125,6 +125,9 @@ fun VideoScreen(route: Route.Video) {
     var reload by remember(route.id) { mutableStateOf(0) }
     var commentsOpen by remember(route.id) { mutableStateOf(false) }
     var descOpen by remember(route.id) { mutableStateOf(false) }
+    LaunchedEffect(route.id) {
+        if (VideoHost.openCommentsFor == route.id) { VideoHost.openCommentsFor = null; commentsOpen = true }
+    }
     var saveDialog by remember(route.id) { mutableStateOf(false) }
     var downloadDialog by remember(route.id) { mutableStateOf(false) }
     // 1 = liked, -1 = disliked, 0 = no rating. Starts from what YouTube says about this account once the page is loaded.
