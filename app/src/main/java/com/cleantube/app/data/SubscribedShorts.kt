@@ -74,13 +74,20 @@ object SubscribedShorts {
         val watchedElsewhere = watchedInAccount()
         val answered = AtomicInteger(0)
         val gate = Semaphore(4)
+        val stamps = java.util.concurrent.ConcurrentHashMap<String, Long>()
         val perChannel = coroutineScope {
             subs.map { c ->
                 async(Dispatchers.Default) {
                     gate.withPermit {
                         val items = attempt { withTimeout(10_000) { Api.channelVideosTab(c.id, "shorts", null).items } }
                         if (items != null) answered.incrementAndGet()
-                        (items ?: emptyList()).filter { it.id.isNotEmpty() && it.short }.map {
+                        val times = if (items.isNullOrEmpty()) emptyMap()
+                        else attempt { withTimeout(8_000) { Api.channelUploadTimes(c.id) } } ?: emptyMap()
+                        stamps.putAll(times)
+                        // only real Shorts: flagged short, not live, and (when the length is known) at most 3 minutes
+                        (items ?: emptyList()).filter {
+                            it.id.isNotEmpty() && it.short && !it.live && !(it.durationSec > 180)
+                        }.map {
                             it.copy(
                                 channelId = c.id,
                                 channelTitle = it.channelTitle.ifEmpty { c.title },
@@ -98,6 +105,13 @@ object SubscribedShorts {
         }
         // Merge every channel's newest page, remove duplicates and anything already watched, then sort globally.
         // sortedBy is stable, so uploads with the same displayed age keep their original channel/API order.
+        val now = System.currentTimeMillis()
+        // exact upload time when the channel feed has it, otherwise estimated from the displayed age, otherwise last
+        fun uploadedAt(v: VideoItem): Long {
+            stamps[v.id]?.let { return it }
+            val age = Api.ageMinutes(v.ageText)
+            return if (age == Long.MAX_VALUE) 0L else now - age * 60_000L
+        }
         return perChannel.asSequence()
             .flatten()
             .distinctBy { it.id }
@@ -105,7 +119,7 @@ object SubscribedShorts {
                 !store.isShortSeen(it.id) && !store.isInHistory(it.id) &&
                     it.id !in watchedElsewhere && !store.isHidden(it)
             }
-            .sortedBy { Api.ageMinutes(it.ageText) }
+            .sortedByDescending { uploadedAt(it) }
             .toList()
     }
 }

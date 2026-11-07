@@ -987,6 +987,18 @@
       var r = parseItems(await call('browse', { browseId: a.id, params: params }));
       return { items: r.items, next: r.next };
     },
+    /** Exact upload times of a channel's latest uploads, from its public RSS feed: [{id, ts}] (ts in ms). */
+    uploadTimes: async function (a) {
+      var r = await fetch('/feeds/videos.xml?channel_id=' + encodeURIComponent(a.id), { credentials: 'include' });
+      if (!r.ok) throw new Error('feed ' + r.status);
+      var parts = (await r.text()).split('<entry>'), items = [];
+      for (var i = 1; i < parts.length; i++) {
+        var id = /<yt:videoId>([^<]+)</.exec(parts[i]), pub = /<published>([^<]+)</.exec(parts[i]);
+        var ts = pub ? Date.parse(pub[1]) : NaN;
+        if (id && !isNaN(ts)) items.push({ id: id[1], ts: ts });
+      }
+      return { items: items };
+    },
     handle: async function (a) {
       var j = await call('navigation/resolve_url', { url: 'https://www.youtube.com/' + a.handle });
       return { id: (j.endpoint && j.endpoint.browseEndpoint && j.endpoint.browseEndpoint.browseId) || '' };

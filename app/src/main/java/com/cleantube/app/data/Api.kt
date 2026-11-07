@@ -447,6 +447,17 @@ object Api {
         return Page(vids, j.nextToken())
     }
 
+    /** Exact upload time (ms) of a channel's latest uploads, by video id (from the channel's RSS feed). */
+    suspend fun channelUploadTimes(id: String): Map<String, Long> {
+        val arr = Yt.run("uploadTimes", args("id" to id)).optJSONArray("items") ?: return emptyMap()
+        val out = HashMap<String, Long>()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            out[o.optString("id")] = o.optLong("ts")
+        }
+        return out
+    }
+
     /** A channel's Playlists tab. */
     suspend fun channelPlaylists(id: String, token: String?): Page<PlaylistItem> {
         val j = Yt.run("channelTab", args("id" to id, "tab" to "playlists", "token" to token))
