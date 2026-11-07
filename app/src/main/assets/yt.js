@@ -795,6 +795,7 @@
       if (!vid && url && (m = url.match(/[?&]v=([\w-]{11})/) || url.match(/\/shorts\/([\w-]{11})/))) vid = m[1];
       var isShort = !!(ep.reelWatchEndpoint || /^\/shorts\//.test(url));
       var lcm = url.match(/[?&]lc=([\w.-]+)/);
+      if (!vid) { var fv = findFirst(ep, 'videoId'); if (typeof fv === 'string' && fv.length === 11) vid = fv; }
       var thumb = lastThumb(n.videoThumbnail);
       if (!vid && thumb && (m = thumb.match(/\/vi\/([\w-]{11})\//))) vid = m[1];
       var chId = (ep.browseEndpoint && typeof ep.browseEndpoint.browseId === 'string' && ep.browseEndpoint.browseId.indexOf('UC') === 0)
@@ -809,6 +810,7 @@
       else if (/premiere/.test(low)) kind = 'premiere';
       else if (/\blive\b|streaming/.test(low)) kind = 'live';
       else if (/upload|posted|new video|published/.test(low) || (vid && thumb)) kind = 'upload';
+      if (lcm && (kind === 'upload' || kind === 'other')) kind = 'comment';
       var id = n.notificationId || (vid + '|' + msg + '|' + txt(n.sentTimeText));
       if (!msg && !vid && !chId) return true;
       if (seen[id]) return true;

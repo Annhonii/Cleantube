@@ -54,7 +54,7 @@ import com.cleantube.app.data.Session
 import com.cleantube.app.data.TabCache
 import com.cleantube.app.data.VideoItem
 
-private enum class NotifFilter(val label: String) { All("All"), Videos("Videos"), Mentions("Mentions") }
+private enum class NotifFilter(val label: String) { Videos("Videos"), Mentions("Mentions") }
 
 /** Uploads, live streams and premieres. */
 private fun NotificationItem.isVideo() = kind == "upload" || kind == "live" || kind == "premiere"
@@ -91,12 +91,13 @@ fun NotificationsScreen() {
             }
         } else {
             val paged = TabCache.paged("notifications:${Session.handle}") { token -> Api.notifications(token) }
-            var filter by rememberSaveable { mutableStateOf(NotifFilter.All) }
+            var filter by rememberSaveable { mutableStateOf(NotifFilter.Videos) }
             val open: (NotificationItem) -> Unit = { n ->
                 when {
                     // a comment / reply / mention opens its video with the comments panel showing
-                    n.videoId.isNotEmpty() && n.isMention() -> {
+                    n.videoId.isNotEmpty() && (n.isMention() || n.commentId.isNotEmpty()) -> {
                         VideoHost.openCommentsFor = n.videoId
+                        VideoHost.commentsRequest++
                         nav.push(Route.Video(n.videoId))
                     }
                     // Shorts play in the Shorts player, long videos in the normal player
@@ -133,15 +134,14 @@ fun NotificationsScreen() {
 
             val all = paged.items
             val shown = when (filter) {
-                NotifFilter.All -> all
                 NotifFilter.Videos -> all.filter { it.isVideo() }
-                NotifFilter.Mentions -> all.filter { it.isMention() }
+                NotifFilter.Mentions -> all.filter { !it.isVideo() }
             }
             val state = paged.listState
             LoadMoreEffect(state, paged)
             // a filter can leave only a few rows on screen: keep loading older notifications until the list is filled
             LaunchedEffect(filter, all.size, paged.loading, paged.finished) {
-                if (filter != NotifFilter.All && shown.size < 6 && !paged.loading && !paged.finished && paged.error == null && all.isNotEmpty()) {
+                if (shown.size < 6 && !paged.loading && !paged.finished && paged.error == null && all.isNotEmpty()) {
                     paged.loadMore()
                 }
             }
@@ -152,26 +152,8 @@ fun NotificationsScreen() {
                     contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = listBottomPad()),
                     verticalArrangement = Arr.spacedBy(0.dp)
                 ) {
-                    if (filter == NotifFilter.All) {
-                        val videos = shown.filter { it.isVideo() }
-                        val mentions = shown.filter { it.isMention() }
-                        val other = shown.filter { !it.isVideo() && !it.isMention() }
-                        if (videos.isNotEmpty()) {
-                            item(key = "h-videos") { SectionTitle("Video uploads") }
-                            videoGrid(videos, open)
-                        }
-                        if (mentions.isNotEmpty()) {
-                            item(key = "h-mentions") { SectionTitle("Mentions & comments") }
-                            itemsIndexed(mentions) { i, n -> NotificationCard(n, groupedCardShape(i, mentions.size, 28.dp), onClick = { open(n) }) }
-                        }
-                        if (other.isNotEmpty()) {
-                            item(key = "h-other") { SectionTitle("Other") }
-                            itemsIndexed(other) { i, n -> NotificationCard(n, groupedCardShape(i, other.size, 28.dp), onClick = { open(n) }) }
-                        }
-                    } else {
                         if (filter == NotifFilter.Videos) videoGrid(shown, open)
                         else itemsIndexed(shown) { i, n -> NotificationCard(n, groupedCardShape(i, shown.size, 28.dp), onClick = { open(n) }) }
-                    }
                     item(key = "footer") {
                         val err = paged.error
                         when {
@@ -179,7 +161,6 @@ fun NotificationsScreen() {
                             paged.loading -> Loading()
                             shown.isEmpty() && paged.finished -> EmptyState(
                                 when (filter) {
-                                    NotifFilter.All -> "No notifications yet."
                                     NotifFilter.Videos -> "No new videos from your channels."
                                     NotifFilter.Mentions -> "No mentions or comments yet."
                                 }

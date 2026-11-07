@@ -125,7 +125,7 @@ fun VideoScreen(route: Route.Video) {
     var reload by remember(route.id) { mutableStateOf(0) }
     var commentsOpen by remember(route.id) { mutableStateOf(false) }
     var descOpen by remember(route.id) { mutableStateOf(false) }
-    LaunchedEffect(route.id) {
+    LaunchedEffect(route.id, VideoHost.commentsRequest) {
         if (VideoHost.openCommentsFor == route.id) { VideoHost.openCommentsFor = null; commentsOpen = true }
     }
     var saveDialog by remember(route.id) { mutableStateOf(false) }
