@@ -1,7 +1,7 @@
 name: Compile check
 
 # Builds a debug APK on every branch except main and on pull requests, so a change can be checked
-# before it is merged. It never publishes a release (build.yml does that for main only).
+# before it is mered. It never publishes a release (build.yml does that for main only).
 on:
   push:
     branches-ignore: [main]
