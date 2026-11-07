@@ -11,6 +11,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,3 +39,11 @@ jobs:
           name: Voidstream v2.0.${{ github.run_number }}
           body: Automated build from commit ${{ github.sha }}
           files: Voidstream-v2.0.${{ github.run_number }}.apk
+
+      - name: Send APK to Telegram
+        if: ${{ env.TG_TOKEN != '' && env.TG_CHAT != '' }}
+        run: |
+          curl -sS --fail-with-body "https://api.telegram.org/bot${TG_TOKEN}/sendDocument" \
+            -F chat_id="${TG_CHAT}" \
+            -F document=@"Voidstream-v2.0.${{ github.run_number }}.apk" \
+            -F caption="Voidstream v2.0.${{ github.run_number }} is ready"
