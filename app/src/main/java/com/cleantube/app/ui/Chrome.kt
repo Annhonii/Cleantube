@@ -158,7 +158,7 @@ data class TabSpec(val id: String, val route: Route, val label: String, val icon
 /** Every tab the app has, in the default order. */
 val AllTabs = listOf(
     TabSpec("shorts", Route.Shorts, "Shorts", Icons.Rounded.LocalFireDepartment),
-    TabSpec("feed", Route.Feed, "New", Icons.Rounded.Subscriptions),
+    TabSpec("feed", Route.Feed, "Subscriptions", Icons.Rounded.Subscriptions),
     TabSpec("library", Route.Library, "Library", Icons.Rounded.VideoLibrary),
     TabSpec("downloads", Route.Downloads, "Downloads", Icons.Rounded.Download)
 )
