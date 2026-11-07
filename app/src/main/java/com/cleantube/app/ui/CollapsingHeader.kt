@@ -447,6 +447,13 @@ private fun NavRow(
     // text that never gets cut ("Library" in full): the label size ignores the phone's font scale
     val labelSp = (15f / density.fontScale).sp
     val navH = NavH
+    // exact label widths: a cell grows by its label's width as the tab opens, so the label always fits inside its indicator
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val labelStyle = androidx.compose.ui.text.TextStyle(fontSize = labelSp, fontWeight = FontWeight.Medium)
+    val labelPx = remember(tabs, labelSp) {
+        tabs.map { measurer.measure(androidx.compose.ui.text.AnnotatedString(it.label), labelStyle, maxLines = 1, softWrap = false).size.width.toFloat() }
+    }
+    val collapsedPx = with(density) { 44.dp.toPx() }   // icon 20dp + 12dp padding each side
 
     Box(Modifier.fillMaxSize().onGloballyPositioned { root = it.positionInWindow() }) {
         // 1: resting backgrounds: the round Shorts button and the pill behind the other tabs
@@ -510,9 +517,10 @@ private fun NavRow(
                     if (hasShorts && i == 0) return@forEachIndexed
                     val k = (1f - kotlin.math.abs(pos - i)).coerceIn(0f, 1f)
                     val tint = lerp(idle, onSel, k)
+                    val cellWeight = collapsedPx + k * (with(density) { 4.dp.toPx() } + labelPx.getOrElse(i) { 0f })
                     androidx.compose.foundation.layout.BoxWithConstraints(
                         Modifier
-                            .weight(1f)
+                            .weight(cellWeight.coerceAtLeast(1f))
                             .fillMaxHeight()
                             .onGloballyPositioned { c ->
                                 if (i < bX.size) {
